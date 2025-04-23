@@ -1,33 +1,44 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import AppNavigator from './navigation/AppNavigator';
-import { AuthProvider } from './context/AuthContext';
+import * as Font from 'expo-font';
+import { AppNavigator } from './navigation/AppNavigator';
+import { AuthProvider } from './services/auth';
 import Loading from './components/Loading';
+import { theme } from './utils/theme';
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_500Medium,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-  });
+  const [isReady, setIsReady] = useState(false);
 
-  if (!fontsLoaded) {
+  // Load custom fonts
+  useEffect(() => {
+    async function loadResources() {
+      try {
+        await Font.loadAsync({
+          'Poppins-Regular': require('./assets/fonts/Poppins-Regular.ttf'),
+          'Poppins-Medium': require('./assets/fonts/Poppins-Medium.ttf'),
+          'Poppins-Bold': require('./assets/fonts/Poppins-Bold.ttf'),
+        });
+      } catch (e) {
+        console.warn('Error loading fonts:', e);
+      } finally {
+        setIsReady(true);
+      }
+    }
+
+    loadResources();
+  }, []);
+
+  if (!isReady) {
     return <Loading />;
   }
 
   return (
     <SafeAreaProvider>
+      <StatusBar style="dark" backgroundColor={theme.colors.background} />
       <AuthProvider>
         <NavigationContainer>
-          <StatusBar style="dark" />
           <AppNavigator />
         </NavigationContainer>
       </AuthProvider>
