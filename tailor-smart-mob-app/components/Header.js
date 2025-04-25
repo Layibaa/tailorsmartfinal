@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { theme } from '../utils/theme';
-import { logoSvg } from '../assets/logo.svg';
+const logoSvg = require('../assets/logo.svg');
 
 const Header = ({
   title,

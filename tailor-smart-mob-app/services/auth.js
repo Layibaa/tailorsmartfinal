@@ -1,6 +1,4 @@
 import React, { createContext, useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { loginUser, registerUser, getCurrentUser } from './api';
 
 // Create context
 export const AuthContext = createContext();
@@ -9,128 +7,107 @@ export const AuthProvider = ({ children }) => {
   const [authState, setAuthState] = useState({
     token: null,
     user: null,
-    isLoading: true,
+    isLoading: false,
     error: null,
   });
 
-  // Check if user is already logged in
   useEffect(() => {
-    const loadToken = async () => {
-      try {
-        // Get token from secure storage
-        const token = await SecureStore.getItemAsync('token');
-        
-        if (token) {
-          // If token exists, fetch current user data
-          const userData = await getCurrentUser();
-          
-          setAuthState({
-            token,
-            user: userData,
-            isLoading: false,
-            error: null,
-          });
-        } else {
-          // No token found
-          setAuthState({
-            token: null,
-            user: null,
-            isLoading: false,
-            error: null,
-          });
-        }
-      } catch (error) {
-        console.error('Error loading auth state:', error);
-        // Clear token if there was an error (it might be expired)
-        await SecureStore.deleteItemAsync('token');
-        setAuthState({
-          token: null,
-          user: null,
-          isLoading: false,
-          error: error.message,
-        });
-      }
-    };
-
-    loadToken();
+    // Simulate checking auth state
+    setTimeout(() => {
+      setAuthState({
+        token: null,
+        user: null,
+        isLoading: false,
+        error: null
+      });
+    }, 500);
   }, []);
 
-  // Login
+  // Login (simplified for testing)
   const login = async (email, password) => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // Call login API
-      const response = await loginUser(email, password);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Store token in secure storage
-      await SecureStore.setItemAsync('token', response.token);
+      // Mock response for testing
+      const mockResponse = {
+        token: 'mock-token-123',
+        user: {
+          id: '1',
+          name: 'Test User',
+          email: email,
+          role: 'customer'
+        }
+      };
       
       // Update auth state
       setAuthState({
-        token: response.token,
-        user: response.user,
+        token: mockResponse.token,
+        user: mockResponse.user,
         isLoading: false,
         error: null,
       });
       
-      return response;
+      return mockResponse;
     } catch (error) {
       setAuthState(prev => ({
         ...prev,
         isLoading: false,
-        error: error.message,
+        error: error.message || 'Login failed',
       }));
       throw error;
     }
   };
 
-  // Register
+  // Register (simplified for testing)
   const register = async (userData) => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // Call register API
-      const response = await registerUser(userData);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Store token in secure storage
-      await SecureStore.setItemAsync('token', response.token);
+      // Mock response for testing
+      const mockResponse = {
+        token: 'mock-token-123',
+        user: {
+          id: '1',
+          name: userData.name,
+          email: userData.email,
+          role: userData.role || 'customer'
+        }
+      };
       
       // Update auth state
       setAuthState({
-        token: response.token,
-        user: response.user,
+        token: mockResponse.token,
+        user: mockResponse.user,
         isLoading: false,
         error: null,
       });
       
-      return response;
+      return mockResponse;
     } catch (error) {
       setAuthState(prev => ({
         ...prev,
         isLoading: false,
-        error: error.message,
+        error: error.message || 'Registration failed',
       }));
       throw error;
     }
   };
 
   // Logout
-  const logout = async () => {
-    try {
-      // Clear token from secure storage
-      await SecureStore.deleteItemAsync('token');
-      
-      // Reset auth state
-      setAuthState({
-        token: null,
-        user: null,
-        isLoading: false,
-        error: null,
-      });
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
+  const logout = () => {
+    // Reset auth state
+    setAuthState({
+      token: null,
+      user: null,
+      isLoading: false,
+      error: null,
+    });
   };
 
   // Update user in state (after profile updates)

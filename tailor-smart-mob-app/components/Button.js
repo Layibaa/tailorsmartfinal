@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
-    fontFamily: 'Poppins-Medium',
+    fontWeight: '500',
     textAlign: 'center',
   },
 });
