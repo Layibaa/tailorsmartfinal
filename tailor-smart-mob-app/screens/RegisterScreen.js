@@ -1,136 +1,312 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
+import React, { useState, useContext } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
   KeyboardAvoidingView,
   Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Alert,
-  ScrollView
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Formik } from 'formik';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+// Components
+import AuthHeader from '../components/AuthHeader';
+import FormInput from '../components/FormInput';
+import FormButton from '../components/FormButton';
+import LoadingOverlay from '../components/LoadingOverlay';
+
+// Utils
+import {
+  customerRegistrationSchema,
+  tailorRegistrationSchema,
+} from '../utils/validationSchemas';
+import authService from '../utils/authService';
+import { AuthContext } from '../utils/authContext';
 
 const RegisterScreen = ({ navigation }) => {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [userType, setUserType] = useState('customer');
   const [isLoading, setIsLoading] = useState(false);
+  const { setAuthError } = useContext(AuthContext);
 
-  const handleRegister = () => {
-    // Basic form validation
-    if (!fullName || !email || !phone || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
+  const handleRegister = async (values) => {
     setIsLoading(true);
-    
-    // Simulate registration process
-    setTimeout(() => {
-      console.log('Registration attempt with:', { fullName, email, phone, password });
+    try {
+      // Format the data based on user type
+      const userData = userType === 'customer' 
+        ? {
+            mobileNumber: values.mobileNumber,
+            password: values.password,
+            gender: values.gender,
+            age: values.age,
+            height: values.height,
+            weight: values.weight,
+          }
+        : {
+            mobileNumber: values.mobileNumber,
+            password: values.password,
+            shopName: values.shopName,
+            location: values.location,
+            priceRange: {
+              min: values.priceRangeMin,
+              max: values.priceRangeMax,
+            },
+          };
+
+      // Register the user
+      const response = await authService.register(userData, userType);
+
+      // Navigate to OTP verification screen
+      navigation.navigate('OTPVerification', {
+        mobileNumber: values.mobileNumber,
+        purpose: 'registration',
+      });
+    } catch (error) {
+      setAuthError(error);
+      Alert.alert('Registration Failed', error.message || 'An error occurred during registration');
+    } finally {
       setIsLoading(false);
-      
-      Alert.alert(
-        'Registration Successful',
-        'Your account has been created successfully!',
-        [
-          { text: 'OK', onPress: () => navigation.navigate('Login') }
-        ]
-      );
-    }, 1500);
+    }
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <StatusBar style="light" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.safeArea}>
+      <AuthHeader title="Create Account" showBackButton={true} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.scrollView}>
           <View style={styles.header}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join TailorSmart today</Text>
+            <Text style={styles.title}>Join TailorSmart</Text>
+            <Text style={styles.subtitle}>Create your account</Text>
           </View>
-          
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your full name"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Phone Number</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your phone number"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Create a password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
-            </View>
-            
-            <TouchableOpacity 
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={isLoading}
+
+          <View style={styles.userTypeContainer}>
+            <TouchableOpacity
+              style={[
+                styles.userTypeButton,
+                userType === 'customer' && styles.activeUserType,
+              ]}
+              onPress={() => setUserType('customer')}
             >
-              <Text style={styles.buttonText}>
-                {isLoading ? 'Creating Account...' : 'Register'}
+              <Text
+                style={[
+                  styles.userTypeText,
+                  userType === 'customer' && styles.activeUserTypeText,
+                ]}
+              >
+                Customer
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.userTypeButton,
+                userType === 'tailor' && styles.activeUserType,
+              ]}
+              onPress={() => setUserType('tailor')}
+            >
+              <Text
+                style={[
+                  styles.userTypeText,
+                  userType === 'tailor' && styles.activeUserTypeText,
+                ]}
+              >
+                Tailor
               </Text>
             </TouchableOpacity>
           </View>
-          
+
+          <Formik
+            initialValues={
+              userType === 'customer'
+                ? {
+                    mobileNumber: '',
+                    password: '',
+                    confirmPassword: '',
+                    gender: '',
+                    age: '',
+                    height: '',
+                    weight: '',
+                  }
+                : {
+                    mobileNumber: '',
+                    password: '',
+                    confirmPassword: '',
+                    shopName: '',
+                    location: '',
+                    priceRangeMin: '',
+                    priceRangeMax: '',
+                  }
+            }
+            validationSchema={
+              userType === 'customer'
+                ? customerRegistrationSchema
+                : tailorRegistrationSchema
+            }
+            onSubmit={handleRegister}
+            enableReinitialize
+          >
+            {({
+              handleChange,
+              handleBlur,
+              handleSubmit,
+              values,
+              errors,
+              touched,
+              isValid,
+              dirty,
+            }) => (
+              <View style={styles.formContainer}>
+                <FormInput
+                  label="Mobile Number"
+                  placeholder="Enter your mobile number"
+                  icon="phone"
+                  keyboardType="phone-pad"
+                  value={values.mobileNumber}
+                  onChangeText={handleChange('mobileNumber')}
+                  onBlur={handleBlur('mobileNumber')}
+                  error={errors.mobileNumber}
+                  touched={touched.mobileNumber}
+                />
+
+                <FormInput
+                  label="Password"
+                  placeholder="Enter your password"
+                  icon="lock"
+                  secureTextEntry
+                  value={values.password}
+                  onChangeText={handleChange('password')}
+                  onBlur={handleBlur('password')}
+                  error={errors.password}
+                  touched={touched.password}
+                />
+
+                <FormInput
+                  label="Confirm Password"
+                  placeholder="Confirm your password"
+                  icon="lock"
+                  secureTextEntry
+                  value={values.confirmPassword}
+                  onChangeText={handleChange('confirmPassword')}
+                  onBlur={handleBlur('confirmPassword')}
+                  error={errors.confirmPassword}
+                  touched={touched.confirmPassword}
+                />
+
+                {userType === 'customer' ? (
+                  // Customer specific fields
+                  <>
+                    <FormInput
+                      label="Gender"
+                      placeholder="Enter your gender (male/female/other)"
+                      icon="user"
+                      value={values.gender}
+                      onChangeText={handleChange('gender')}
+                      onBlur={handleBlur('gender')}
+                      error={errors.gender}
+                      touched={touched.gender}
+                    />
+
+                    <FormInput
+                      label="Age"
+                      placeholder="Enter your age"
+                      icon="calendar"
+                      keyboardType="numeric"
+                      value={values.age}
+                      onChangeText={handleChange('age')}
+                      onBlur={handleBlur('age')}
+                      error={errors.age}
+                      touched={touched.age}
+                    />
+
+                    <FormInput
+                      label="Height (cm)"
+                      placeholder="Enter your height in cm"
+                      icon="trending-up"
+                      keyboardType="numeric"
+                      value={values.height}
+                      onChangeText={handleChange('height')}
+                      onBlur={handleBlur('height')}
+                      error={errors.height}
+                      touched={touched.height}
+                    />
+
+                    <FormInput
+                      label="Weight (kg)"
+                      placeholder="Enter your weight in kg"
+                      icon="activity"
+                      keyboardType="numeric"
+                      value={values.weight}
+                      onChangeText={handleChange('weight')}
+                      onBlur={handleBlur('weight')}
+                      error={errors.weight}
+                      touched={touched.weight}
+                    />
+                  </>
+                ) : (
+                  // Tailor specific fields
+                  <>
+                    <FormInput
+                      label="Shop Name"
+                      placeholder="Enter your shop name"
+                      icon="home"
+                      value={values.shopName}
+                      onChangeText={handleChange('shopName')}
+                      onBlur={handleBlur('shopName')}
+                      error={errors.shopName}
+                      touched={touched.shopName}
+                    />
+
+                    <FormInput
+                      label="Location"
+                      placeholder="Enter your shop location"
+                      icon="map-pin"
+                      value={values.location}
+                      onChangeText={handleChange('location')}
+                      onBlur={handleBlur('location')}
+                      error={errors.location}
+                      touched={touched.location}
+                    />
+
+                    <FormInput
+                      label="Minimum Price Range"
+                      placeholder="Enter minimum price"
+                      icon="dollar-sign"
+                      keyboardType="numeric"
+                      value={values.priceRangeMin}
+                      onChangeText={handleChange('priceRangeMin')}
+                      onBlur={handleBlur('priceRangeMin')}
+                      error={errors.priceRangeMin}
+                      touched={touched.priceRangeMin}
+                    />
+
+                    <FormInput
+                      label="Maximum Price Range"
+                      placeholder="Enter maximum price"
+                      icon="dollar-sign"
+                      keyboardType="numeric"
+                      value={values.priceRangeMax}
+                      onChangeText={handleChange('priceRangeMax')}
+                      onBlur={handleBlur('priceRangeMax')}
+                      error={errors.priceRangeMax}
+                      touched={touched.priceRangeMax}
+                    />
+                  </>
+                )}
+
+                <FormButton
+                  buttonTitle="Register"
+                  onPress={handleSubmit}
+                  disabled={!(isValid && dirty)}
+                  isLoading={isLoading}
+                />
+              </View>
+            )}
+          </Formik>
+
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account?</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -138,89 +314,79 @@ const RegisterScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+      
+      <LoadingOverlay visible={isLoading} message="Registering..." />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#4A90E2',
   },
-  scrollContent: {
+  scrollView: {
     flexGrow: 1,
-    padding: 24,
-    paddingTop: 40,
-    paddingBottom: 40,
+    padding: 20,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginVertical: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#0066CC',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#666',
   },
-  form: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+  userTypeContainer: {
+    flexDirection: 'row',
     marginBottom: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    overflow: 'hidden',
   },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 16,
+  userTypeButton: {
+    flex: 1,
     paddingVertical: 12,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 8,
-    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
+    backgroundColor: '#f5f5f5',
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  userTypeText: {
+    fontWeight: '600',
+    color: '#666',
   },
-  buttonText: {
+  activeUserType: {
+    backgroundColor: '#0066CC',
+  },
+  activeUserTypeText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+  },
+  formContainer: {
+    width: '100%',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 30,
   },
   footerText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginRight: 4,
+    color: '#666',
+    marginRight: 5,
   },
   loginText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#0066CC',
+    fontWeight: '600',
   },
 });
 

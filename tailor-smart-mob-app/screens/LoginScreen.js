@@ -1,190 +1,272 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
+import React, { useState, useContext, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
   KeyboardAvoidingView,
   Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Alert 
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Formik } from 'formik';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+// Components
+import FormInput from '../components/FormInput';
+import FormButton from '../components/FormButton';
+import LoadingOverlay from '../components/LoadingOverlay';
+
+// Utils
+import { loginSchema, adminLoginSchema } from '../utils/validationSchemas';
+import authService from '../utils/authService';
+import { AuthContext } from '../utils/authContext';
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { login, setAuthError, authState, clearError } = useContext(AuthContext);
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
+  // Clear any existing errors on screen mount
+  useEffect(() => {
+    clearError();
+  }, []);
+
+  // Handle error messages
+  useEffect(() => {
+    if (authState.authError) {
+      Alert.alert('Login Failed', authState.authError.message);
+      clearError();
     }
+  }, [authState.authError]);
 
+  // Handle login submission
+  const handleLogin = async (values) => {
     setIsLoading(true);
-    
-    // Simulate login process
-    setTimeout(() => {
-      // In a real app, this would call an API
-      console.log('Login attempt with:', { email, password });
-      setIsLoading(false);
+    try {
+      let loginData;
       
-      // Navigate to home screen for demo purposes
-      navigation.navigate('Home');
-    }, 1500);
+      if (isAdmin) {
+        // Admin login with hardcoded credentials
+        loginData = await authService.adminLogin(values.username, values.password);
+        await login(loginData.token, loginData.user);
+      } else {
+        try {
+          // Regular user login
+          loginData = await authService.login(values.mobileNumber, values.password);
+          await login(loginData.token, loginData.user);
+        } catch (loginError) {
+          // Check if it's an unverified account that needs OTP verification
+          if (loginError.requiresVerification) {
+            // Show debug OTP if available
+            let message = loginError.message || 'Your account needs verification. Please enter the OTP sent to your mobile.';
+            
+            if (loginError.debug && loginError.debug.otp) {
+              message += `\n\nDEV MODE: The OTP is ${loginError.debug.otp}`;
+            }
+            
+            Alert.alert('Verification Required', message);
+            
+            // Navigate to OTP verification screen
+            navigation.navigate('OTPVerification', {
+              mobileNumber: values.mobileNumber,
+              purpose: 'login',
+            });
+            
+            // Don't treat this as an error since we're handling it
+            return;
+          }
+          
+          // For other errors, rethrow
+          throw loginError;
+        }
+      }
+    } catch (error) {
+      setAuthError(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Toggle between user and admin login
+  const toggleAdminLogin = () => {
+    setIsAdmin(!isAdmin);
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <StatusBar style="light" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.inner}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.scrollView}>
           <View style={styles.header}>
             <Text style={styles.title}>TailorSmart</Text>
-            <Text style={styles.subtitle}>Login to your account</Text>
+            <Text style={styles.subtitle}>
+              {isAdmin ? 'Admin Login' : 'Welcome Back'}
+            </Text>
           </View>
-          
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+
+          <Formik
+            initialValues={
+              isAdmin
+                ? { username: '', password: '' }
+                : { mobileNumber: '', password: '' }
+            }
+            validationSchema={isAdmin ? adminLoginSchema : loginSchema}
+            onSubmit={handleLogin}
+          >
+            {({
+              handleChange,
+              handleBlur,
+              handleSubmit,
+              values,
+              errors,
+              touched,
+              isValid,
+              dirty,
+            }) => (
+              <View style={styles.formContainer}>
+                {isAdmin ? (
+                  <FormInput
+                    label="Username"
+                    placeholder="Enter admin username"
+                    icon="user"
+                    value={values.username}
+                    onChangeText={handleChange('username')}
+                    onBlur={handleBlur('username')}
+                    error={errors.username}
+                    touched={touched.username}
+                  />
+                ) : (
+                  <FormInput
+                    label="Mobile Number"
+                    placeholder="Enter your mobile number"
+                    icon="phone"
+                    keyboardType="phone-pad"
+                    value={values.mobileNumber}
+                    onChangeText={handleChange('mobileNumber')}
+                    onBlur={handleBlur('mobileNumber')}
+                    error={errors.mobileNumber}
+                    touched={touched.mobileNumber}
+                  />
+                )}
+
+                <FormInput
+                  label="Password"
+                  placeholder="Enter your password"
+                  icon="lock"
+                  secureTextEntry
+                  value={values.password}
+                  onChangeText={handleChange('password')}
+                  onBlur={handleBlur('password')}
+                  error={errors.password}
+                  touched={touched.password}
+                />
+
+                <TouchableOpacity
+                  style={styles.forgotPassword}
+                  onPress={() => navigation.navigate('ForgotPassword')}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
+
+                <FormButton
+                  buttonTitle="Login"
+                  onPress={handleSubmit}
+                  disabled={!(isValid && dirty)}
+                  isLoading={isLoading}
+                />
+              </View>
+            )}
+          </Formik>
+
+          {!isAdmin && (
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Don't have an account?</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Register')}
+              >
+                <Text style={styles.registerText}>Register Now</Text>
+              </TouchableOpacity>
             </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-            </View>
-            
-            <TouchableOpacity style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
-              <Text style={styles.buttonText}>
-                {isLoading ? 'Logging in...' : 'Login'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.registerText}>Register</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+          )}
+
+          <TouchableOpacity
+            style={styles.adminToggle}
+            onPress={toggleAdminLogin}
+          >
+            <Text style={styles.adminToggleText}>
+              {isAdmin ? 'Switch to User Login' : 'Admin Login'}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      
+      <LoadingOverlay visible={isLoading} message="Logging in..." />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#4A90E2',
   },
-  inner: {
-    flex: 1,
-    justifyContent: 'space-between',
-    padding: 24,
+  scrollView: {
+    flexGrow: 1,
+    padding: 20,
   },
   header: {
-    marginTop: 60,
     alignItems: 'center',
+    marginVertical: 30,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#0066CC',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#666',
   },
-  form: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+  formContainer: {
+    width: '100%',
+    marginTop: 20,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 20,
+    marginVertical: 10,
   },
   forgotPasswordText: {
-    color: '#4A90E2',
-    fontSize: 14,
-  },
-  button: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 8,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#0066CC',
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 30,
+    marginTop: 30,
   },
   footerText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginRight: 4,
+    color: '#666',
+    marginRight: 5,
   },
   registerText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#0066CC',
+    fontWeight: '600',
+  },
+  adminToggle: {
+    alignItems: 'center',
+    marginTop: 20,
+    padding: 10,
+  },
+  adminToggleText: {
+    color: '#0066CC',
+    fontWeight: '500',
   },
 });
 

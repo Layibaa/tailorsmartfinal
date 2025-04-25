@@ -1,98 +1,56 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const http = require('http');
-const socketIo = require('socket.io');
-const dotenv = require('dotenv');
-const path = require('path');
+const { connectDB, disconnectDB } = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
+const { errorHandler } = require('./middlewares/authMiddleware');
 
 // Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config();
 
-// Import routes
-const routes = require('./routes');
-
-// Import socket configuration
-const setupSocketIO = require('./utils/socket');
-
-// Import error middleware
-const errorHandler = require('./middleware/error');
-
-// Create Express app
+// Create Express App
 const app = express();
 
-// Create HTTP server
-const server = http.createServer(app);
-
-// Setup Socket.IO
-const io = socketIo(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
-});
-
-// Setup socket handlers
-setupSocketIO(io);
+// Connect to MongoDB
+connectDB();
 
 // Middleware
-app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
-// Serve static files if in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-}
+// Routes
+app.use('/api/auth', authRoutes);
 
-// Mount API routes
-app.use('/api', routes);
-
-// Default route
+// Base route
 app.get('/', (req, res) => {
-  res.send('TailorSmart API is running');
+  res.json({ message: 'TailorSmart API is running...' });
 });
 
-// Error handling middleware
+// Error handler middleware
 app.use(errorHandler);
 
-// Connect to MongoDB
-const connectDB = async () => {
-  try {
-    // Check if we're in Replit environment or local
-    const isReplit = process.env.REPL_ID !== undefined;
-    
-    let mongoUri = process.env.MONGO_URI;
-    
-    // If we're in Replit, use in-memory MongoDB server
-    if (isReplit) {
-      const { MongoMemoryServer } = require('mongodb-memory-server');
-      const mongod = await MongoMemoryServer.create();
-      mongoUri = mongod.getUri();
-      console.log(`Using MongoDB Memory Server: ${mongoUri}`);
-    }
-    
-    const conn = await mongoose.connect(mongoUri);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`Error connecting to MongoDB: ${error.message}`);
-    process.exit(1);
-  }
-};
+// Port
+const PORT = process.env.PORT || 8000;
 
 // Start server
-const PORT = process.env.PORT || 8000;
-connectDB().then(() => {
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('SIGINT received. Shutting down gracefully');
+  await disconnectDB();
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
   });
 });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error(`Error: ${err.message}`);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received. Shutting down gracefully');
+  await disconnectDB();
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
 });
-
-module.exports = { app, server };
