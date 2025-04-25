@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   label: {
     marginBottom: 6,
     fontSize: 14,
-    fontFamily: 'Poppins-Medium',
+    fontWeight: '500',
     color: theme.colors.text,
   },
   inputContainer: {
@@ -80,7 +80,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 15,
-    fontFamily: 'Poppins-Regular',
     color: theme.colors.text,
   },
   inputWithIcon: {
@@ -96,7 +95,6 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 4,
     fontSize: 12,
-    fontFamily: 'Poppins-Regular',
     color: theme.colors.error,
   },
 });

@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   text: {
     marginTop: 8,
     fontSize: 14,
-    fontFamily: 'Poppins-Regular',
+    fontWeight: '400',
     color: theme.colors.textLight,
   },
 });

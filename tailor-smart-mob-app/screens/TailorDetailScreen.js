@@ -1,490 +1,414 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, RefreshControl } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import Header from '../components/Header';
-import Button from '../components/Button';
-import Card from '../components/Card';
-import Loading from '../components/Loading';
-import { theme } from '../utils/theme';
-import { fetchTailorDetails } from '../services/api';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator
+} from 'react-native';
 
 const TailorDetailScreen = ({ route, navigation }) => {
   const { tailorId } = route.params;
+  const [isLoading, setIsLoading] = useState(true);
   const [tailor, setTailor] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadTailorDetails = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchTailorDetails(tailorId);
-      setTailor(data);
-    } catch (error) {
-      console.error('Error fetching tailor details:', error);
-      Alert.alert('Error', 'Failed to load tailor details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadTailorDetails();
-    setRefreshing(false);
-  };
+  // Sample data - in a real app, this would come from an API
+  const tailorData = [
+    { 
+      id: '1', 
+      name: 'John Smith', 
+      rating: 4.8, 
+      specialty: 'Suits & Formal Wear',
+      location: 'New York, NY',
+      experience: '12 years',
+      bio: 'Expert tailor with over a decade of experience in high-end suits and formal wear. Trained in London and worked for several luxury fashion houses before starting my own business.',
+      services: [
+        { name: 'Custom Suit', price: '$850+' },
+        { name: 'Suit Alterations', price: '$150+' },
+        { name: 'Formal Shirt', price: '$120+' },
+        { name: 'Pants Hemming', price: '$35' }
+      ],
+      reviews: [
+        { id: '1', user: 'Michael B.', rating: 5, comment: 'Excellent work on my wedding suit. Fit was perfect!', date: '2 weeks ago' },
+        { id: '2', user: 'Sarah T.', rating: 4, comment: 'Great quality alterations, slightly expensive but worth it.', date: '1 month ago' },
+        { id: '3', user: 'David R.', rating: 5, comment: 'John made me the best suit I\'ve ever owned. Will definitely return.', date: '2 months ago' }
+      ]
+    },
+    { 
+      id: '2', 
+      name: 'Maria Garcia', 
+      rating: 4.7, 
+      specialty: 'Dresses & Skirts',
+      location: 'Los Angeles, CA',
+      experience: '8 years',
+      bio: 'Specializing in women\'s clothing with a focus on dresses and formal wear. My designs blend modern trends with classic techniques for a perfect fit and unique style.',
+      services: [
+        { name: 'Custom Dress', price: '$350+' },
+        { name: 'Dress Alterations', price: '$85+' },
+        { name: 'Skirt Creation', price: '$180+' },
+        { name: 'Hem Adjustment', price: '$40' }
+      ],
+      reviews: [
+        { id: '1', user: 'Jennifer L.', rating: 5, comment: 'Maria made my dream wedding dress! Absolutely stunning!', date: '3 weeks ago' },
+        { id: '2', user: 'Emma K.', rating: 4, comment: 'Beautiful work on my gown alterations. Pricing was fair.', date: '2 months ago' },
+        { id: '3', user: 'Laura M.', rating: 5, comment: 'The custom dress Maria made for my daughter\'s graduation was perfect.', date: '3 months ago' }
+      ]
+    },
+    { 
+      id: '3', 
+      name: 'David Lee', 
+      rating: 4.9, 
+      specialty: 'Custom Designs',
+      location: 'Chicago, IL',
+      experience: '15 years',
+      bio: 'Award-winning designer with a passion for creating unique, custom clothing. My approach combines traditional craftsmanship with innovative design concepts.',
+      services: [
+        { name: 'Custom Design Consultation', price: '$100' },
+        { name: 'Bespoke Suit', price: '$1200+' },
+        { name: 'Custom Evening Wear', price: '$800+' },
+        { name: 'Tailored Casual Wear', price: '$350+' }
+      ],
+      reviews: [
+        { id: '1', user: 'Robert J.', rating: 5, comment: 'David created an amazing suit that\'s unlike anything off the rack. Worth every penny!', date: '1 week ago' },
+        { id: '2', user: 'Sophia C.', rating: 5, comment: 'His attention to detail is incredible. My dress was absolute perfection.', date: '1 month ago' },
+        { id: '3', user: 'Thomas W.', rating: 5, comment: 'World-class tailoring. David is a true artist.', date: '2 months ago' }
+      ]
+    },
+    { 
+      id: '4', 
+      name: 'Sophia Rodriguez', 
+      rating: 4.5, 
+      specialty: 'Alterations & Repairs',
+      location: 'Miami, FL',
+      experience: '7 years',
+      bio: 'Skilled in all types of clothing alterations and repairs. I bring new life to your favorite pieces with careful attention to preserving the original design while improving fit.',
+      services: [
+        { name: 'Basic Alterations', price: '$25+' },
+        { name: 'Suit/Dress Tailoring', price: '$75+' },
+        { name: 'Zipper Replacement', price: '$35+' },
+        { name: 'Clothing Repair', price: '$20+' }
+      ],
+      reviews: [
+        { id: '1', user: 'Carlos M.', rating: 4, comment: 'Quick service and good quality work on my pants alterations.', date: '2 weeks ago' },
+        { id: '2', user: 'Nina P.', rating: 5, comment: 'Sophia saved my vintage dress! The repairs are invisible.', date: '1 month ago' },
+        { id: '3', user: 'Alex T.', rating: 4, comment: 'Fair pricing and reliable service. Will use again.', date: '3 months ago' }
+      ]
+    },
+    { 
+      id: '5', 
+      name: 'James Wilson', 
+      rating: 4.6, 
+      specialty: 'Wedding Attire',
+      location: 'Boston, MA',
+      experience: '10 years',
+      bio: 'Specializing in wedding attire for all genders. My goal is to make sure you look and feel your best on your special day with perfectly tailored formal wear.',
+      services: [
+        { name: 'Wedding Dress Alterations', price: '$200+' },
+        { name: 'Wedding Suit Tailoring', price: '$150+' },
+        { name: 'Bridesmaid Dress Alterations', price: '$85+' },
+        { name: 'Rush Service', price: '+50%' }
+      ],
+      reviews: [
+        { id: '1', user: 'Rachel B.', rating: 5, comment: 'James altered my wedding dress to perfection! Couldn\'t be happier.', date: '3 weeks ago' },
+        { id: '2', user: 'Kevin L.', rating: 4, comment: 'Great job on the groomsmen suits. Everyone looked sharp!', date: '2 months ago' },
+        { id: '3', user: 'Melissa J.', rating: 5, comment: 'Worth every penny for the quality of work on my wedding gown.', date: '4 months ago' }
+      ]
+    },
+  ];
 
   useEffect(() => {
-    loadTailorDetails();
+    // Simulate API call to get tailor details
+    setTimeout(() => {
+      const selectedTailor = tailorData.find(t => t.id === tailorId);
+      setTailor(selectedTailor);
+      setIsLoading(false);
+    }, 1000);
   }, [tailorId]);
 
-  const handleCreateOrder = () => {
-    navigation.navigate('NewOrder', { selectedTailorId: tailorId });
-  };
+  const renderServiceItem = (service, index) => (
+    <View key={index} style={styles.serviceItem}>
+      <Text style={styles.serviceName}>{service.name}</Text>
+      <Text style={styles.servicePrice}>{service.price}</Text>
+    </View>
+  );
 
-  const handleChat = () => {
-    if (tailor) {
-      navigation.navigate('Chat', {
-        userId: tailor.user._id,
-        userName: tailor.user.name
-      });
-    }
-  };
+  const renderReviewItem = (review) => (
+    <View key={review.id} style={styles.reviewItem}>
+      <View style={styles.reviewHeader}>
+        <Text style={styles.reviewUser}>{review.user}</Text>
+        <Text style={styles.reviewRating}>{'★'.repeat(review.rating)}</Text>
+      </View>
+      <Text style={styles.reviewComment}>{review.comment}</Text>
+      <Text style={styles.reviewDate}>{review.date}</Text>
+    </View>
+  );
 
-  // Function to render star rating
-  const renderRatingStars = (rating) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons 
-          key={`star-${i}`} 
-          name="star" 
-          size={18} 
-          color={theme.colors.gold} 
-          style={styles.star} 
-        />
-      );
-    }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons 
-          key="half-star" 
-          name="star-half" 
-          size={18} 
-          color={theme.colors.gold} 
-          style={styles.star} 
-        />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Ionicons 
-          key={`empty-${i}`} 
-          name="star-outline" 
-          size={18} 
-          color={theme.colors.gold} 
-          style={styles.star} 
-        />
-      );
-    }
-
-    return stars;
-  };
-
-  if (loading && !refreshing) {
-    return <Loading />;
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4A90E2" />
+        <Text style={styles.loadingText}>Loading tailor details...</Text>
+      </View>
+    );
   }
 
   if (!tailor) {
     return (
-      <View style={styles.container}>
-        <Header
-          title="Tailor Details"
-          leftIcon="arrow-back"
-          onLeftPress={() => navigation.goBack()}
-        />
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Tailor not found</Text>
-          <Button
-            title="Go Back"
-            onPress={() => navigation.goBack()}
-            style={styles.errorButton}
-          />
-        </View>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Tailor not found</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Header
-        title="Tailor Details"
-        leftIcon="arrow-back"
-        onLeftPress={() => navigation.goBack()}
-      />
-      
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        <View style={styles.headerContainer}>
-          <View style={styles.shopHeader}>
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>
-                {tailor.user?.name?.charAt(0).toUpperCase() || 'T'}
-              </Text>
-            </View>
-            <View style={styles.shopInfo}>
-              <Text style={styles.shopName}>{tailor.shopName}</Text>
-              
-              <View style={styles.ratingContainer}>
-                {renderRatingStars(tailor.rating)}
-                <Text style={styles.ratingText}>({tailor.rating.toFixed(1)})</Text>
-              </View>
-              
-              <View style={styles.locationContainer}>
-                <Ionicons name="location-outline" size={16} color={theme.colors.textLight} />
-                <Text style={styles.locationText}>{tailor.location}</Text>
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.buttonGroup}>
-            <Button
-              title="Create Order"
-              onPress={handleCreateOrder}
-              style={styles.orderButton}
-            />
-            <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
-              <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
+    <ScrollView style={styles.container}>
+      <View style={styles.profileHeader}>
+        <View style={styles.tailorImagePlaceholder}>
+          <Text style={styles.tailorInitials}>{tailor.name.charAt(0)}</Text>
         </View>
-        
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.aboutText}>
-            {tailor.description || `${tailor.shopName} specializes in custom tailoring with a focus on quality craftsmanship and attention to detail.`}
-          </Text>
-          
-          <View style={styles.infoRow}>
-            <View style={styles.infoItem}>
-              <Ionicons name="time-outline" size={20} color={theme.colors.primary} />
-              <Text style={styles.infoLabel}>Experience</Text>
-              <Text style={styles.infoValue}>{tailor.experience || '5+ years'}</Text>
-            </View>
-            
-            <View style={styles.infoItem}>
-              <Ionicons name="pricetag-outline" size={20} color={theme.colors.primary} />
-              <Text style={styles.infoLabel}>Price Range</Text>
-              <Text style={styles.infoValue}>{tailor.priceRange}</Text>
-            </View>
-          </View>
-        </Card>
-        
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Specialties</Text>
-          <View style={styles.specialtiesContainer}>
-            {(tailor.specialties || ['Shirts', 'Pants', 'Suits', 'Dresses']).map((specialty, index) => (
-              <View key={index} style={styles.specialtyItem}>
-                <Ionicons 
-                  name={
-                    specialty.toLowerCase() === 'shirts' ? 'shirt-outline' :
-                    specialty.toLowerCase() === 'pants' ? 'wallet-outline' :
-                    specialty.toLowerCase() === 'suits' ? 'business-outline' :
-                    specialty.toLowerCase() === 'dresses' ? 'woman-outline' :
-                    'cut-outline'
-                  } 
-                  size={24} 
-                  color={theme.colors.primary} 
-                />
-                <Text style={styles.specialtyText}>{specialty}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
-        
-        {tailor.featuredWork && tailor.featuredWork.length > 0 && (
-          <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Featured Work</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.featuredWorkScroll}>
-              {tailor.featuredWork.map((item, index) => (
-                <View key={index} style={styles.featuredWorkItem}>
-                  <Image source={{ uri: item.imageUrl }} style={styles.featuredWorkImage} />
-                  <Text style={styles.featuredWorkTitle}>{item.title}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </Card>
-        )}
-        
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Reviews</Text>
-          {(tailor.reviews && tailor.reviews.length > 0) ? (
-            tailor.reviews.map((review, index) => (
-              <View key={index} style={styles.reviewItem}>
-                <View style={styles.reviewHeader}>
-                  <Text style={styles.reviewerName}>{review.customerName}</Text>
-                  <View style={styles.reviewRating}>
-                    {renderRatingStars(review.rating)}
-                  </View>
-                </View>
-                <Text style={styles.reviewText}>{review.comment}</Text>
-                <Text style={styles.reviewDate}>{new Date(review.date).toLocaleDateString()}</Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noReviewsText}>No reviews yet</Text>
-          )}
-        </Card>
-        
-        <Button
-          title="Create Order with this Tailor"
-          onPress={handleCreateOrder}
-          style={styles.createOrderButton}
-        />
-      </ScrollView>
-    </View>
+        <Text style={styles.tailorName}>{tailor.name}</Text>
+        <Text style={styles.tailorRating}>{'★'.repeat(Math.floor(tailor.rating))} {tailor.rating}</Text>
+        <Text style={styles.tailorSpecialty}>{tailor.specialty}</Text>
+        <View style={styles.tailorDetails}>
+          <Text style={styles.tailorLocation}>📍 {tailor.location}</Text>
+          <Text style={styles.tailorExperience}>⏱️ {tailor.experience}</Text>
+        </View>
+      </View>
+      
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>About</Text>
+        <Text style={styles.bioText}>{tailor.bio}</Text>
+      </View>
+      
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>Services & Pricing</Text>
+        <View style={styles.servicesList}>
+          {tailor.services.map(renderServiceItem)}
+        </View>
+      </View>
+      
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>Reviews</Text>
+        <View style={styles.reviewsList}>
+          {tailor.reviews.map(renderReviewItem)}
+        </View>
+      </View>
+      
+      <View style={styles.actionContainer}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('NewOrder', { tailorId: tailor.id })}
+        >
+          <Text style={styles.actionButtonText}>Create Order</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={() => navigation.navigate('Chat', { 
+            recipientId: tailor.id,
+            recipientName: tailor.name 
+          })}
+        >
+          <Text style={styles.secondaryButtonText}>Message</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F9F9F9',
   },
-  scrollView: {
+  loadingContainer: {
     flex: 1,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  headerContainer: {
-    backgroundColor: theme.colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  shopHeader: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    backgroundColor: '#F9F9F9',
   },
-  avatarText: {
-    fontSize: 24,
-    color: theme.colors.white,
-    fontFamily: 'Poppins-Bold',
-  },
-  shopInfo: {
-    flex: 1,
-  },
-  shopName: {
-    fontSize: 20,
-    fontFamily: 'Poppins-Bold',
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  star: {
-    marginRight: 2,
-  },
-  ratingText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.textLight,
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locationText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.textLight,
-  },
-  buttonGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  orderButton: {
-    flex: 1,
-    marginRight: 12,
-  },
-  chatButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
-    fontFamily: 'Poppins-Medium',
-    color: theme.colors.text,
-    marginBottom: 12,
-  },
-  aboutText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.text,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  infoItem: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 8,
-    marginHorizontal: 4,
-  },
-  infoLabel: {
-    fontSize: 12,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.textLight,
-    marginTop: 4,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Medium',
-    color: theme.colors.text,
-    marginTop: 2,
-  },
-  specialtiesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  specialtyItem: {
-    width: '48%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: theme.colors.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  specialtyText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.text,
-  },
-  featuredWorkScroll: {
-    flexDirection: 'row',
-  },
-  featuredWorkItem: {
-    width: 150,
-    marginRight: 12,
-  },
-  featuredWorkImage: {
-    width: 150,
-    height: 150,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  featuredWorkTitle: {
-    fontSize: 12,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.text,
-    textAlign: 'center',
-  },
-  reviewItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  reviewerName: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Medium',
-    color: theme.colors.text,
-  },
-  reviewRating: {
-    flexDirection: 'row',
-  },
-  reviewText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.text,
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  reviewDate: {
-    fontSize: 12,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.textLight,
-  },
-  noReviewsText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: theme.colors.textLight,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 16,
-  },
-  createOrderButton: {
-    marginTop: 8,
+    color: '#666',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
+    backgroundColor: '#F9F9F9',
   },
   errorText: {
     fontSize: 18,
-    fontFamily: 'Poppins-Medium',
-    color: theme.colors.error,
-    marginBottom: 16,
+    color: '#666',
+    marginBottom: 20,
   },
-  errorButton: {
-    width: 150,
+  backButton: {
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  profileHeader: {
+    backgroundColor: '#4A90E2',
+    padding: 30,
+    alignItems: 'center',
+  },
+  tailorImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  tailorInitials: {
+    fontSize: 40,
+    color: '#4A90E2',
+    fontWeight: 'bold',
+  },
+  tailorName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 5,
+  },
+  tailorRating: {
+    fontSize: 18,
+    color: '#FFD700',
+    marginBottom: 5,
+  },
+  tailorSpecialty: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 10,
+  },
+  tailorDetails: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  tailorLocation: {
+    fontSize: 14,
+    color: 'white',
+    marginRight: 15,
+  },
+  tailorExperience: {
+    fontSize: 14,
+    color: 'white',
+  },
+  sectionContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    marginTop: 15,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  bioText: {
+    fontSize: 16,
+    color: '#555',
+    lineHeight: 24,
+  },
+  servicesList: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  serviceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  serviceName: {
+    fontSize: 16,
+    color: '#333',
+  },
+  servicePrice: {
+    fontSize: 16,
+    color: '#4A90E2',
+    fontWeight: '500',
+  },
+  reviewsList: {
+    marginTop: 5,
+  },
+  reviewItem: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 10,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  reviewUser: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  reviewRating: {
+    fontSize: 16,
+    color: '#FFB800',
+  },
+  reviewComment: {
+    fontSize: 15,
+    color: '#555',
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  actionContainer: {
+    padding: 20,
+    marginTop: 15,
+    marginBottom: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    backgroundColor: '#4A90E2',
+    borderRadius: 8,
+    paddingVertical: 15,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#4A90E2',
+  },
+  secondaryButtonText: {
+    color: '#4A90E2',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
