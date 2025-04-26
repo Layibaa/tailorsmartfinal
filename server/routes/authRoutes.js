@@ -1,41 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { protect, checkRole } = require('../middlewares/authMiddleware');
 
-// Public routes
-router.post('/signup', authController.signup);
+// Customer Signup
+router.post('/customer/signup', authController.registerCustomer);
+
+// Tailor Signup
+router.post('/tailor/signup', authController.registerTailor);
+
+// Verify OTP
+router.post('/verify-otp', authController.verifyOtp);
+
+// Login (Customer & Tailor)
 router.post('/login', authController.login);
-router.post('/admin-login', authController.adminLogin);
-router.post('/verify-otp', authController.verifyOTP);
+
+// Admin Login
+router.post('/admin/login', authController.adminLogin);
+
+// Forgot Password
 router.post('/forgot-password', authController.forgotPassword);
+
+// Reset Password
 router.post('/reset-password', authController.resetPassword);
-
-// Debug routes - should be removed or secured in production
-router.post('/debug-format', authController.debugMobileFormat);
-router.get('/debug-users', authController.debugListUsers);
-router.post('/test-sms', authController.testSMS);
-router.get('/check-twilio', authController.checkTwilio);
-router.post('/test-email', authController.testEmail);
-router.get('/check-sendgrid', authController.checkSendGrid);
-
-// Protected routes
-router.get('/profile', protect, authController.getUserProfile);
-router.put('/profile', protect, authController.updateUserProfile);
-
-// Role-specific routes
-router.get(
-  '/customer-data',
-  protect,
-  checkRole(['customer', 'admin']),
-  authController.getCustomerData
-);
-
-router.get(
-  '/tailor-data',
-  protect,
-  checkRole(['tailor', 'admin']),
-  authController.getTailorData
-);
 
 module.exports = router;

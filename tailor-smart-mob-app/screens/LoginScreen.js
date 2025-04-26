@@ -1,272 +1,251 @@
-import React, { useState, useContext, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  KeyboardAvoidingView,
+import React, { useContext, useState } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ScrollView, 
+  KeyboardAvoidingView, 
   Platform,
+  Image
 } from 'react-native';
 import { Formik } from 'formik';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-// Components
+import * as Yup from 'yup';
+import { AuthContext } from '../contexts/AuthContext';
 import FormInput from '../components/FormInput';
 import FormButton from '../components/FormButton';
-import LoadingOverlay from '../components/LoadingOverlay';
+import Logo from '../components/Logo';
+import Loading from '../components/Loading';
+import { COLORS, FONTS, SIZES } from '../styles/globalStyles';
 
-// Utils
-import { loginSchema, adminLoginSchema } from '../utils/validationSchemas';
-import authService from '../utils/authService';
-import { AuthContext } from '../utils/authContext';
+// Validation schema
+const loginSchema = Yup.object().shape({
+  email: Yup.string()
+    .email('Invalid email')
+    .required('Email is required'),
+  password: Yup.string()
+    .required('Password is required')
+});
 
 const LoginScreen = ({ navigation }) => {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { login, setAuthError, authState, clearError } = useContext(AuthContext);
+  const { loginUser, error, setError, isLoading } = useContext(AuthContext);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
 
-  // Clear any existing errors on screen mount
-  useEffect(() => {
-    clearError();
-  }, []);
-
-  // Handle error messages
-  useEffect(() => {
-    if (authState.authError) {
-      Alert.alert('Login Failed', authState.authError.message);
-      clearError();
-    }
-  }, [authState.authError]);
-
-  // Handle login submission
   const handleLogin = async (values) => {
-    setIsLoading(true);
-    try {
-      let loginData;
-      
-      if (isAdmin) {
-        // Admin login with hardcoded credentials
-        loginData = await authService.adminLogin(values.username, values.password);
-        await login(loginData.token, loginData.user);
-      } else {
-        try {
-          // Regular user login
-          loginData = await authService.login(values.mobileNumber, values.password);
-          await login(loginData.token, loginData.user);
-        } catch (loginError) {
-          // Check if it's an unverified account that needs OTP verification
-          if (loginError.requiresVerification) {
-            // Show debug OTP if available
-            let message = loginError.message || 'Your account needs verification. Please enter the OTP sent to your mobile.';
-            
-            if (loginError.debug && loginError.debug.otp) {
-              message += `\n\nDEV MODE: The OTP is ${loginError.debug.otp}`;
-            }
-            
-            Alert.alert('Verification Required', message);
-            
-            // Navigate to OTP verification screen
-            navigation.navigate('OTPVerification', {
-              mobileNumber: values.mobileNumber,
-              purpose: 'login',
-            });
-            
-            // Don't treat this as an error since we're handling it
-            return;
-          }
-          
-          // For other errors, rethrow
-          throw loginError;
-        }
-      }
-    } catch (error) {
-      setAuthError(error);
-    } finally {
-      setIsLoading(false);
+    const result = await loginUser(values.email, values.password);
+    if (result.success) {
+      console.log('Login successful');
     }
-  };
-
-  // Toggle between user and admin login
-  const toggleAdminLogin = () => {
-    setIsAdmin(!isAdmin);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView contentContainerStyle={styles.scrollView}>
-          <View style={styles.header}>
-            <Text style={styles.title}>TailorSmart</Text>
+        {isLoading ? (
+          <Loading />
+        ) : (
+          <>
+            <Logo />
+            
+            <Image
+              source={{ uri: 'https://images.unsplash.com/photo-1487700160041-babef9c3cb55' }}
+              style={styles.backgroundImage}
+            />
+            
+            <Text style={styles.title}>
+              {showAdminLogin ? 'Admin Login' : 'Welcome Back'}
+            </Text>
+            
             <Text style={styles.subtitle}>
-              {isAdmin ? 'Admin Login' : 'Welcome Back'}
+              {showAdminLogin 
+                ? 'Sign in to your admin account' 
+                : 'Sign in to your customer or tailor account'}
             </Text>
-          </View>
-
-          <Formik
-            initialValues={
-              isAdmin
-                ? { username: '', password: '' }
-                : { mobileNumber: '', password: '' }
-            }
-            validationSchema={isAdmin ? adminLoginSchema : loginSchema}
-            onSubmit={handleLogin}
-          >
-            {({
-              handleChange,
-              handleBlur,
-              handleSubmit,
-              values,
-              errors,
-              touched,
-              isValid,
-              dirty,
-            }) => (
-              <View style={styles.formContainer}>
-                {isAdmin ? (
-                  <FormInput
-                    label="Username"
-                    placeholder="Enter admin username"
-                    icon="user"
-                    value={values.username}
-                    onChangeText={handleChange('username')}
-                    onBlur={handleBlur('username')}
-                    error={errors.username}
-                    touched={touched.username}
-                  />
-                ) : (
-                  <FormInput
-                    label="Mobile Number"
-                    placeholder="Enter your mobile number"
-                    icon="phone"
-                    keyboardType="phone-pad"
-                    value={values.mobileNumber}
-                    onChangeText={handleChange('mobileNumber')}
-                    onBlur={handleBlur('mobileNumber')}
-                    error={errors.mobileNumber}
-                    touched={touched.mobileNumber}
-                  />
-                )}
-
-                <FormInput
-                  label="Password"
-                  placeholder="Enter your password"
-                  icon="lock"
-                  secureTextEntry
-                  value={values.password}
-                  onChangeText={handleChange('password')}
-                  onBlur={handleBlur('password')}
-                  error={errors.password}
-                  touched={touched.password}
-                />
-
-                <TouchableOpacity
-                  style={styles.forgotPassword}
-                  onPress={() => navigation.navigate('ForgotPassword')}
-                >
-                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-                </TouchableOpacity>
-
-                <FormButton
-                  buttonTitle="Login"
-                  onPress={handleSubmit}
-                  disabled={!(isValid && dirty)}
-                  isLoading={isLoading}
-                />
-              </View>
-            )}
-          </Formik>
-
-          {!isAdmin && (
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account?</Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Register')}
+            
+            {error && <Text style={styles.errorText}>{error}</Text>}
+            
+            {!showAdminLogin ? (
+              <Formik
+                initialValues={{ email: '', password: '' }}
+                validationSchema={loginSchema}
+                onSubmit={handleLogin}
               >
-                <Text style={styles.registerText}>Register Now</Text>
+                {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                  <>
+                    <FormInput
+                      placeholder="Email"
+                      onChangeText={handleChange('email')}
+                      onBlur={handleBlur('email')}
+                      value={values.email}
+                      keyboardType="email-address"
+                      error={touched.email && errors.email}
+                      autoCapitalize="none"
+                    />
+                    
+                    <FormInput
+                      placeholder="Password"
+                      onChangeText={handleChange('password')}
+                      onBlur={handleBlur('password')}
+                      value={values.password}
+                      secureTextEntry
+                      error={touched.password && errors.password}
+                    />
+                    
+                    <TouchableOpacity
+                      onPress={() => {
+                        setError(null);
+                        navigation.navigate('ForgotPassword');
+                      }}
+                      style={styles.forgotPasswordContainer}
+                    >
+                      <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                    </TouchableOpacity>
+                    
+                    <FormButton title="Login" onPress={handleSubmit} />
+                  </>
+                )}
+              </Formik>
+            ) : (
+              <TouchableOpacity
+                style={styles.switchButton}
+                onPress={() => {
+                  setError(null);
+                  navigation.navigate('AdminLogin');
+                }}
+              >
+                <Text style={styles.switchButtonText}>Go to Admin Login</Text>
               </TouchableOpacity>
+            )}
+            
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Don't have an account?
+              </Text>
+              
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity 
+                  style={styles.signupButton}
+                  onPress={() => {
+                    setError(null);
+                    navigation.navigate('CustomerSignup');
+                  }}
+                >
+                  <Text style={styles.signupButtonText}>Customer Signup</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.signupButton}
+                  onPress={() => {
+                    setError(null);
+                    navigation.navigate('TailorSignup');
+                  }}
+                >
+                  <Text style={styles.signupButtonText}>Tailor Signup</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
-
-          <TouchableOpacity
-            style={styles.adminToggle}
-            onPress={toggleAdminLogin}
-          >
-            <Text style={styles.adminToggleText}>
-              {isAdmin ? 'Switch to User Login' : 'Admin Login'}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      
-      <LoadingOverlay visible={isLoading} message="Logging in..." />
-    </SafeAreaView>
+            
+            <TouchableOpacity
+              style={styles.switchButton}
+              onPress={() => {
+                setError(null);
+                setShowAdminLogin(!showAdminLogin);
+              }}
+            >
+              <Text style={styles.switchButtonText}>
+                {showAdminLogin ? 'Customer/Tailor Login' : 'Admin Login'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
   container: {
     flex: 1,
+    backgroundColor: COLORS.white,
   },
-  scrollView: {
+  scrollContainer: {
     flexGrow: 1,
-    padding: 20,
-  },
-  header: {
     alignItems: 'center',
-    marginVertical: 30,
+    justifyContent: 'center',
+    padding: SIZES.padding,
+  },
+  backgroundImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginVertical: 20,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#0066CC',
-    marginBottom: 8,
+    ...FONTS.h1,
+    color: COLORS.black,
+    marginBottom: SIZES.padding,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#666',
+    ...FONTS.body3,
+    color: COLORS.gray,
+    marginBottom: SIZES.padding * 2,
   },
-  formContainer: {
+  errorText: {
+    ...FONTS.body3,
+    color: COLORS.error,
+    marginBottom: SIZES.padding,
+  },
+  forgotPasswordContainer: {
     width: '100%',
-    marginTop: 20,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginVertical: 10,
+    alignItems: 'flex-end',
+    marginBottom: SIZES.padding,
   },
   forgotPasswordText: {
-    color: '#0066CC',
-    fontWeight: '600',
+    ...FONTS.body4,
+    color: COLORS.primary,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 30,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: SIZES.padding * 2,
   },
   footerText: {
-    color: '#666',
-    marginRight: 5,
+    ...FONTS.body4,
+    color: COLORS.gray,
+    marginBottom: SIZES.padding,
   },
-  registerText: {
-    color: '#0066CC',
-    fontWeight: '600',
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
   },
-  adminToggle: {
+  signupButton: {
+    flex: 1,
+    paddingVertical: SIZES.padding,
+    borderRadius: SIZES.radius,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    marginHorizontal: 5,
     alignItems: 'center',
-    marginTop: 20,
-    padding: 10,
   },
-  adminToggleText: {
-    color: '#0066CC',
-    fontWeight: '500',
+  signupButtonText: {
+    ...FONTS.body4,
+    color: COLORS.primary,
+  },
+  switchButton: {
+    marginTop: SIZES.padding * 2,
+    padding: SIZES.padding,
+  },
+  switchButtonText: {
+    ...FONTS.body4,
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
   },
 });
 

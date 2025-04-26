@@ -1,157 +1,129 @@
-import React, { useState, useContext } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
+import React, { useState } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
   Alert,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Formik } from 'formik';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-// Components
-import AuthHeader from '../components/AuthHeader';
+import * as Yup from 'yup';
+import { forgotPassword } from '../api/authApi';
 import FormInput from '../components/FormInput';
 import FormButton from '../components/FormButton';
-import LoadingOverlay from '../components/LoadingOverlay';
+import Logo from '../components/Logo';
+import Loading from '../components/Loading';
+import { COLORS, FONTS, SIZES } from '../styles/globalStyles';
 
-// Utils
-import { forgotPasswordSchema } from '../utils/validationSchemas';
-import authService from '../utils/authService';
-import { AuthContext } from '../utils/authContext';
+// Validation schema
+const forgotPasswordSchema = Yup.object().shape({
+  email: Yup.string()
+    .email('Invalid email')
+    .required('Email is required'),
+});
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { setAuthError } = useContext(AuthContext);
+  const [error, setError] = useState(null);
 
-  // Handle forgot password submission
   const handleForgotPassword = async (values) => {
     setIsLoading(true);
+    setError(null);
+    
     try {
-      // Call forgot password API
-      await authService.forgotPassword(values.mobileNumber);
-      
-      // Navigate to OTP verification screen
-      navigation.navigate('OTPVerification', {
-        mobileNumber: values.mobileNumber,
-        purpose: 'password_reset',
-      });
+      await forgotPassword(values.email);
+      navigation.navigate('ResetPassword', { email: values.email });
     } catch (error) {
-      setAuthError(error);
-      Alert.alert('Error', error.message || 'Failed to process forgot password request');
+      setError(error.response?.data?.message || 'Failed to send reset OTP. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  if (isLoading) {
+    return <Loading />;
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <AuthHeader title="Forgot Password" showBackButton={true} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Reset Your Password</Text>
-            <Text style={styles.subtitle}>
-              Enter your mobile number and we'll send an OTP to reset your password
-            </Text>
-          </View>
-
-          <Formik
-            initialValues={{ mobileNumber: '' }}
-            validationSchema={forgotPasswordSchema}
-            onSubmit={handleForgotPassword}
-          >
-            {({
-              handleChange,
-              handleBlur,
-              handleSubmit,
-              values,
-              errors,
-              touched,
-              isValid,
-              dirty,
-            }) => (
-              <View style={styles.formContainer}>
-                <FormInput
-                  label="Mobile Number"
-                  placeholder="Enter your registered mobile number"
-                  icon="phone"
-                  keyboardType="phone-pad"
-                  value={values.mobileNumber}
-                  onChangeText={handleChange('mobileNumber')}
-                  onBlur={handleBlur('mobileNumber')}
-                  error={errors.mobileNumber}
-                  touched={touched.mobileNumber}
-                />
-
-                <FormButton
-                  buttonTitle="Send OTP"
-                  onPress={handleSubmit}
-                  disabled={!(isValid && dirty)}
-                  isLoading={isLoading}
-                />
-              </View>
-            )}
-          </Formik>
-
-          <TouchableOpacity
-            style={styles.backToLogin}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.backToLoginText}>Back to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <Logo />
       
-      <LoadingOverlay visible={isLoading} message="Sending OTP..." />
-    </SafeAreaView>
+      <Text style={styles.title}>Forgot Password</Text>
+      <Text style={styles.subtitle}>
+        Enter your email and we'll send you an OTP to reset your password
+      </Text>
+      
+      {error && <Text style={styles.errorText}>{error}</Text>}
+      
+      <Formik
+        initialValues={{ email: '' }}
+        validationSchema={forgotPasswordSchema}
+        onSubmit={handleForgotPassword}
+      >
+        {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+          <>
+            <FormInput
+              placeholder="Email"
+              onChangeText={handleChange('email')}
+              onBlur={handleBlur('email')}
+              value={values.email}
+              keyboardType="email-address"
+              error={touched.email && errors.email}
+              autoCapitalize="none"
+            />
+            
+            <FormButton title="Send Reset OTP" onPress={handleSubmit} />
+          </>
+        )}
+      </Formik>
+      
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.backButtonText}>Back to Login</Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
   container: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  header: {
+    backgroundColor: COLORS.white,
     alignItems: 'center',
-    marginBottom: 30,
+    justifyContent: 'center',
+    padding: SIZES.padding,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    ...FONTS.h1,
+    color: COLORS.black,
+    marginBottom: SIZES.base,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    ...FONTS.body3,
+    color: COLORS.gray,
+    marginBottom: SIZES.padding * 2,
     textAlign: 'center',
   },
-  formContainer: {
-    width: '100%',
+  errorText: {
+    ...FONTS.body3,
+    color: COLORS.error,
+    marginBottom: SIZES.padding,
   },
-  backToLogin: {
-    alignItems: 'center',
-    marginTop: 20,
-    padding: 10,
+  backButton: {
+    marginTop: SIZES.padding * 2,
+    padding: SIZES.padding,
   },
-  backToLoginText: {
-    color: '#0066CC',
-    fontWeight: '500',
+  backButtonText: {
+    ...FONTS.body4,
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
   },
 });
 

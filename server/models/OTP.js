@@ -1,21 +1,32 @@
 const mongoose = require('mongoose');
 
-const otpSchema = new mongoose.Schema({
+const OtpSchema = new mongoose.Schema({
   email: {
     type: String,
-    required: true,
+    required: [true, 'Email is required'],
+    match: [
+      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+      'Please provide a valid email'
+    ]
   },
   otp: {
     type: String,
-    required: true,
+    required: [true, 'OTP is required']
+  },
+  type: {
+    type: String,
+    enum: ['verification', 'reset'],
+    required: [true, 'OTP type is required']
+  },
+  expiresAt: {
+    type: Date,
+    required: [true, 'Expiry time is required']
   },
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 300, // OTP expires after 5 minutes (300 seconds)
-  },
+    expires: 600 // Automatically delete documents after 10 minutes (600 seconds)
+  }
 });
 
-const OTP = mongoose.model('OTP', otpSchema);
-
-module.exports = OTP;
+module.exports = mongoose.model('Otp', OtpSchema);

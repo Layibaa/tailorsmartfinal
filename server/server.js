@@ -1,56 +1,48 @@
 const express = require('express');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
 const cors = require('cors');
-const { connectDB, disconnectDB } = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
-const { errorHandler } = require('./middlewares/authMiddleware');
+const connectDB = require('./config/db');
+dotenv.config();
 
-// Load environment variables
-require('dotenv').config();
-
-// Create Express App
 const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(express.json());
-app.use(cors());
-
 // Routes
 app.use('/api/auth', authRoutes);
 
-// Base route
+// Home route
 app.get('/', (req, res) => {
-  res.json({ message: 'TailorSmart API is running...' });
+  res.send('TailorSmart API is running...');
 });
 
-// Error handler middleware
-app.use(errorHandler);
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API test successful',
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Port
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Server Error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred'
+  });
+});
+
 const PORT = process.env.PORT || 8000;
 
-// Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-});
-
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('SIGINT received. Shutting down gracefully');
-  await disconnectDB();
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
-});
-
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received. Shutting down gracefully');
-  await disconnectDB();
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
 });

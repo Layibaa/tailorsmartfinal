@@ -1,18 +1,31 @@
 import React from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from './utils/authContext';
-import AppNavigator from './AppNavigator';
-import { LogBox } from 'react-native';
-
-// Ignore specific warnings that might come from 3rd party libraries
-LogBox.ignoreLogs(['Warning: ...']); // Specific warnings can be added here
+import { StatusBar } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { AuthProvider } from './contexts/AuthContext';
+import AppNavigator from './navigation/AppNavigator';
+import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import Loading from './components/Loading';
+import { COLORS } from './styles/globalStyles';
 
 export default function App() {
+  // Load fonts
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return <Loading />;
+  }
+
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <NavigationContainer>
+        <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
         <AppNavigator />
-      </AuthProvider>
-    </SafeAreaProvider>
+      </NavigationContainer>
+    </AuthProvider>
   );
 }

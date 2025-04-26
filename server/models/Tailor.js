@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const UserSchema = new mongoose.Schema({
+const TailorSchema = new mongoose.Schema({
   fullName: {
     type: String,
     required: [true, 'Please provide your full name'],
@@ -21,22 +21,20 @@ const UserSchema = new mongoose.Schema({
     minlength: 8,
     select: false
   },
-  gender: {
+  shopName: {
     type: String,
-    required: [true, 'Please provide your gender'],
-    enum: ['male', 'female', 'other']
+    required: [true, 'Please provide your shop name'],
+    trim: true
   },
-  age: {
-    type: Number,
-    required: [true, 'Please provide your age']
+  shopLocation: {
+    type: String,
+    required: [true, 'Please provide your shop location'],
+    trim: true
   },
-  height: {
-    type: Number,
-    required: [true, 'Please provide your height (in cm)']
-  },
-  weight: {
-    type: Number,
-    required: [true, 'Please provide your weight (in kg)']
+  averagePriceRange: {
+    type: String,
+    required: [true, 'Please provide your average price range'],
+    trim: true
   },
   isVerified: {
     type: Boolean,
@@ -45,9 +43,7 @@ const UserSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  },
-  phone: { type: String, unique: true, sparse: true },
-
+  }
 });
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.model('Tailor', TailorSchema);
