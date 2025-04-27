@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "TailorSmart",
-    "slug": "tailor-smart",
+    "slug": "TailorSmart",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./src/assets/icon.svg",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./src/assets/splash.svg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,21 +17,16 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.tailorsmart.app"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.tailorsmart.app"
+        "foregroundImage": "./src/assets/adaptive-icon.svg",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-font"
-    ]
+      "favicon": "./src/assets/favicon.svg"
+    }
   }
 }
