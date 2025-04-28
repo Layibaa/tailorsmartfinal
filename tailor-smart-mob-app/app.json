@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "TailorSmart",
-    "slug": "TailorSmart",
+    "name": "Tailoring App",
+    "slug": "tailoring-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/icon.svg",
+    "icon": "./assets/icon.png",
     "splash": {
-      "image": "./src/assets/splash.svg",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -21,12 +21,28 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/adaptive-icon.svg",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       }
     },
     "web": {
-      "favicon": "./src/assets/favicon.svg"
+      "favicon": "./assets/favicon.png",
+      "notification": {
+        "vapidPublicKey": "BOsdGqYBirdW5cn9aB_7LGy-0IT_u1sdyo_2ynSec183Qkgrh2EkB9Xqf9G57fJA2DAoAtanfpu4JL3sBxaUivg"
+      },
+      "serviceWorkerPath": "./service-worker.js"  
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://192.168.1.91:8000/api/v1"
     }
   }
 }

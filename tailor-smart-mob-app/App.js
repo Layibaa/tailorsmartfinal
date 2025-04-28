@@ -1,33 +1,40 @@
-import React from 'react';
-import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
+import { StyleSheet, StatusBar, LogBox } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
-import AppNavigation from './src/navigation';
-import { DefaultTheme, Provider as PaperProvider } from 'react-native-paper';
-import { theme } from './src/assets/theme'; // Import your theme file
+import { NotificationProvider } from './src/context/NotificationContext';
+import AppNavigator from './src/navigation/AppNavigator';
 
-// Create a custom theme based on our color palette
-const paperTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: theme.colors.primary,
-    accent: theme.colors.accent,
-    background: theme.colors.background,
-    surface: theme.colors.background,
-    text: theme.colors.text,
-  },
-};
+// Ignore specific deprecation warnings from libraries
+LogBox.ignoreLogs([
+  'Asyncstorage has been extracted from react-native',
+  'Setting a timer for a long period of time'
+]);
 
 export default function App() {
+  // Listen for notification events
+  useEffect(() => {
+    // Register for push notifications here if needed
+  }, []);
+
   return (
     <SafeAreaProvider>
-      <PaperProvider theme={paperTheme}>
-        <AuthProvider>
-          <AppNavigation />
-          <StatusBar style="auto" />
-        </AuthProvider>
-      </PaperProvider>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <AuthProvider>
+        <NotificationProvider>
+          <NavigationContainer>
+            <AppNavigator />
+          </NavigationContainer>
+        </NotificationProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff'
+  }
+});

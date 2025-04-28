@@ -10,15 +10,24 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@sendgrid/mail": "^8.1.5",
-    "bcrypt": "^5.1.1",
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-navigation/native": "^7.1.6",
+    "@react-navigation/native-stack": "^7.3.10",
+    "axios": "^1.9.0",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "expo": "^52.0.46",
     "express": "^5.1.0",
+    "formik": "^2.4.6",
     "jsonwebtoken": "^9.0.2",
-    "mongodb-memory-server": "^10.1.4",
-    "mongoose": "^8.13.3",
+    "mongoose": "^8.14.0",
     "nodemailer": "^6.10.1",
-    "twilio": "^5.5.2"
+    "react": "^19.1.0",
+    "react-native": "^0.79.1",
+    "react-native-paper": "^5.13.5",
+    "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "^4.10.0",
+    "yup": "^1.6.1"
   }
 }
