@@ -1,118 +1,116 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const validator = require('validator');
+const bcrypt = require('bcryptjs');
 
-// Base schema options for all users
-const baseOptions = {
-  discriminatorKey: 'role',
-  collection: 'users',
-};
-
-// Base User Schema
-const userSchema = new mongoose.Schema(
+const UserSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      required: [true, 'Please provide a name'],
+      minlength: 3,
+      maxlength: 50
+    },
     email: {
       type: String,
-      required: function () {
-        return this.role !== 'admin'; // only required for non-admins
+      required: [true, 'Please provide an email'],
+      validate: {
+        validator: validator.isEmail,
+        message: 'Please provide a valid email'
       },
-      unique: true,
-      trim: true,
-    },
-    mobileNumber: {
-      type: String,
-      required: false, // Changed to optional
-      trim: true,
+      unique: true
     },
     password: {
       type: String,
-      required: true,
-      minlength: 8,
+      required: [true, 'Please provide a password'],
+      minlength: 6
+    },
+    role: {
+      type: String,
+      enum: {
+        values: ['admin', 'customer', 'tailor'],
+        message: '{VALUE} is not supported'
+      },
+      default: 'customer'
     },
     isVerified: {
       type: Boolean,
-      default: false,
+      default: false
     },
-    createdAt: {
-      type: Date,
-      default: Date.now,
+    otp: String,
+    otpExpires: Date,
+    passwordResetToken: String,
+    passwordResetExpires: Date,
+    phone: {
+      type: String,
+      validate: {
+        validator: function(v) {
+          return validator.isMobilePhone(v);
+        },
+        message: 'Please provide a valid phone number'
+      }
     },
+    tailorProfile: {
+      shopName: String,
+      shopLocation: String,
+      experience: Number,
+      specialties: [String],
+      rating: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0
+      },
+      reviews: [
+        {
+          customer: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+          },
+          rating: {
+            type: Number,
+            min: 1,
+            max: 5,
+            required: true
+          },
+          comment: String,
+          date: {
+            type: Date,
+            default: Date.now
+          }
+        }
+      ]
+    },
+    customerProfile: {
+      address: String,
+      preferredStyles: [String],
+      savedMeasurements: {
+        chest: Number,
+        waist: Number,
+        hip: Number,
+        shoulder: Number,
+        sleeveLength: Number,
+        neck: Number,
+        inseam: Number,
+        outseam: Number,
+        thigh: Number
+      }
+    }
   },
-  baseOptions
+  { timestamps: true }
 );
 
-// Customer Schema
-const customerSchema = new mongoose.Schema({
-  gender: {
-    type: String,
-    enum: ['male', 'female', 'other'],
-    required: true,
-  },
-  age: {
-    type: Number,
-    required: true,
-  },
-  height: {
-    type: Number,
-    required: true,
-  },
-  weight: {
-    type: Number,
-    required: true,
-  },
-});
-
-// Tailor Schema
-const tailorSchema = new mongoose.Schema({
-  shopName: {
-    type: String,
-    required: true,
-  },
-  location: {
-    type: String,
-    required: true,
-  },
-  priceRange: {
-    min: {
-      type: Number,
-      required: true,
-    },
-    max: {
-      type: Number,
-      required: true,
-    },
-  },
-});
-
-// Admin Schema
-const adminSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-});
-
-// Method to check if password matches
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
-
-// Pre-save middleware to hash password
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-
+// Hash password before saving
+UserSchema.pre('save', async function() {
+  // Only hash password if it's modified
+  if (!this.isModified('password')) return;
+  
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Create the base User model
-const User = mongoose.model('User', userSchema);
+// Compare password method
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
-// Create discriminator models
-const Customer = User.discriminator('customer', customerSchema);
-const Tailor = User.discriminator('tailor', tailorSchema);
-const Admin = User.discriminator('admin', adminSchema);
-
-module.exports = { User, Customer, Tailor, Admin };
+module.exports = mongoose.model('User', UserSchema);
