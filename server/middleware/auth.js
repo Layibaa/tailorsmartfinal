@@ -2,45 +2,29 @@ const jwt = require('jsonwebtoken');
 const { StatusCodes } = require('http-status-codes');
 const User = require('../models/User');
 
+// This would be in your auth.js middleware
 const auth = async (req, res, next) => {
-  // Check for Authorization header
+  // Check for the Authorization header
   const authHeader = req.headers.authorization;
   
-  if (!authHeader || !authHeader.startsWith('Bearer')) {
-    return res.status(StatusCodes.UNAUTHORIZED).json({
-      success: false,
-      msg: 'Authentication failed. No token provided.'
-    });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new UnauthenticatedError('Authentication invalid');
   }
   
   const token = authHeader.split(' ')[1];
   
   try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Find user
-    const user = await User.findById(decoded.id).select('-password');
-    
-    if (!user) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        success: false,
-        msg: 'User not found'
-      });
-    }
-    
-    // Add user to request object
-    req.user = {
-      id: user._id,
-      role: user.role
+    // Attach the user to the job routes
+    req.user = { 
+      userId: payload.id, // Make sure this matches with what your controller expects
+      role: payload.role 
     };
     
     next();
   } catch (error) {
-    return res.status(StatusCodes.UNAUTHORIZED).json({
-      success: false,
-      msg: 'Authentication failed. Invalid token.'
-    });
+    throw new UnauthenticatedError('Authentication invalid');
   }
 };
 

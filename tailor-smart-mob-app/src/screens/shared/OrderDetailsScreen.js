@@ -16,7 +16,8 @@ import {
   getCustomerOrderDetails, 
   getTailorOrderDetails,
   updateOrderStatus,
-  confirmOrder
+  confirmOrder,
+  deleteOrder
 } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { NotificationContext } from '../../context/NotificationContext';
@@ -135,6 +136,34 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+
+// Then add this function in the OrderDetailsScreen component
+const handleDeleteOrder = async () => {
+  Alert.alert(
+    'Delete Order',
+    'Are you sure you want to delete this order? This action cannot be undone.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Delete', 
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setIsUpdating(true);
+            await deleteOrder(orderId);
+            Alert.alert('Success', 'Order deleted successfully');
+            navigation.navigate('Orders');
+          } catch (error) {
+            Alert.alert('Error', error.response?.data?.msg || 'Failed to delete order');
+            console.error('Error deleting order:', error);
+          } finally {
+            setIsUpdating(false);
+          }
+        }
+      }
+    ]
+  );
+};
   // Handle reject order
   const handleRejectOrder = async () => {
     Alert.alert(
@@ -456,15 +485,28 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             )}
           </>
         )}
-        
         {/* Customer Actions */}
-        {user.role === 'customer' && order.status === 'accepted' && (
-          <Button
-            title="Confirm Order"
-            onPress={() => setIsStatusModalVisible(true)}
-            icon="check"
-          />
+        {user.role === 'customer' && (
+          <>
+            {order.status === 'accepted' && (
+              <Button
+                title="Confirm Order"
+                onPress={() => setIsStatusModalVisible(true)}
+                icon="check"
+              />
+            )}
+            {(order.status === 'pending' || order.status === 'accepted' || order.status === 'rejected') && (
+              <Button
+                title="Delete Order"
+                onPress={handleDeleteOrder}
+                danger
+                icon="trash-2"
+                buttonStyle={{ marginTop: 12 }}
+              />
+            )}
+          </>
         )}
+
         
         {/* Message Action for both roles */}
         <Button

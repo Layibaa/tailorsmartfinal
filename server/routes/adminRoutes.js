@@ -30,5 +30,38 @@ router.get('/orders', auth, isAdmin, getAllOrders);
 router.get('/customers/:id', auth, isAdmin, getCustomer);  // Added this route
 router.get('/tailors/:id', auth, isAdmin, getTailor);      // Added this route
 router.get('/orders/:id', auth, isAdmin, getOrder);        // Added this route
-
+// Add this to your admin routes
+router.get('/diagnostic', auth, isAdmin, async (req, res) => {
+  try {
+    // Get all users
+    const allUsers = await User.find().select('name email role isVerified createdAt');
+    
+    // Count by role
+    const customerCount = allUsers.filter(user => user.role === 'customer').length;
+    const tailorCount = allUsers.filter(user => user.role === 'tailor').length;
+    const adminCount = allUsers.filter(user => user.role === 'admin').length;
+    
+    // Get order count
+    const orderCount = await Order.countDocuments();
+    
+    res.status(200).json({
+      totalUsers: allUsers.length,
+      customerCount,
+      tailorCount,
+      adminCount,
+      orderCount,
+      users: allUsers.map(user => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Diagnostic error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = router;
