@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,11 +16,12 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors';
 import globalStyles from '../../styles/globalStyles';
 
-const OrderHistoryScreen = ({ navigation }) => {
+const OrderHistoryScreen = ({ navigation, route }) => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'active', 'completed'
+  const initialRender = useRef(true);
   
   const { user } = useContext(AuthContext);
 
@@ -41,6 +42,40 @@ const OrderHistoryScreen = ({ navigation }) => {
   useEffect(() => {
     loadOrders();
   }, []);
+
+  // Check for new order from route params
+  useEffect(() => {
+    // Skip on initial render
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+
+    // Check if we have a new order param
+    if (route.params?.newOrderAdded && route.params?.newOrderData) {
+      console.log("New order detected, updating order list");
+      
+      // Add the new order to the list without making a network request
+      setOrders(prevOrders => {
+        // Check if order already exists to avoid duplicates
+        const orderExists = prevOrders.some(order => 
+          order._id === route.params.newOrderData._id
+        );
+
+        if (orderExists) {
+          return prevOrders;
+        } else {
+          return [route.params.newOrderData, ...prevOrders];
+        }
+      });
+      
+      // Clear the params to prevent duplicate updates on screen focus
+      navigation.setParams({ newOrderAdded: undefined, newOrderData: undefined });
+      
+      // Set active tab to 'active' to show the new order
+      setActiveTab('active');
+    }
+  }, [route.params?.newOrderAdded, route.params?.newOrderData]);
 
   // Handle refresh
   const onRefresh = () => {

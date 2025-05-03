@@ -29,7 +29,51 @@ const ChatScreen = ({ route, navigation }) => {
   
   const flatListRef = useRef(null);
   const { user } = useContext(AuthContext);
-  const { sendMessage: sendSocketMessage, clearMessageNotifications } = useContext(NotificationContext);
+  const { 
+    sendMessage: sendSocketMessage, 
+    clearMessageNotifications,
+    addMessageListener,
+    removeMessageListener 
+  } = useContext(NotificationContext);
+
+  // Handle new messages coming via socket
+  useEffect(() => {
+    const handleNewMessage = (data) => {
+      console.log("New message received in ChatScreen:", data);
+      // Only update if the message is from the current chat partner
+      if (data.senderId === userId) {
+        console.log("Adding new message to chat");
+        // Add new message to state
+        setMessages(prevMessages => [
+          ...prevMessages, 
+          {
+            _id: data._id || Date.now().toString(),
+            sender: data.senderId,
+            receiver: user.id,
+            content: data.content,
+            createdAt: data.createdAt || new Date().toISOString()
+          }
+        ]);
+        
+        // Clear notification for this sender
+        clearMessageNotifications(userId);
+        
+        // Scroll to bottom
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    };
+    
+    // Register the listener
+    console.log("Registering message listener");
+    addMessageListener(handleNewMessage);
+    
+    return () => {
+      console.log("Removing message listener");
+      removeMessageListener(handleNewMessage);
+    };
+  }, [userId, user?.id]);
 
   useEffect(() => {
     // Set the header title to the chat recipient's name
@@ -38,13 +82,34 @@ const ChatScreen = ({ route, navigation }) => {
     });
     
     // Load conversation
-    loadConversation();
+    const loadConversation = async () => {
+      try {
+        console.log(`Loading conversation with ${userId}`);
+        const response = await getConversation(userId);
+        console.log(`Loaded ${response?.messages?.length || 0} messages`);
+        
+        // Check response structure and update messages
+        if (response && Array.isArray(response.messages)) {
+          setMessages(response.messages);
+        } else {
+          console.warn('Unexpected response format:', response);
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('Error loading conversation:', error);
+        if (isLoading) {
+          Alert.alert('Error', 'Failed to load conversation');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
     // Clear notifications for this conversation
     clearMessageNotifications(userId);
     
-    // Set up polling for new messages
-    const intervalId = setInterval(loadConversation, 10000);
+    // Set up polling for new messages (as backup)
+    const intervalId = setInterval(loadConversation, 15000);
     
     return () => clearInterval(intervalId);
   }, [userId]);
@@ -52,7 +117,9 @@ const ChatScreen = ({ route, navigation }) => {
   // Load conversation
   const loadConversation = async () => {
     try {
+      console.log(`Loading conversation with ${userId}`);
       const response = await getConversation(userId);
+      console.log(`Loaded ${response?.messages?.length || 0} messages`);
       setMessages(response?.messages || []);  // Use optional chaining and provide default empty array
     } catch (error) {
       console.error('Error loading conversation:', error);
@@ -64,7 +131,6 @@ const ChatScreen = ({ route, navigation }) => {
     }
   };
 
-  // Send a message
   const handleSend = async () => {
     if (inputMessage.trim() === '') return;
     
@@ -89,18 +155,33 @@ const ChatScreen = ({ route, navigation }) => {
     
     try {
       setIsSending(true);
-      // Send via API
+      console.log('Sending message...');
+      
+      // 1. Send via API (for persistence)
       const messageData = {
         receiverId: userId,
         content: inputMessage,
         orderId: orderId || null
       };
-      await sendMessage(messageData);
       
-      // Send via Socket for real-time
-      sendSocketMessage(userId, inputMessage);
+      // Send to server for database persistence
+      const response = await sendMessage(messageData);
+      console.log('API message response:', response);
       
-      // Remove temp message and add real one by reloading
+      // 2. Send via Socket.IO (for real-time delivery)
+      // Include the message ID from the API response
+      const socketMessageData = {
+        senderId: user.id,
+        receiverId: userId,
+        content: inputMessage,
+        _id: response?.message?._id || tempId
+      };
+      
+      // Send via socket
+      const socketSent = sendSocketMessage(userId, inputMessage);
+      console.log('Socket message sent:', socketSent);
+      
+      // Refresh messages to ensure we have the latest data
       await loadConversation();
     } catch (error) {
       console.error('Error sending message:', error);
@@ -147,18 +228,17 @@ const ChatScreen = ({ route, navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : null}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-  
-<FlatList
-  ref={flatListRef}
-  data={messages}
-  renderItem={renderMessageItem}
-  keyExtractor={item => item._id}
-  contentContainerStyle={styles.messageList}
-  ListEmptyComponent={renderEmptyChat}
-  onContentSizeChange={() => 
-    messages && messages.length > 0 && flatListRef.current?.scrollToEnd({ animated: false })
-  }
-/>
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessageItem}
+        keyExtractor={item => item._id}
+        contentContainerStyle={styles.messageList}
+        ListEmptyComponent={renderEmptyChat}
+        onContentSizeChange={() => 
+          messages && messages.length > 0 && flatListRef.current?.scrollToEnd({ animated: false })
+        }
+      />
 
       <View style={styles.inputContainer}>
         <TextInput

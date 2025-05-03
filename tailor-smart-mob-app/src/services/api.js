@@ -2,6 +2,7 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 // Get API URL from app.json or use default
 export const API_URL = Constants.manifest?.extra?.apiUrl || 'http://192.168.1.91:8000/api/v1';
 
@@ -179,9 +180,33 @@ export const getCompletedOrders = async () => {
 };
 
 // Admin API calls
-export const getDashboardStats = async () => {
-  const response = await api.get('/admin/dashboard');
-  return response.data;
+// Admin API calls
+export const getDashboardStats = async (timestamp) => {
+  try {
+    // Add timestamp as a query parameter to bust cache
+    const queryParam = timestamp ? `?t=${timestamp}` : '';
+    const response = await api.get(`/admin/dashboard${queryParam}`);
+    
+    // Log the response for debugging
+    console.log('Dashboard stats response:', response.data);
+    
+    return response.data;
+  } catch (error) {
+    console.error('Get dashboard stats error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+// Add this to your api.js file
+
+export const getDiagnosticData = async () => {
+  try {
+    const response = await api.get('/admin/diagnostic');
+    console.log('Diagnostic data:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Diagnostic API error:', error);
+    throw error;
+  }
 };
 
 export const getAllCustomers = async () => {
@@ -219,7 +244,11 @@ export const createOrder = async (orderData) => {
   console.log('API createOrder called with:', orderData);
   try {
     console.log('Making POST request to /orders');
+    
+    // Make sure we're properly sending the authenticated request
+    // The user ID should be extracted from the token by the auth middleware
     const response = await api.post('/orders', orderData);
+    
     console.log('API createOrder response:', response.data);
     return response.data;
   } catch (error) {
@@ -228,7 +257,15 @@ export const createOrder = async (orderData) => {
     throw error;
   }
 };
-
+export const deleteOrder = async (orderId) => {
+  try {
+    const response = await api.delete(`/orders/${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Delete order error:', error.response?.data || error.message);
+    throw error;
+  }
+};
 export const updateOrderStatus = async (orderId, statusData) => {
   const response = await api.patch(`/orders/${orderId}/status`, statusData);
   return response.data;
@@ -240,16 +277,19 @@ export const confirmOrder = async (orderId) => {
 };
 
 // Message API calls
+// FIXING BUG
 export const sendMessage = async (messageData) => {
   try {
-    const res = await API.post('/v1/messages', {
-      senderId: messageData.senderId,  // make sure senderId exists!
+    console.log('Sending message via API:', messageData);
+    const response = await api.post('/messages', {
       receiverId: messageData.receiverId,
-      text: messageData.text
+      content: messageData.content,
+      orderId: messageData.orderId || null
     });
-    return res.data;
+    console.log('API response for sendMessage:', response.data);
+    return response.data;
   } catch (error) {
-    console.error("API Error:", error.response.data);
+    console.error("API Error in sendMessage:", error.response?.data || error.message);
     throw error;
   }
 };
@@ -257,22 +297,43 @@ export const sendMessage = async (messageData) => {
 export const getConversation = async (userId) => {
   try {
     if (!userId) throw new Error('User ID is missing!');
-    const res = await API.get(`/v1/messages/conversations/${userId}`);
-    return res.data;
+    console.log(`Getting conversation with user ${userId}`);
+    const response = await api.get(`/messages/conversations/${userId}`);
+    return response.data;
   } catch (error) {
-    console.error("API Error:", error.response?.data || error.message);
+    console.error("API Error in getConversation:", error.response?.data || error.message);
     throw error;
   }
 };
 
 export const getAllConversations = async () => {
-  const response = await api.get('/messages/conversations');
-  return response.data;
+  try {
+    console.log('Getting all conversations');
+    const response = await api.get('/messages/conversations');
+    return response.data;
+  } catch (error) {
+    console.error("API Error in getAllConversations:", 
+      error.response?.data?.message || error.message);
+    throw error;
+  }
+};
+
+export const markConversationAsRead = async (conversationId) => {
+  try {
+    console.log(`Marking conversation ${conversationId} as read`);
+    const response = await api.patch(`/messages/conversations/${conversationId}/read`);
+    return response.data;
+  } catch (error) {
+    console.error("API Error in markConversationAsRead:", 
+      error.response?.data?.message || error.message);
+    throw error;
+  }
 };
 
 export const getUnreadCount = async () => {
   const response = await api.get('/messages/unread');
   return response.data;
 };
+
 
 export default api;

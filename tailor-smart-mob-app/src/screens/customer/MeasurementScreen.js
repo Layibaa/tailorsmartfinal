@@ -20,7 +20,8 @@ import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
 import globalStyles from '../../styles/globalStyles';
 import api, { API_URL, createOrder } from '../../services/api';
-
+  // Add this import at the top of MeasurementScreen.js
+  import { EventRegister } from 'react-native-event-listeners';
 const MeasurementScreen = ({ route, navigation }) => {
   const { tailorId, tailorName, garmentType, notes } = route.params;
   const [loading, setLoading] = useState(false);
@@ -62,85 +63,92 @@ useEffect(() => {
   };
 
   // Submit order
-  const handleSubmit = async (values) => {
-    console.log("handleSubmit called with values:", values);
-    
-    // Check if required measurements are present
-    const missingMeasurements = requiredMeasurements.filter(
-      key => !values[key] || values[key] === ''
+
+const handleSubmit = async (values) => {
+  console.log("handleSubmit called with values:", values);
+  
+  // Check if required measurements are present
+  const missingMeasurements = requiredMeasurements.filter(
+    key => !values[key] || values[key] === ''
+  );
+  
+  if (missingMeasurements.length > 0) {
+    console.log("Missing required measurements:", missingMeasurements);
+    Alert.alert(
+      "Missing Measurements",
+      `Please enter values for: ${missingMeasurements.join(', ')}`
     );
-    
-    if (missingMeasurements.length > 0) {
-      console.log("Missing required measurements:", missingMeasurements);
-      Alert.alert(
-        "Missing Measurements",
-        `Please enter values for: ${missingMeasurements.join(', ')}`
-      );
-      return;
-    }
-    
-    setLoading(true);
-    
-    // Convert string values to numbers
-    const measurements = {};
-    requiredMeasurements.forEach(key => {
-      if (values[key]) {
-        measurements[key] = parseFloat(values[key]);
-      }
-    });
-    
-    console.log("Processed measurements:", measurements);
+    return;
+  }
   
-    try {
-      // Create order data object
-      const orderData = {
-        tailorId,
-        garmentType,
-        measurements,
-        notes
-      };
-      
-      console.log("Sending order data to API:", orderData);
-      
-      // Make the API call
-      const response = await createOrder(orderData);
-      
-      console.log("API response received:", response);
-      
-      Alert.alert(
-        'Order Sent',
-        'Your order has been sent to the tailor for review.',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              console.log("Navigating to Orders screen");
-              navigation.navigate('Orders');
-            }
+  setLoading(true);
+  
+  // Convert string values to numbers
+  const measurements = {};
+  requiredMeasurements.forEach(key => {
+    if (values[key]) {
+      measurements[key] = parseFloat(values[key]);
+    }
+  });
+  
+  console.log("Processed measurements:", measurements);
+
+  try {
+    // Create order data object
+    const orderData = {
+      tailorId,
+      garmentType,
+      measurements,
+      notes
+    };
+    
+    console.log("Sending order data to API:", orderData);
+    
+    // Make the API call
+    const response = await createOrder(orderData);
+    
+    console.log("API response received:", response);
+    
+    // Emit a global event with the new order data
+    EventRegister.emit('newOrderCreated', response.order);
+    
+    // Show success popup
+    Alert.alert(
+      'Success',
+      'Your order has been sent to the tailor for review.',
+      [
+        { 
+          text: 'OK', 
+          onPress: () => {
+            console.log("Navigating to Orders screen");
+            // Use reset to clear navigation stack
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Orders' }],
+            });
           }
-        ]
-      );
-    } catch (error) {
-      console.error('Error creating order:', error);
-      // Get more detailed error information
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        console.error('Error response headers:', error.response.headers);
-      } else if (error.request) {
-        console.error('Error request:', error.request);
-      }
-      
-      Alert.alert(
-        'Error',
-        error.response?.data?.msg || error.message || 'Failed to create order. Please try again.'
-      );
-    } finally {
-      setLoading(false);
+        }
+      ]
+    );
+  } catch (error) {
+    console.error('Error creating order:', error);
+    // Get more detailed error information
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    } else if (error.request) {
+      console.error('Error request:', error.request);
     }
     
-  };
-  
+    Alert.alert(
+      'Error',
+      error.response?.data?.msg || error.message || 'Failed to create order. Please try again.'
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -192,7 +200,18 @@ useEffect(() => {
       ))}
 
       <View style={styles.buttonsContainer}>
-        <Button
+            <Button
+        title="Submit Order"
+        onPress={() => {
+          console.log("was tetsing nav but now its the default button for submitting");
+          formikSubmit();
+          navigation.navigate('Orders');
+        }}
+        loading={loading}
+        
+        buttonStyle={{ marginTop: 10 }}
+      />
+       {/* <Button
           title="Submit Order"
           onPress={() => {
             console.log("Submit button pressed");
@@ -202,22 +221,14 @@ useEffect(() => {
             formikSubmit();
           }}
           loading={loading}
-        />
+        /> */}
         <Button
           title="Go Back"
           onPress={() => navigation.goBack()}
           outline
           buttonStyle={styles.backButton}
         />
-        <Button
-  title="Test Navigation"
-  onPress={() => {
-    console.log("Testing navigation to Orders screen");
-    navigation.navigate('Orders');
-  }}
-  outline
-  buttonStyle={{ marginTop: 10 }}
-/>
+        
       </View>
     </View>
   )}

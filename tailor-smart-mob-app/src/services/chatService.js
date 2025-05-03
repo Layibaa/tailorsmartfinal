@@ -1,82 +1,74 @@
 import { API_URL } from './api';
-import WebSocket from 'react-native-websocket';
+import io from 'socket.io-client';
 
 class ChatService {
   constructor() {
     this.socket = null;
+    this.isConnected = false;
     this.messageListeners = [];
     this.connectionStateListeners = [];
-    this.isConnected = false;
   }
 
-  // Initialize WebSocket connection
+  // Initialize Socket.IO connection
   connect(userToken, userId) {
     if (this.socket && this.isConnected) {
       return;
     }
 
-    // Get WebSocket URL from API URL (replace http/https with ws/wss)
-    const wsProtocol = API_URL.startsWith('https') ? 'wss' : 'ws';
-    const wsUrl = `${wsProtocol}://${API_URL.replace(/^https?:\/\//, '')}/ws`;
-
     try {
-      // Create WebSocket connection
-      this.socket = new WebSocket(wsUrl);
+      this.socket = io(API_URL, {
+        transports: ['websocket'], // Use WebSocket transport
+        query: {
+          token: userToken,
+          userId: userId
+        }
+      });
 
-      // Connection opened
-      this.socket.onopen = () => {
-        console.log('WebSocket connection established');
+      // Connection successful
+      this.socket.on('connect', () => {
+        console.log('Socket.IO connected');
         this.isConnected = true;
-        
-        // Register user with WebSocket server
-        this.socket.send(JSON.stringify({
-          type: 'register',
-          userId: userId,
-          token: userToken
-        }));
-        
-        // Notify listeners of connection state change
         this.notifyConnectionStateListeners(true);
-      };
+      });
 
-      // Listen for messages
-      this.socket.onmessage = (event) => {
+      // Listen for incoming messages
+      this.socket.on('message', (data) => {
         try {
-          const data = JSON.parse(event.data);
           this.notifyMessageListeners(data);
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('Error handling incoming message:', error);
         }
-      };
+      });
 
-      // Listen for errors
-      this.socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        this.notifyConnectionStateListeners(false);
-      };
-
-      // Connection closed
-      this.socket.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
+      // Connection error
+      this.socket.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
         this.isConnected = false;
         this.notifyConnectionStateListeners(false);
-        
-        // Attempt to reconnect after a delay
+      });
+
+      // Disconnected
+      this.socket.on('disconnect', (reason) => {
+        console.log('Socket.IO disconnected:', reason);
+        this.isConnected = false;
+        this.notifyConnectionStateListeners(false);
+
+        // Optionally reconnect
         setTimeout(() => {
           if (!this.isConnected) {
             this.connect(userToken, userId);
           }
         }, 5000);
-      };
+      });
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
+      console.error('Failed to connect to Socket.IO server:', error);
     }
   }
 
-  // Disconnect WebSocket
+  // Disconnect Socket.IO
   disconnect() {
     if (this.socket) {
-      this.socket.close();
+      this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
       this.notifyConnectionStateListeners(false);
@@ -85,18 +77,17 @@ class ChatService {
 
   // Send a chat message
   sendMessage(receiverId, content) {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.socket && this.isConnected) {
       const message = {
-        type: 'chat',
         receiverId: receiverId,
         content: content,
         timestamp: new Date().toISOString()
       };
       
-      this.socket.send(JSON.stringify(message));
+      this.socket.emit('chat', message);
       return true;
     } else {
-      console.error('WebSocket not connected. Cannot send message.');
+      console.error('Socket.IO not connected. Cannot send message.');
       return false;
     }
   }
@@ -141,7 +132,7 @@ class ChatService {
 
   // Check if socket is connected
   isSocketConnected() {
-    return this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN;
+    return this.isConnected && this.socket && this.socket.connected;
   }
 }
 

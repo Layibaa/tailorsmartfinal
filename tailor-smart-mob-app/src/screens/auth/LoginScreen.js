@@ -70,13 +70,13 @@ const LoginScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollView}>
         <View style={styles.logoContainer}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1524404794194-16bae22718c0' }} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Tailoring App</Text>
-          <Text style={styles.subtitle}>Login to your account</Text>
+                <Image
+          source={require('../../assets/newlogo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        {/*  <Text style={styles.title}>Tailoring App</Text>
+          <Text style={styles.subtitle}>Login to your account</Text> */}
         </View>
         
         {error && <Text style={styles.errorText}>{error}</Text>}

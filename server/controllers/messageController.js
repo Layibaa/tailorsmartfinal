@@ -50,15 +50,8 @@ const getConversation = async (req, res) => {
     { read: true }
   );
   
-  res.status(StatusCodes.OK).json({ 
-    count: messages.length, 
-    otherUser: {
-      id: otherUser._id,
-      name: otherUser.name,
-      role: otherUser.role
-    },
-    messages 
-  });
+  // Return messages directly as the frontend expects
+  res.status(StatusCodes.OK).json({ messages });
 };
 
 // Get all conversations for the current user

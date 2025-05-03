@@ -23,12 +23,14 @@ export const NotificationProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [orderUpdates, setOrderUpdates] = useState([]);
+  const [messageListeners, setMessageListeners] = useState([]);
   
   const { user, userToken } = useContext(AuthContext);
 
   // Initialize socket.io connection
   useEffect(() => {
     if (userToken && user) {
+      console.log('Connecting to socket.io server...');
       // Connect to the server
       const newSocket = io(API_URL.replace('/api/v1', ''), {
         auth: {
@@ -40,11 +42,17 @@ export const NotificationProvider = ({ children }) => {
       
       // Join user-specific room
       newSocket.emit('join', user.id);
+      console.log(`Joined room: ${user.id}`);
       
       // Listen for new messages
       newSocket.on('new-message', (data) => {
+        console.log('Received new message via socket:', data);
+        
         // Increase unread count
         setUnreadMessages((prev) => prev + 1);
+        
+        // Notify all registered listeners
+        messageListeners.forEach(listener => listener(data));
         
         // Show notification
         schedulePushNotification({
@@ -66,8 +74,19 @@ export const NotificationProvider = ({ children }) => {
           data: { screen: 'OrderDetails', orderId: data.orderId }
         });
       });
+
+      // Handle socket connection errors
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+      });
+
+      // Handle successful connection
+      newSocket.on('connect', () => {
+        console.log('Socket successfully connected');
+      });
       
       return () => {
+        console.log('Disconnecting socket...');
         newSocket.disconnect();
       };
     }
@@ -105,15 +124,33 @@ export const NotificationProvider = ({ children }) => {
     setOrderUpdates(prev => prev.filter(update => update.orderId !== orderId));
   };
 
-  // Send a message via socket
-  const sendMessage = (receiverId, content) => {
-    if (socket && user) {
-      socket.emit('message', {
-        senderId: user.id,
-        receiverId,
-        content
-      });
-    }
+  // Send a message via socket 
+const sendMessage = (receiverId, content) => {
+  console.log(`Sending message to ${receiverId}: ${content}`);
+  if (socket && user) {
+    // Make sure this matches what your server expects
+    socket.emit('message', {
+      senderId: user.id,
+      receiverId,
+      content
+    });
+    return true;
+  } else {
+    console.error('Socket not connected or user not set');
+    return false;
+  }
+};
+
+  // Add a message listener
+  const addMessageListener = (callback) => {
+    console.log('Adding message listener');
+    setMessageListeners(prev => [...prev, callback]);
+  };
+
+  // Remove a message listener
+  const removeMessageListener = (callback) => {
+    console.log('Removing message listener');
+    setMessageListeners(prev => prev.filter(listener => listener !== callback));
   };
 
   // Send order notification
@@ -138,7 +175,9 @@ export const NotificationProvider = ({ children }) => {
         sendMessage,
         sendOrderNotification,
         clearMessageNotifications,
-        clearOrderNotification
+        clearOrderNotification,
+        addMessageListener,
+        removeMessageListener
       }}
     >
       {children}

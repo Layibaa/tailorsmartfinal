@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,55 +14,133 @@ import { AuthContext } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors';
 import globalStyles from '../../styles/globalStyles';
+import { useFocusEffect } from '@react-navigation/native';
 
 const AdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Add refresh key state
   const { logout } = useContext(AuthContext);
 
-  // Load dashboard data
-  const loadDashboardData = async () => {
+  // Force refresh function
+  const forceRefresh = () => {
+    setRefreshKey(prevKey => prevKey + 1);
+  };
+
+  // Load dashboard data with cache busting
+  const loadDashboardData = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setIsLoading(true);
+    }
+    
     try {
-      const data = await getDashboardStats();
+      // Add timestamp to bust cache
+      const timestamp = new Date().getTime();
+      const data = await getDashboardStats(timestamp);
+      
+      // Debug logs
+      console.log("Dashboard data loaded:", data);
+      console.log("Customer count:", data.stats.customerCount);
+      console.log("Tailor count:", data.stats.tailorCount);
+      
       setStats(data.stats);
       setRecentOrders(data.recentOrders);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load dashboard data');
       console.error('Error loading dashboard data:', error);
+      Alert.alert('Error', 'Failed to load dashboard data. Pull down to refresh.');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   };
 
+  // Initial data load using the refresh key to force updates
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    loadDashboardData(true);
+    
+    // Set up a more frequent refresh interval (every 15 seconds)
+    const refreshInterval = setInterval(() => {
+      loadDashboardData(false);
+    }, 15000);
+    
+    // Clean up the interval on component unmount
+    return () => clearInterval(refreshInterval);
+  }, [refreshKey]); // Depend on refreshKey
 
-  // Handle refresh
+  // Refresh data when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Screen focused - reloading dashboard data");
+      forceRefresh(); // Force refresh when screen is focused
+      return () => {}; // Clean up function
+    }, [])
+  );
+
+  // Handle pull-to-refresh
   const onRefresh = () => {
+    console.log("Manual refresh triggered");
     setRefreshing(true);
-    loadDashboardData();
+    forceRefresh(); // Force refresh on pull-to-refresh
   };
 
   // Handle logout
-const handleLogout = async () => {
-  try {
-    // Use the logout function from AuthContext
-    const result = await logout();
-    if (result.success) {
-      // After successful logout, navigate to Login
-      navigation.navigate('Login');
-    } else {
-      Alert.alert('Error', result.error || 'Failed to logout');
+  const handleLogout = async () => {
+    try {
+      // Use the logout function from AuthContext
+      const result = await logout();
+      if (result.success) {
+        // After successful logout, navigate to Login
+        navigation.navigate('Login');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to logout');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'An unexpected error occurred during logout');
     }
+  };
+// Add this function to your AdminDashboard component
+
+const runDiagnostic = async () => {
+  try {
+    setIsLoading(true);
+    const diagnosticData = await getDiagnosticData();
+    
+    // Display diagnostic data in an alert
+    Alert.alert(
+      'Diagnostic Results',
+      `Total Users: ${diagnosticData.totalUsers}\n` +
+      `Customers: ${diagnosticData.customerCount}\n` +
+      `Tailors: ${diagnosticData.tailorCount}\n` +
+      `Admins: ${diagnosticData.adminCount}\n` +
+      `Orders: ${diagnosticData.orderCount}\n\n` +
+      `First 3 users:\n` +
+      diagnosticData.users.slice(0, 3).map(u => 
+        `- ${u.name} (${u.role})`
+      ).join('\n')
+    );
+
+    // Also refresh dashboard data
+    loadDashboardData();
   } catch (error) {
-    console.error('Logout error:', error);
-    Alert.alert('Error', 'An unexpected error occurred during logout');
+    Alert.alert('Diagnostic Error', error.message);
+  } finally {
+    setIsLoading(false);
   }
 };
+
+// Then add this button to your header
+<TouchableOpacity onPress={runDiagnostic} style={styles.diagnosticButton}>
+  <Feather name="activity" size={24} color={colors.warning} />
+</TouchableOpacity>
+
+  // Add a manual refresh button
+  const handleManualRefresh = () => {
+    setIsLoading(true);
+    forceRefresh();
+  };
 
   if (isLoading) {
     return <LoadingSpinner fullScreen text="Loading dashboard..." />;
@@ -72,9 +150,14 @@ const handleLogout = async () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Admin Dashboard</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Feather name="log-out" size={24} color={colors.black} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity onPress={handleManualRefresh} style={styles.refreshButton}>
+            <Feather name="refresh-cw" size={24} color={colors.black} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <Feather name="log-out" size={24} color={colors.black} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -209,6 +292,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.black
+  },
+  headerButtons: {
+    flexDirection: 'row',
+  },
+  refreshButton: {
+    padding: 8,
+    marginRight: 10
   },
   logoutButton: {
     padding: 8

@@ -6,12 +6,21 @@ const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../err
 
 // Create a new order
 const createOrder = async (req, res) => {
-  const { userId, role } = req.user;
+  // Extract user info from req.user, checking for both possible property names
+  const userId = req.user.userId || req.user.id;
+  const { role } = req.user;
+  
+  // Debug log to see what's coming through
+  console.log('User info in createOrder:', { userId, role, fullUser: req.user });
   
   // Only customers can create orders
   if (role !== 'customer') {
     throw new UnauthenticatedError('Only customers can create orders');
   }
+  
+  if (!userId) {
+    throw new BadRequestError('Customer ID is required');
+  }      
   
   const { tailorId, garmentType, measurements, notes } = req.body;
   
@@ -21,9 +30,9 @@ const createOrder = async (req, res) => {
     throw new NotFoundError(`No tailor with id ${tailorId}`);
   }
   
-  // Create order
+  // Create order using the userId from the authenticated user
   const order = await Order.create({
-    customer: userId,
+    customer: userId,  // This is already correct - using the authenticated user's ID
     tailor: tailorId,
     garmentType,
     measurements,
@@ -151,8 +160,43 @@ const confirmOrder = async (req, res) => {
   res.status(StatusCodes.OK).json({ order: updatedOrder });
 };
 
+// Delete an order (for customers or tailors)
+const deleteOrder = async (req, res) => {
+  const { userId, role } = req.user;
+  const { id: orderId } = req.params;
+  
+  // Find the order
+  const order = await Order.findById(orderId);
+  
+  if (!order) {
+    throw new NotFoundError(`No order with id ${orderId}`);
+  }
+  
+  // Check if user is authorized to delete this order
+  if (
+    (role === 'customer' && order.customer.toString() !== userId) ||
+    (role === 'tailor' && order.tailor.toString() !== userId)
+  ) {
+    throw new UnauthenticatedError('Not authorized to delete this order');
+  }
+  
+  // Only allow deletion of orders in certain statuses
+  const deletableStatuses = ['pending', 'accepted', 'rejected'];
+  if (!deletableStatuses.includes(order.status)) {
+    throw new BadRequestError(`Cannot delete order in ${order.status} status`);
+  }
+  
+  await Order.findByIdAndDelete(orderId);
+  
+  // Delete any associated messages
+  await Message.deleteMany({ order: orderId });
+  
+  res.status(StatusCodes.OK).json({ msg: 'Order deleted successfully' });
+};
+
 module.exports = {
   createOrder,
   updateOrderStatus,
-  confirmOrder
+  confirmOrder,
+  deleteOrder
 };

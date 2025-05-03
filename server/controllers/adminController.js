@@ -5,44 +5,70 @@ const { NotFoundError } = require('../errors');
 
 // Get dashboard stats
 const getDashboardStats = async (req, res) => {
-  // Get counts
-  const customerCount = await User.countDocuments({ role: 'customer' });
-  const tailorCount = await User.countDocuments({ role: 'tailor' });
-  const orderCount = await Order.countDocuments();
+  console.log('getDashboardStats called at:', new Date().toISOString());
   
-  // Get recent orders
-  const recentOrders = await Order.find()
-    .sort('-createdAt')
-    .limit(5)
-    .populate('customer', 'name')
-    .populate('tailor', 'name');
-  
-  // Get order stats by status
-  const pendingOrders = await Order.countDocuments({ status: 'pending' });
-  const acceptedOrders = await Order.countDocuments({ status: 'accepted' });
-  const confirmedOrders = await Order.countDocuments({ status: 'confirmed' });
-  const makingOrders = await Order.countDocuments({ status: 'making' });
-  const paymentDoneOrders = await Order.countDocuments({ status: 'payment_done' });
-  const completedOrders = await Order.countDocuments({ status: 'completed' });
-  const rejectedOrders = await Order.countDocuments({ status: 'rejected' });
-  
-  res.status(StatusCodes.OK).json({
-    stats: {
-      customerCount,
-      tailorCount,
-      orderCount,
-      orderStatusStats: {
-        pending: pendingOrders,
-        accepted: acceptedOrders,
-        confirmed: confirmedOrders,
-        making: makingOrders,
-        payment_done: paymentDoneOrders,
-        completed: completedOrders,
-        rejected: rejectedOrders
-      }
-    },
-    recentOrders
-  });
+  try {
+    // Get counts with explicit queries and no caching
+    const customerCount = await User.countDocuments({ role: 'customer' });
+    console.log('Raw customer count from database:', customerCount);
+    
+    const tailorCount = await User.countDocuments({ role: 'tailor' });
+    console.log('Raw tailor count from database:', tailorCount);
+    
+    const orderCount = await Order.countDocuments();
+    console.log('Raw order count from database:', orderCount);
+    
+    // Get all customers to verify they exist
+    const allCustomers = await User.find({ role: 'customer' }).select('_id name email');
+    console.log('All customers found:', allCustomers.length);
+    console.log('Customer IDs:', allCustomers.map(c => c._id));
+    
+    // Get all tailors to verify they exist
+    const allTailors = await User.find({ role: 'tailor' }).select('_id name email');
+    console.log('All tailors found:', allTailors.length);
+    console.log('Tailor IDs:', allTailors.map(t => t._id));
+    
+    // Get recent orders
+    const recentOrders = await Order.find()
+      .sort('-createdAt')
+      .limit(5)
+      .populate('customer', 'name')
+      .populate('tailor', 'name');
+    
+    // Get order stats by status
+    const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const acceptedOrders = await Order.countDocuments({ status: 'accepted' });
+    const confirmedOrders = await Order.countDocuments({ status: 'confirmed' });
+    const makingOrders = await Order.countDocuments({ status: 'making' });
+    const paymentDoneOrders = await Order.countDocuments({ status: 'payment_done' });
+    const completedOrders = await Order.countDocuments({ status: 'completed' });
+    const rejectedOrders = await Order.countDocuments({ status: 'rejected' });
+    
+    const response = {
+      stats: {
+        customerCount,
+        tailorCount,
+        orderCount,
+        orderStatusStats: {
+          pending: pendingOrders,
+          accepted: acceptedOrders,
+          confirmed: confirmedOrders,
+          making: makingOrders,
+          payment_done: paymentDoneOrders,
+          completed: completedOrders,
+          rejected: rejectedOrders
+        }
+      },
+      recentOrders
+    };
+    
+    console.log('Sending response:', JSON.stringify(response, null, 2));
+    
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    console.error('Error in getDashboardStats:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: error.message });
+  }
 };
 
 // Get all customers
