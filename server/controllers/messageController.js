@@ -2,6 +2,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 const { BadRequestError, NotFoundError } = require('../errors');
+const mongoose = require('mongoose'); // Import mongoose
 
 // Send a message
 const sendMessage = async (req, res) => {
@@ -57,14 +58,15 @@ const getConversation = async (req, res) => {
 // Get all conversations for the current user
 const getAllConversations = async (req, res) => {
   const { userId } = req.user;
-  
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
   // Get all unique users the current user has conversed with
   const conversations = await Message.aggregate([
     {
       $match: {
         $or: [
-          { sender: userId },
-          { receiver: userId }
+          { sender: userObjectId },
+          { receiver: userObjectId }
         ]
       }
     },
@@ -75,7 +77,7 @@ const getAllConversations = async (req, res) => {
       $group: {
         _id: {
           $cond: [
-            { $eq: ['$sender', userId] },
+            { $eq: ['$sender', userObjectId] }, // Changed to use userObjectId
             '$receiver',
             '$sender'
           ]
@@ -85,7 +87,7 @@ const getAllConversations = async (req, res) => {
           $sum: {
             $cond: [
               { $and: [
-                { $eq: ['$receiver', userId] },
+                { $eq: ['$receiver', userObjectId] }, // Changed to use userObjectId
                 { $eq: ['$read', false] }
               ]},
               1,

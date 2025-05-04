@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -95,6 +94,11 @@ const ChatListScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
       />
+
+      {/* Refresh Button */}
+      <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
+        <Feather name="refresh-cw" size={24} color={colors.white} />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -161,6 +165,16 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 12,
     fontWeight: 'bold'
+  },
+  refreshButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: colors.black,
+    borderRadius: 50,
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center'
   }
 });
 

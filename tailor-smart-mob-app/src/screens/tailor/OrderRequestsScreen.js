@@ -104,6 +104,9 @@ const OrderRequestsScreen = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Order Requests</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+          <Feather name="refresh-cw" size={24} color={colors.black} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -139,12 +142,18 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.lightGray
+    borderBottomColor: colors.lightGray,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.black
+  },
+  refreshButton: {
+    padding: 8
   },
   listContent: {
     padding: 16,
