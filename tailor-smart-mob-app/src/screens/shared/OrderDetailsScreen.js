@@ -17,7 +17,8 @@ import {
   getTailorOrderDetails,
   updateOrderStatus,
   confirmOrder,
-  deleteOrder
+  deleteOrder,
+  sendMessage
 } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { NotificationContext } from '../../context/NotificationContext';
@@ -27,6 +28,9 @@ import Input from '../../components/ui/Input';
 import colors from '../../styles/colors';
 import globalStyles from '../../styles/globalStyles';
 import { measurementLabels } from '../../utils/validation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { API_URL } from '../../services/api';
 
 const priceSchema = Yup.object().shape({
   price: Yup.number()
@@ -45,6 +49,35 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
+ 
+
+  const handleDeleteOrder = async () => {
+    console.log('Delete function triggered');
+    try {
+      setIsUpdating(true);
+      const response = await deleteOrder(orderId);
+      console.log('Order deleted successfully:', response);
+      
+      // TEMP: Skip Alert and navigate directly
+      navigation.navigate('CustomerTabs', { screen: 'Orders' });
+
+      
+      // OR try replace
+      // navigation.replace('OrderHistory');
+  
+    } catch (error) {
+      console.error('Delete failed:', error.response?.data || error.message);
+      Alert.alert(
+        'Error',
+        error.response?.data?.msg || 'Could not delete the order.'
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+  
+  
+  
   
   // Get order details based on user role
   const loadOrderDetails = async () => {
@@ -81,6 +114,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     loadOrderDetails();
   }, [orderId]);
 
+  
   // Helper function to format date
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -137,34 +171,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   };
 
 
-// Then add this function in the OrderDetailsScreen component
-const handleDeleteOrder = async () => {
-  Alert.alert(
-    'Delete Order',
-    'Are you sure you want to delete this order? This action cannot be undone.',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Delete', 
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            setIsUpdating(true);
-            await deleteOrder(orderId);
-            Alert.alert('Success', 'Order deleted successfully');
-            navigation.navigate('Orders');
-          } catch (error) {
-            Alert.alert('Error', error.response?.data?.msg || 'Failed to delete order');
-            console.error('Error deleting order:', error);
-          } finally {
-            setIsUpdating(false);
-          }
-        }
-      }
-    ]
-  );
-};
-  // Handle reject order
+
+  
+ 
+// Handle reject order
   const handleRejectOrder = async () => {
     Alert.alert(
       'Reject Order',
