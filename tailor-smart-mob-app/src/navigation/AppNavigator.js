@@ -32,6 +32,7 @@ import ActiveOrdersScreen from '../screens/tailor/ActiveOrdersScreen';
 // Shared screens
 import ChatScreen from '../screens/shared/ChatScreen';
 import OrderDetailsScreen from '../screens/shared/OrderDetailsScreen';
+import ChatListScreen from '../screens/shared/ChatListScreen';
 
 // Import colors
 import colors from '../styles/colors';
@@ -212,6 +213,7 @@ const AdminNavigator = () => (
 
 // Chat list stack navigator (used in tab navigators)
 const ChatListStack = createStackNavigator();
+
 const ChatListStackNavigator = () => (
   <ChatListStack.Navigator
     screenOptions={{
@@ -228,10 +230,19 @@ const ChatListStackNavigator = () => (
       }
     }}
   >
-    <ChatListStack.Screen name="ChatList" component={CustomerDashboard} options={{ title: 'Messages' }} />
-    <ChatListStack.Screen name="Chat" component={ChatScreen} options={({ route }) => ({ title: route.params?.name || 'Chat' })} />
+    <ChatListStack.Screen 
+      name="ChatList" 
+      component={ChatListScreen} 
+      options={{ title: 'Messages' }} 
+    />
+    <ChatListStack.Screen 
+      name="Chat" 
+      component={ChatScreen} 
+      options={({ route }) => ({ title: route.params?.name || 'Chat' })} 
+    />
   </ChatListStack.Navigator>
 );
+
 
 // Customer stack navigator (including tab navigator)
 const CustomerStack = createStackNavigator();

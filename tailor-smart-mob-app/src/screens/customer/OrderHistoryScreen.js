@@ -166,11 +166,17 @@ const OrderHistoryScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Orders</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Tailors')}>
-          <Feather name="plus" size={24} color={colors.black} />
-        </TouchableOpacity>
-      </View>
+  <Text style={styles.headerTitle}>My Orders</Text>
+  <View style={styles.headerIcons}>
+    <TouchableOpacity onPress={onRefresh} style={styles.iconButton}>
+      <Feather name="refresh-ccw" size={24} color={colors.black} />
+    </TouchableOpacity>
+    <TouchableOpacity onPress={() => navigation.navigate('Tailors')} style={styles.iconButton}>
+      <Feather name="plus" size={24} color={colors.black} />
+    </TouchableOpacity>
+  </View>
+</View>
+
 
       {renderTabs()}
 
@@ -275,7 +281,13 @@ const styles = StyleSheet.create({
   findTailorButtonText: {
     color: colors.white,
     fontWeight: '600'
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  iconButton: {
+    marginLeft: 12
   }
-});
-
+  });
 export default OrderHistoryScreen;

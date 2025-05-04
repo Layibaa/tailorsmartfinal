@@ -244,7 +244,6 @@ export const createOrder = async (orderData) => {
   console.log('API createOrder called with:', orderData);
   try {
     console.log('Making POST request to /orders');
-    
     // Make sure we're properly sending the authenticated request
     // The user ID should be extracted from the token by the auth middleware
     const response = await api.post('/orders', orderData);

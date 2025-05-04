@@ -160,39 +160,38 @@ const confirmOrder = async (req, res) => {
   res.status(StatusCodes.OK).json({ order: updatedOrder });
 };
 
-// Delete an order (for customers or tailors)
 const deleteOrder = async (req, res) => {
   const { userId, role } = req.user;
   const { id: orderId } = req.params;
-  
-  // Find the order
+
+  console.log(`DELETE REQUEST for Order ID: ${orderId}, Role: ${role}, UserID: ${userId}`);
+
   const order = await Order.findById(orderId);
-  
   if (!order) {
+    console.log('Order not found');
     throw new NotFoundError(`No order with id ${orderId}`);
   }
-  
-  // Check if user is authorized to delete this order
-  if (
-    (role === 'customer' && order.customer.toString() !== userId) ||
-    (role === 'tailor' && order.tailor.toString() !== userId)
-  ) {
+
+  console.log('Order found:', order);
+
+  const isCustomer = role === 'customer' && order.customer.toString() === userId;
+  const isTailor = role === 'tailor' && order.tailor.toString() === userId;
+
+  if (!isCustomer && !isTailor) {
+    console.log('Unauthorized user attempted deletion');
     throw new UnauthenticatedError('Not authorized to delete this order');
   }
-  
-  // Only allow deletion of orders in certain statuses
-  const deletableStatuses = ['pending', 'accepted', 'rejected'];
-  if (!deletableStatuses.includes(order.status)) {
-    throw new BadRequestError(`Cannot delete order in ${order.status} status`);
-  }
-  
+
   await Order.findByIdAndDelete(orderId);
-  
-  // Delete any associated messages
+  console.log('Order deleted from DB');
+
   await Message.deleteMany({ order: orderId });
-  
+  console.log('Associated messages deleted');
+
   res.status(StatusCodes.OK).json({ msg: 'Order deleted successfully' });
 };
+
+
 
 module.exports = {
   createOrder,
