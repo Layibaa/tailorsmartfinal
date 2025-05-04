@@ -111,6 +111,10 @@ const ActiveOrdersScreen = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Orders</Text>
+        {/* Add the refresh button here */}
+        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+          <Feather name="refresh-ccw" size={24} color={colors.black} />
+        </TouchableOpacity>
       </View>
 
       {renderTabs()}
@@ -144,12 +148,18 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingTop: 50,
-    paddingBottom: 16
+    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.black
+  },
+  refreshButton: {
+    padding: 8
   },
   tabsContainer: {
     flexDirection: 'row',

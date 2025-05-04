@@ -96,12 +96,16 @@ const TailorDashboard = ({ navigation }) => {
 
   // Handle logout
   const handleLogout = () => {
-    // Just navigate directly to Login screen
+    // Call the logout function from the context to clear user data
+    logout();  // Make sure logout clears any authentication-related state, such as user details or tokens
+    
+    // Navigate to the Login screen
     navigation.reset({
       index: 0,
       routes: [{ name: 'Login' }],
     });
   };
+  
 
   if (isLoading) {
     return <LoadingSpinner fullScreen text="Loading dashboard..." />;
