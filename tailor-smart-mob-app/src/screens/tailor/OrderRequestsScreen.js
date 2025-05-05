@@ -59,27 +59,31 @@ const OrderRequestsScreen = ({ navigation }) => {
 
   // Handle reject order
   const handleRejectOrder = async (orderId) => {
-    try {
-      setIsLoading(true);
-      
-      // Update order status to 'rejected'
-      await updateOrderStatus(orderId, { status: 'rejected' });
-  
-      // Show success alert
-      Alert.alert('Success', 'Order has been rejected');
-  
-      // Navigate to Order Request screen (after rejection)
-      navigation.navigate('TailorTabs', { screen: 'OrderDetailsScreen' });
-      
-    } catch (error) {
-      // Show error alert in case of failure
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to reject order');
-      console.error('Error rejecting order:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    Alert.alert(
+      'Reject Order',
+      'Are you sure you want to reject this order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reject', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              await updateOrderStatus(orderId, { status: 'rejected' });
+              Alert.alert('Success', 'Order has been rejected');
+              loadOrders();
+            } catch (error) {
+              Alert.alert('Error', error.response?.data?.msg || 'Failed to reject order');
+              console.error('Error rejecting order:', error);
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
-  
 
   // Render empty state
   const renderEmptyState = () => (

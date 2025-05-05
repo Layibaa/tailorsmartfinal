@@ -75,32 +75,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setIsUpdating(false);
     }
   };
-   
-// Handle reject order (modified to work like delete order)
-const handleRejectOrder = async () => {
-  console.log('Reject function triggered');
-  try {
-    setIsUpdating(true);
-    
-    // Call updateOrderStatus to change the order's status to 'rejected'
-    const response = await updateOrderStatus(orderId, { status: 'rejected' });
-    console.log('Order rejected successfully:', response);
-
-    // Navigate to the Order Request screen (after rejection)
-    //anavigation.replace('OrderRequestScreen'); // Replace with your Order Request screen name
-    navigation.navigate('TailorTabs', { screen: 'OrderDetailsScreen' });
-  } catch (error) {
-    console.error('Reject failed:', error.response?.data || error.message);
-    Alert.alert(
-      'Error',
-      error.response?.data?.msg || 'Could not reject the order.'
-    );
-  } finally {
-    setIsUpdating(false);
-  }
-};
-
-
+  
+  
   
   
   // Get order details based on user role
@@ -198,8 +174,44 @@ const handleRejectOrder = async () => {
 
   
  
-
-
+// Handle reject order
+  const handleRejectOrder = async () => {
+    Alert.alert(
+      'Reject Order',
+      'Are you sure you want to reject this order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reject', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsUpdating(true);
+              await updateOrderStatus(orderId, { status: 'rejected' });
+              
+              // Send notification
+              if (order.customer) {
+                sendOrderNotification(
+                  order.customer._id,
+                  orderId,
+                  'rejected',
+                  'Your order has been rejected by the tailor'
+                );
+              }
+              
+              Alert.alert('Success', 'Order rejected');
+              loadOrderDetails();
+            } catch (error) {
+              Alert.alert('Error', error.response?.data?.msg || 'Failed to reject order');
+              console.error('Error rejecting order:', error);
+            } finally {
+              setIsUpdating(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   // Handle confirm order (customer)
   const handleConfirmOrder = async () => {
