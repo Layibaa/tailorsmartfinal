@@ -62,6 +62,21 @@ useEffect(() => {
     thigh: ''
   };
 
+
+  const fetchPrediction = async () => {
+  try {
+    const res = await axios.post("http://localhost:5000/api/predict", {
+      age: user.age,
+      height: user.height,
+      weight: user.weight,
+      gender: user.gender
+    });
+    setMeasurements(res.data);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
   // Submit order
 
 const handleSubmit = async (values) => {

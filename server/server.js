@@ -61,6 +61,8 @@ app.use('/api/v1/tailors', tailorRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/messages', messageRoutes);
+app.use("/api/predict", require("./routes/predict"));
+
 
 // Error handling middleware
 app.use(notFoundMiddleware);
