@@ -81,6 +81,12 @@ const UserSchema = new mongoose.Schema(
       ]
     },
     customerProfile: {
+      
+      age: Number,
+      gender: String,
+      weight: Number,
+      height: Number,
+      
       address: String,
       preferredStyles: [String],
       savedMeasurements: {

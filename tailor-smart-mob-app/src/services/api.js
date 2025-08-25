@@ -133,6 +133,12 @@ export const getTailor = async (tailorId) => {
   return response.data;
 };
 
+// Add to your api.js file
+export const updateProfile = async (profileData) => {
+  const response = await api.patch('/auth/profile', profileData);
+  return response.data;
+};
+
 export const updateCustomerProfile = async (profileData) => {
   const response = await api.patch('/customers/profile', profileData);
   return response.data;
@@ -354,6 +360,50 @@ export const deleteAccount = async (password) => {
     return response.data;
   } catch (error) {
     console.error('Delete account error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Add these functions to your services/api.js file
+
+// Update order details (measurements, notes)
+export const updateOrder = async (orderId, updateData) => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await axios.put(
+      `${API_URL}/orders/${orderId}`,
+      updateData,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Update order error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Lock/unlock order
+export const lockOrder = async (orderId, isLocked) => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await axios.patch(
+      `${API_URL}/orders/${orderId}/lock`,
+      { isLocked },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Lock order error:', error.response?.data || error.message);
     throw error;
   }
 };

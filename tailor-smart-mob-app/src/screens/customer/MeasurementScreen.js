@@ -1,3 +1,4 @@
+// Updated MeasurementScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,7 +7,8 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  Image
+  Image,
+  Switch
 } from 'react-native';
 import { Formik } from 'formik';
 import { Feather } from '@expo/vector-icons';
@@ -20,34 +22,45 @@ import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
 import globalStyles from '../../styles/globalStyles';
 import api, { API_URL, createOrder } from '../../services/api';
-  // Add this import at the top of MeasurementScreen.js
-  import { EventRegister } from 'react-native-event-listeners';
+import { EventRegister } from 'react-native-event-listeners';
+import { useAutofillMeasurements } from '../../hooks/useAutofillMeasurements';
+
+
+
 const MeasurementScreen = ({ route, navigation }) => {
   const { tailorId, tailorName, garmentType, notes } = route.params;
   const [loading, setLoading] = useState(false);
   const [requiredMeasurements, setRequiredMeasurements] = useState([]);
+  const [formikRef, setFormikRef] = useState(null);
 
-// Add this to your MeasurementScreen.js useEffect
-useEffect(() => {
-  // Test API connection
-  const testApiConnection = async () => {
-    try {
-      console.log('Testing API connection...');
-      // Use the api instance instead of axios directly
-      const response = await api.get('/health-check');
-      console.log('API connection successful:', response.data);
-    } catch (error) {
-      console.error('API connection failed:', error.message);
-      console.error('Error details:', error.response || error);
-    }
-  };
-  
-  testApiConnection();
-  
-  // Get the required measurements for the selected garment type
-  const measurements = getRequiredMeasurementsForGarment(garmentType);
-  setRequiredMeasurements(measurements);
-}, [garmentType]);
+  // Use the autofill hook
+  const {
+    isAutofillEnabled,
+    isLoading: autofillLoading,
+    customerProfile,
+    isProfileComplete,
+    toggleAutofill,
+    generatePredictedMeasurements,
+    refreshProfile
+  } = useAutofillMeasurements();
+
+  useEffect(() => {
+    const testApiConnection = async () => {
+      try {
+        console.log('Testing API connection...');
+        const response = await api.get('/health-check');
+        console.log('API connection successful:', response.data);
+      } catch (error) {
+        console.error('API connection failed:', error.message);
+        console.error('Error details:', error.response || error);
+      }
+    };
+    
+    testApiConnection();
+    
+    const measurements = getRequiredMeasurementsForGarment(garmentType);
+    setRequiredMeasurements(measurements);
+  }, [garmentType]);
 
   // Initial form values - set all to empty
   const initialValues = {
@@ -62,93 +75,129 @@ useEffect(() => {
     thigh: ''
   };
 
-  // Submit order
-
-const handleSubmit = async (values) => {
-  console.log("handleSubmit called with values:", values);
-  
-  // Check if required measurements are present
-  const missingMeasurements = requiredMeasurements.filter(
-    key => !values[key] || values[key] === ''
-  );
-  
-  if (missingMeasurements.length > 0) {
-    console.log("Missing required measurements:", missingMeasurements);
-    Alert.alert(
-      "Missing Measurements",
-      `Please enter values for: ${missingMeasurements.join(', ')}`
-    );
-    return;
-  }
-  
-  setLoading(true);
-  
-  // Convert string values to numbers
-  const measurements = {};
-  requiredMeasurements.forEach(key => {
-    if (values[key]) {
-      measurements[key] = parseFloat(values[key]);
+  // Handle autofill button press
+  const handleAutofill = async () => {
+    console.log('Autofill clicked. Profile complete:', isProfileComplete);
+    console.log('Customer profile:', customerProfile);
+    
+    if (!isProfileComplete) {
+      Alert.alert(
+        'Profile Incomplete',
+        'Please complete your profile (age, gender, height, weight) to use autofill.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Refresh Profile', 
+            onPress: async () => {
+              await refreshProfile();
+              console.log('Profile refreshed');
+            }
+          },
+          { text: 'Go to Profile', onPress: () => navigation.navigate('Profile') }
+        ]
+      );
+      return;
     }
-  });
-  
-  console.log("Processed measurements:", measurements);
 
-  try {
-    // Create order data object
-    const orderData = {
-      tailorId,
-      garmentType,
-      measurements,
-      notes
-    };
-    
-    console.log("Sending order data to API:", orderData);
-    
-    // Make the API call
-    const response = await createOrder(orderData);
-    
-    console.log("API response received:", response);
-    
-    // Emit a global event with the new order data
-    EventRegister.emit('newOrderCreated', response.order);
-    
-    // Show success popup
-    Alert.alert(
-      'Success',
-      'Your order has been sent to the tailor for review.',
-      [
-        { 
-          text: 'OK', 
-          onPress: () => {
-            console.log("Navigating to Orders screen");
-            // Use reset to clear navigation stack
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Orders' }],
-            });
+    try {
+      const predictions = await generatePredictedMeasurements();
+      if (predictions && formikRef) {
+        // Set the predicted values in the form
+        Object.keys(predictions).forEach(key => {
+          if (requiredMeasurements.includes(key)) {
+            formikRef.setFieldValue(key, predictions[key].toString());
           }
-        }
-      ]
+        });
+
+        Alert.alert(
+          'Measurements Autofilled',
+          'AI has predicted your measurements based on your profile. Please review and adjust as needed.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Autofill error:', error);
+      Alert.alert('Error', 'Failed to generate predicted measurements. Please enter manually.');
+    }
+  };
+
+  const handleSubmit = async (values) => {
+    console.log("handleSubmit called with values:", values);
+    
+    const missingMeasurements = requiredMeasurements.filter(
+      key => !values[key] || values[key] === ''
     );
-  } catch (error) {
-    console.error('Error creating order:', error);
-    // Get more detailed error information
-    if (error.response) {
-      console.error('Error response data:', error.response.data);
-      console.error('Error response status:', error.response.status);
-      console.error('Error response headers:', error.response.headers);
-    } else if (error.request) {
-      console.error('Error request:', error.request);
+    
+    if (missingMeasurements.length > 0) {
+      console.log("Missing required measurements:", missingMeasurements);
+      Alert.alert(
+        "Missing Measurements",
+        `Please enter values for: ${missingMeasurements.join(', ')}`
+      );
+      return;
     }
     
-    Alert.alert(
-      'Error',
-      error.response?.data?.msg || error.message || 'Failed to create order. Please try again.'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    
+    const measurements = {};
+    requiredMeasurements.forEach(key => {
+      if (values[key]) {
+        measurements[key] = parseFloat(values[key]);
+      }
+    });
+    
+    console.log("Processed measurements:", measurements);
+
+    try {
+      const orderData = {
+        tailorId,
+        garmentType,
+        measurements,
+        notes
+      };
+      
+      console.log("Sending order data to API:", orderData);
+      
+      const response = await createOrder(orderData);
+      
+      console.log("API response received:", response);
+      
+      EventRegister.emit('newOrderCreated', response.order);
+      
+      Alert.alert(
+        'Success',
+        'Your order has been sent to the tailor for review.',
+        [
+          { 
+            text: 'OK', 
+            onPress: () => {
+              console.log("Navigating to Orders screen");
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Orders' }],
+              });
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error creating order:', error);
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+      } else if (error.request) {
+        console.error('Error request:', error.request);
+      }
+      
+      Alert.alert(
+        'Error',
+        error.response?.data?.msg || error.message || 'Failed to create order. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -159,75 +208,118 @@ const handleSubmit = async (values) => {
         </Text>
       </View>
 
+      {/* Autofill Toggle Section */}
+      <View style={styles.autofillContainer}>
+        <View style={styles.autofillHeader}>
+          <View style={styles.autofillTitleContainer}>
+            <Feather name="zap" size={20} color={colors.primary} />
+            <Text style={styles.autofillTitle}>AI Autofill</Text>
+          </View>
+          <Switch
+            value={isAutofillEnabled}
+            onValueChange={toggleAutofill}
+            trackColor={{ false: colors.lightGray, true: colors.primary + '40' }}
+            thumbColor={isAutofillEnabled ? colors.primary : colors.gray}
+          />
+        </View>
+        <Text style={styles.autofillDescription}>
+          Use AI to predict your measurements based on your profile data
+        </Text>
+        
+        {isAutofillEnabled && (
+          <TouchableOpacity
+            style={styles.autofillButton}
+            onPress={handleAutofill}
+            disabled={autofillLoading || !isProfileComplete}
+          >
+            <Feather 
+              name="zap" 
+              size={16} 
+              color={autofillLoading || !isProfileComplete ? colors.gray : colors.white} 
+            />
+            <Text style={[
+              styles.autofillButtonText,
+              { color: autofillLoading || !isProfileComplete ? colors.gray : colors.white }
+            ]}>
+              {autofillLoading ? 'Predicting...' : 'Auto-fill Measurements'}
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {!isProfileComplete && isAutofillEnabled && (
+          <View style={styles.warningContainer}>
+            <Feather name="alert-triangle" size={16} color={colors.warning} />
+            <Text style={styles.warningText}>
+              Complete your profile to enable autofill
+            </Text>
+          </View>
+        )}
+      </View>
+
       <View style={styles.measurementGuideContainer}>
         <View style={styles.measurementGuideHeader}>
-          <Feather name="info" size={15} color={colors.black} />
+          <Feather name="info" size={20} color={colors.black} />
           <Text style={styles.measurementGuideTitle}>Measurement Guide</Text>
         </View>
         <Text style={styles.measurementGuideText}>
           Please provide accurate measurements in centimeters. Refer to the guide below
           for how to measure correctly.
-        </Text> 
+        </Text>
+         
       </View>
-      <Formik
-  initialValues={initialValues}
-  validationSchema={MeasurementsSchema[garmentType]}
-  onSubmit={handleSubmit}
->
-  {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched }) => (
-    <View style={styles.formContainer}>
-      {requiredMeasurements.map((measurement) => (
-        <Input
-          key={measurement}
-          label={measurementLabels[measurement]}
-          placeholder={`Enter ${measurement} measurement`}
-          value={values[measurement]}
-          onChangeText={(text) => {
-            // Only allow numbers and decimal point
-            const sanitizedText = text.replace(/[^0-9.]/g, '');
-            handleChange(measurement)(sanitizedText);
-          }}
-          onBlur={handleBlur(measurement)}
-          keyboardType="numeric"
-          error={touched[measurement] && errors[measurement]}
-          iconName="layout"
-        />
-      ))}
 
-      <View style={styles.buttonsContainer}>
-            <Button
-        title="Submit Order"
-        onPress={() => {
-          console.log("was tetsing nav but now its the default button for submitting");
-          formikSubmit();
-          navigation.navigate('Orders');
+      <Formik
+        initialValues={initialValues}
+        validationSchema={MeasurementsSchema[garmentType]}
+        onSubmit={handleSubmit}
+      >
+        {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
+          // Store formik reference for autofill
+          if (!formikRef) {
+            setFormikRef({ setFieldValue });
+          }
+
+          return (
+            <View style={styles.formContainer}>
+              {requiredMeasurements.map((measurement) => (
+                <Input
+                  key={measurement}
+                  label={measurementLabels[measurement]}
+                  placeholder={`Enter ${measurement} measurement`}
+                  value={values[measurement]}
+                  onChangeText={(text) => {
+                    const sanitizedText = text.replace(/[^0-9.]/g, '');
+                    handleChange(measurement)(sanitizedText);
+                  }}
+                  onBlur={handleBlur(measurement)}
+                  keyboardType="numeric"
+                  error={touched[measurement] && errors[measurement]}
+                  iconName="layout"
+                />
+              ))}
+
+              <View style={styles.buttonsContainer}>
+                <Button
+  title="Submit Order"
+  onPress={async () => {
+    await formikSubmit();       // first submit form
+    navigation.navigate('Orders'); // then navigate
+  }}
+  loading={loading}
+  buttonStyle={{ marginTop: 10 }}
+/>
+
+                <Button
+                  title="Go Back"
+                  onPress={() => navigation.goBack()}
+                  outline
+                  buttonStyle={styles.backButton}
+                />
+              </View>
+            </View>
+          );
         }}
-        loading={loading}
-        
-        buttonStyle={{ marginTop: 10 }}
-      />
-       {/* <Button
-          title="Submit Order"
-          onPress={() => {
-            console.log("Submit button pressed");
-            console.log("Form values:", values);
-            console.log("Form errors:", errors);
-            // This calls Formik's handleSubmit
-            formikSubmit();
-          }}
-          loading={loading}
-        /> */}
-        <Button
-          title="Go Back"
-          onPress={() => navigation.goBack()}
-          outline
-          buttonStyle={styles.backButton}
-        />
-        
-      </View>
-    </View>
-  )}
-</Formik>
+      </Formik>
     </ScrollView>
   );
 };
@@ -253,6 +345,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.gray,
     textTransform: 'capitalize'
+  },
+  autofillContainer: {
+    backgroundColor: colors.primary + '10',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.primary + '20'
+  },
+  autofillHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  autofillTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  autofillTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: colors.black
+  },
+  autofillDescription: {
+    fontSize: 14,
+    color: colors.darkGray,
+    lineHeight: 20,
+    marginBottom: 12
+  },
+  autofillButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8
+  },
+  autofillButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.warning + '20',
+    borderRadius: 6,
+    padding: 8
+  },
+  warningText: {
+    fontSize: 12,
+    color: colors.warning,
+    marginLeft: 6
   },
   measurementGuideContainer: {
     backgroundColor: colors.lightGray,

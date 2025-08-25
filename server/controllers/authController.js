@@ -5,50 +5,66 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendEmail } = require('../utils/emailService');
 
-// Register User
+// Update your register function in authController.js
+
 const register = async (req, res) => {
-  // Create OTP for email verification
-  const otp = crypto.randomInt(100000, 999999).toString();
-  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-  
-  // Create user
-  const user = await User.create({
-    ...req.body,
-    otp,
-    otpExpires
-  });
-
-  // Send OTP via email
   try {
-    await sendEmail({
-      to: user.email,
-      subject: 'Verify your email',
-      text: `Your OTP is: ${otp}`
+    const { name, email, password, role, phone, age, gender, weight, height } = req.body;
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new BadRequestError('Email already in use');
+    }
+    
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    // Prepare user data
+    const userData = {
+      name,
+      email,
+      password,
+      role: role || 'customer',
+      phone,
+      otp,
+      otpExpires,
+      isVerified: false
+    };
+    
+    // If registering as customer and profile data is provided, add it
+    if ((role === 'customer' || !role) && (age || gender || weight || height)) {
+      userData.customerProfile = {
+        ...(age && { age: parseInt(age) }),
+        ...(gender && { gender }),
+        ...(weight && { weight: parseFloat(weight) }),
+        ...(height && { height: parseFloat(height) })
+      };
+    }
+    
+    // Create user
+    const user = await User.create(userData);
+    
+    // Send OTP email (your existing email logic here)
+    try {
+      // Your email sending logic here
+      console.log(`OTP for ${email}: ${otp}`); // For development
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+      // Continue with registration even if email fails
+    }
+    
+    res.status(StatusCodes.CREATED).json({
+      message: 'User registered successfully. Please verify your email with the OTP sent.',
+      userId: user._id,
+      email: user.email
     });
+    
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Registration error:', error);
+    throw error;
   }
-
-  // Generate JWT token
-  const token = jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET || 'secret',
-    { expiresIn: '30d' }
-  );
-
-  // Return response
-  res.status(StatusCodes.CREATED).json({
-    success: true,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isVerified: user.isVerified
-    },
-    token,
-    message: 'Registration successful. Please verify your email with the OTP sent to your email.'
-  });
 };
 
 // Login User
@@ -358,6 +374,98 @@ const updatePassword = async (req, res) => {
   });
 };
 
+// Add these methods to your existing authController.js
+
+// Get current user profile
+const getProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+    
+    const user = await User.findById(userId).select('-password -otp -otpExpires -passwordResetToken -passwordResetExpires');
+    
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    
+    res.status(StatusCodes.OK).json({ user });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    throw error;
+  }
+};
+
+// Update user profile
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+    const { name, phone } = req.body;
+    
+    // Prepare update data
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (phone) updateData.phone = phone;
+    
+    // Handle role-specific profile updates
+    if (req.user.role === 'customer') {
+      const { age, gender, weight, height, address, preferredStyles } = req.body;
+      
+      updateData.customerProfile = {};
+      const existingUser = await User.findById(userId);
+      if (existingUser?.customerProfile) {
+        updateData.customerProfile = { ...existingUser.customerProfile };
+      }
+      
+      if (age !== undefined) updateData.customerProfile.age = age;
+      if (gender !== undefined) updateData.customerProfile.gender = gender;
+      if (weight !== undefined) updateData.customerProfile.weight = weight;
+      if (height !== undefined) updateData.customerProfile.height = height;
+      if (address !== undefined) updateData.customerProfile.address = address;
+      if (preferredStyles !== undefined) updateData.customerProfile.preferredStyles = preferredStyles;
+    }
+    
+    if (req.user.role === 'tailor') {
+      const { experience, specialization, shopName, shopAddress, pricing } = req.body;
+      
+      updateData.tailorProfile = {};
+      const existingUser = await User.findById(userId);
+      if (existingUser?.tailorProfile) {
+        updateData.tailorProfile = { ...existingUser.tailorProfile };
+      }
+      
+      if (experience !== undefined) updateData.tailorProfile.experience = experience;
+      if (specialization !== undefined) updateData.tailorProfile.specialization = specialization;
+      if (shopName !== undefined) updateData.tailorProfile.shopName = shopName;
+      if (shopAddress !== undefined) updateData.tailorProfile.shopAddress = shopAddress;
+      if (pricing !== undefined) updateData.tailorProfile.pricing = pricing;
+    }
+    
+    // Save updates
+    const user = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true
+    }).select('-password -otp -otpExpires -passwordResetToken -passwordResetExpires');
+    
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'User not found'
+      });
+    }
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: 'Profile updated successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Error updating profile'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -366,5 +474,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getCurrentUser,
-  updatePassword
+  updatePassword,
+  getProfile,
+  updateProfile,
 };
