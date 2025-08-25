@@ -53,6 +53,10 @@ const OrderSchema = new mongoose.Schema(
       },
       default: 'pending'
     },
+    isLocked: {
+  type: Boolean,
+  default: false
+},
     price: {
       type: Number,
       min: 0

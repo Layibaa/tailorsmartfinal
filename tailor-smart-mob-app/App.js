@@ -1,10 +1,14 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, StatusBar, LogBox } from 'react-native';
+
+import '@tensorflow/tfjs';
+
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
+
 
 // Ignore specific deprecation warnings from libraries
 LogBox.ignoreLogs([
