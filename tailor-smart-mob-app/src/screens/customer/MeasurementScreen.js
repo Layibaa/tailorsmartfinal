@@ -161,18 +161,13 @@ const handleSubmit = async (values) => {
 
       <View style={styles.measurementGuideContainer}>
         <View style={styles.measurementGuideHeader}>
-          <Feather name="info" size={20} color={colors.black} />
+          <Feather name="info" size={15} color={colors.black} />
           <Text style={styles.measurementGuideTitle}>Measurement Guide</Text>
         </View>
         <Text style={styles.measurementGuideText}>
           Please provide accurate measurements in centimeters. Refer to the guide below
           for how to measure correctly.
-        </Text>
-        <Image 
-          source={{ uri: 'https://images.unsplash.com/photo-1552345387-b54624b477d7' }}
-          style={styles.measurementImage}
-          resizeMode="cover"
-        />
+        </Text> 
       </View>
       <Formik
   initialValues={initialValues}

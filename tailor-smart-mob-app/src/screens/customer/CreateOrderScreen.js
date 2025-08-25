@@ -10,34 +10,67 @@ import {
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { Feather } from '@expo/vector-icons';
-import { OrderSchema, garmentTypeOptions } from '../../utils/validation';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
-import globalStyles from '../../styles/globalStyles';
-import { Image } from 'react-native';
 
 const CreateOrderScreen = ({ route, navigation }) => {
   const { tailorId, tailorName } = route.params;
   const [loading, setLoading] = useState(false);
 
-  // Schema for order creation
+  const garmentTypes = [
+    { value: 'shalwar', label: 'Shalwar' },
+    { value: 'kameez', label: 'Kameez' },
+  ];
+
+  const shalwarStyles = [
+    { value: 'simple', label: 'Simple' },
+    { value: 'patiala', label: 'Patiala' },
+    { value: 'gharara', label: 'Gharara' },
+    { value: 'capri', label: 'Capri' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const kameezStyles = [
+    { value: 'simple', label: 'Simple' },
+    { value: 'anarkali', label: 'Anarkali' },
+    { value: 'angrakka', label: 'Angrakka' },
+    { value: 'a-line', label: 'A-Line' },
+    { value: 'other', label: 'Other' },
+  ];
+
   const validationSchema = Yup.object({
     garmentType: Yup.string()
-      .oneOf(['shirt', 'pants', 'suit', 'dress', 'skirt', 'blazer', 'other'], 'Invalid garment type')
+      .oneOf(['shalwar', 'kameez'], 'Please select a garment type')
       .required('Garment type is required'),
+    style: Yup.string()
+      .when('garmentType', {
+        is: 'shalwar',
+        then: () => Yup.string()
+          .oneOf(['simple', 'patiala', 'gharara', 'capri', 'other'])
+          .required('Shalwar style is required'),
+        otherwise: () => Yup.string()
+          .when('garmentType', {
+            is: 'kameez',
+            then: () => Yup.string()
+              .oneOf(['simple', 'anarkali', 'angrakka', 'a-line', 'other'])
+              .required('Kameez style is required'),
+            otherwise: () => Yup.string()
+          })
+      }),
     notes: Yup.string()
       .max(500, 'Notes are too long (max 500 characters)')
   });
-
-  // Submit order and navigate to measurements screen
   const handleSubmit = (values) => {
-    navigation.navigate('Measurements', {
+    const orderData = {
       tailorId,
       tailorName,
       garmentType: values.garmentType,
+      [values.garmentType === 'shalwar' ? 'shalwarStyle' : 'kameezStyle']: values.style,
       notes: values.notes || ''
-    });
+    };
+
+    navigation.navigate('Measurements', orderData);
   };
 
   return (
@@ -49,23 +82,10 @@ const CreateOrderScreen = ({ route, navigation }) => {
         </Text>
       </View>
 
-      <View style={styles.infoBox}>
-        <View style={styles.infoBoxHeader}>
-          <Feather name="info" size={20} color={colors.black} style={styles.infoIcon} />
-          <Text style={styles.infoTitle}>Order Process</Text>
-        </View>
-        <Text style={styles.infoText}>
-          1. Select garment type and add notes{'\n'}
-          2. Enter measurements{'\n'}
-          3. Submit order request{'\n'}
-          4. Tailor accepts/rejects and sets price{'\n'}
-          5. Confirm order after price is set
-        </Text>
-      </View>
-
       <Formik
         initialValues={{
           garmentType: '',
+          style: '',
           notes: ''
         }}
         validationSchema={validationSchema}
@@ -73,17 +93,19 @@ const CreateOrderScreen = ({ route, navigation }) => {
       >
         {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
           <View style={styles.formContainer}>
-            {/* Garment Type Selection */}
             <Text style={styles.sectionTitle}>Select Garment Type</Text>
             <View style={styles.garmentTypesContainer}>
-              {garmentTypeOptions.map((option) => (
+              {garmentTypes.map((option) => (
                 <TouchableOpacity
                   key={option.value}
                   style={[
                     styles.garmentTypeButton,
                     values.garmentType === option.value && styles.selectedGarmentType
                   ]}
-                  onPress={() => setFieldValue('garmentType', option.value)}
+                  onPress={() => {
+                    setFieldValue('garmentType', option.value);
+                    setFieldValue('style', '');
+                  }}
                 >
                   <Text
                     style={[
@@ -96,11 +118,36 @@ const CreateOrderScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               ))}
             </View>
-            {touched.garmentType && errors.garmentType && (
-              <Text style={styles.errorText}>{errors.garmentType}</Text>
+
+            {values.garmentType && (
+              <>
+                <Text style={styles.sectionTitle}>
+                  Select {values.garmentType === 'shalwar' ? 'Shalwar' : 'Kameez'} Style
+                </Text>
+                <View style={styles.garmentTypesContainer}>
+                  {(values.garmentType === 'shalwar' ? shalwarStyles : kameezStyles).map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.garmentTypeButton,
+                        values.style === option.value && styles.selectedGarmentType
+                      ]}
+                      onPress={() => setFieldValue('style', option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.garmentTypeText,
+                          values.style === option.value && styles.selectedGarmentTypeText
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
 
-            {/* Additional Notes */}
             <Text style={styles.sectionTitle}>Additional Notes</Text>
             <Input
               multiline
@@ -113,9 +160,6 @@ const CreateOrderScreen = ({ route, navigation }) => {
               iconName="file-text"
             />
 
-
-
-            {/* Navigation Buttons */}
             <View style={styles.buttonsContainer}>
               <Button
                 title="Next: Enter Measurements"
@@ -164,29 +208,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.black
   },
-  infoBox: {
-    backgroundColor: colors.lightGray,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 24
-  },
-  infoBoxHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  infoIcon: {
-    marginRight: 8
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.black
-  },
-  infoText: {
-    color: colors.darkGray,
-    lineHeight: 22
-  },
   formContainer: {
     marginBottom: 24
   },
@@ -194,7 +215,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.black,
-    marginBottom: 12
+    marginBottom: 12,
+    marginTop: 16
   },
   garmentTypesContainer: {
     flexDirection: 'row',
@@ -221,25 +243,8 @@ const styles = StyleSheet.create({
   selectedGarmentTypeText: {
     color: colors.white
   },
-  errorText: {
-    color: colors.error,
-    marginBottom: 12
-  },
-  garmentImagesContainer: {
-    marginTop: 16,
-    marginBottom: 24
-  },
-  imagesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
-  garmentImage: {
-    width: '48%',
-    height: 150,
-    borderRadius: 8
-  },
   buttonsContainer: {
-    marginTop: 16
+    marginTop: 24
   },
   cancelButton: {
     marginTop: 12
@@ -247,6 +252,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: colors.black
   }
-}); 
+});
 
 export default CreateOrderScreen;

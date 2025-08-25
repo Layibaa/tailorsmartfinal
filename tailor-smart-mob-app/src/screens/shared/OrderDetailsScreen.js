@@ -155,7 +155,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           order.customer._id,
           orderId,
           'accepted',
-          `Your order has been accepted. The price is $${values.price}`
+          `Your order has been accepted. The price is PKR${values.price}`
         );
       }
       
@@ -292,7 +292,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
               <View style={styles.modalForm}>
                 <Input
-                  label="Enter Price ($)"
+                  label="Enter Price (PKR)"
                   placeholder="e.g. 150"
                   value={values.price}
                   onChangeText={(text) => {
@@ -302,7 +302,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                   onBlur={handleBlur('price')}
                   keyboardType="numeric"
                   error={touched.price && errors.price}
-                  iconName="dollar-sign"
+                  iconName=""
                 />
                 
                 <View style={styles.modalButtonsContainer}>

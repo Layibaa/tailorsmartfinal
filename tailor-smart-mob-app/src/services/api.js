@@ -335,5 +335,27 @@ export const getUnreadCount = async () => {
   return response.data;
 };
 
+// Add these functions to api.js
+export const getUserProfile = async () => {
+  try {
+    const response = await api.get('/auth/me');
+    return response.data;
+  } catch (error) {
+    console.error('Get profile error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteAccount = async (password) => {
+  try {
+    const response = await api.delete('/auth/delete-account', {
+      data: { password }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Delete account error:', error.response?.data || error.message);
+    throw error;
+  }
+};
 
 export default api;

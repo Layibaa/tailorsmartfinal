@@ -16,8 +16,22 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Garment type is required'],
       enum: {
-        values: ['shirt', 'pants', 'suit', 'dress', 'skirt', 'blouse', 'jacket', 'other'],
+        values: ['shalwar', 'kameez'],
         message: '{VALUE} is not a supported garment type'
+      }
+    },
+    shalwarStyle: {
+      type: String,
+      enum: {
+        values: ['simple', 'patiala', 'gharara', 'capri', 'other'],
+        message: '{VALUE} is not a supported shalwar style'
+      }
+    },
+    kameezStyle: {
+      type: String,
+      enum: {
+        values: ['simple', 'anarkali', 'angrakka', 'a-line', 'other'],
+        message: '{VALUE} is not a supported kameez style'
       }
     },
     measurements: {

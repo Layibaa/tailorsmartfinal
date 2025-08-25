@@ -78,12 +78,7 @@ const TailorSignupScreen = ({ navigation }) => {
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Tailor Registration</Text>
           <Text style={styles.subtitle}>Join our platform to connect with customers</Text>
-          
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1503924986277-3f922045c7bb' }} 
-            style={styles.headerImage}
-            resizeMode="cover"
-          />
+           
         </View>
         
         {error && <Text style={styles.errorText}>{error}</Text>}
