@@ -6,9 +6,7 @@ const { auth, requireCustomer } = require('../middleware/auth'); // Fixed import
 const { 
   getAllTailors,
   getTailor,
-  updateProfile,
-  getMyOrders,
-  getOrderDetails
+  updateProfile
 } = require('../controllers/customerController');
 
 // Profile routes
@@ -22,8 +20,8 @@ router.get('/profile', auth, (req, res) => {
 router.patch('/profile', auth, updateProfile);
 
 // Orders routes - using auth and optionally requireCustomer for extra security
-router.get('/orders', auth, requireCustomer, getMyOrders);
-router.get('/orders/:id', auth, requireCustomer, getOrderDetails);
+router.get('/orders', auth, requireCustomer);
+router.get('/orders/:id', auth, requireCustomer);
 
 // Tailor browsing routes - these don't need authentication
 router.get('/tailors', getAllTailors);
