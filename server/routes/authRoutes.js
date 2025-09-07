@@ -8,7 +8,9 @@ const {
   forgotPassword, 
   resetPassword,
   getCurrentUser,
-  updatePassword
+  updatePassword,
+  getProfile,        // New method
+  updateProfile      // New method
 } = require('../controllers/authController');
 const auth = require('../middleware/auth');
 
@@ -20,8 +22,15 @@ router.post('/resend-otp', resendOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
+// New routes for profile management
+router.get('/me', getCurrentUser, getProfile);
+router.patch('/profile', getCurrentUser, updateProfile);
+
 // Protected routes
 router.get('/me', auth, getCurrentUser);
 router.post('/update-password', auth, updatePassword);
+
+router.get('/me', getCurrentUser, getProfile);
+router.patch('/profile', getCurrentUser, updateProfile);
 
 module.exports = router;

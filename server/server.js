@@ -19,10 +19,16 @@ const tailorRoutes = require('./routes/tailorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+// Add these imports to existing server.js
+const adminAuthRoutes = require('./routes/adminAuthRoutes');
+const corsOptions = require('./middleware/cors');
+const Logger = require('./utils/logger');
+const auditLog = require('./middleware/auditLog');
 
 // Import middleware
 const errorHandlerMiddleware = require('./middleware/errorHandler');
 const notFoundMiddleware = require('./middleware/notFound');
+  
 
 // Create Express app
 const app = express();
@@ -54,6 +60,20 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+app.use(cors(corsOptions));
+
+// Add request logging middleware (add after cors, before routes)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/v1/admin')) {
+    Logger.info(`${req.method} ${req.path}`, {
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString()
+    });
+  }
+  next();
+});
+
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/customers', customerRoutes);
@@ -61,6 +81,57 @@ app.use('/api/v1/tailors', tailorRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/messages', messageRoutes);
+// Add these routes after existing routes
+app.use('/api/v1/admin', auditLog('admin-access'), adminRoutes);
+
+
+// Admin auth routes (public + protected)
+app.use('/api/v1/admin/auth', adminAuthRoutes);
+
+// Admin management routes (all protected)
+app.use('/api/v1/admin', adminRoutes);
+
+// Optional: Add admin-specific error handling
+app.use('/api/v1/admin', (error, req, res, next) => {
+  console.error('Admin API Error:', error);
+  
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error',
+      errors: Object.values(error.errors).map(e => e.message)
+    });
+  }
+  
+  if (error.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format'
+    });
+  }
+  
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
+});
+
+// Add error logging
+app.use((err, req, res, next) => {
+  if (req.path.startsWith('/api/v1/admin')) {
+    Logger.error('Admin API Error', {
+      error: err.message,
+      stack: err.stack,
+      path: req.path,
+      method: req.method,
+      ip: req.ip
+    });
+  }
+  
+  // Call your existing error handler
+  next(err);
+});
+
 app.use("/api/predict", require("./routes/predict"));
 
 

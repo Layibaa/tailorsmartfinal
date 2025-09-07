@@ -79,8 +79,20 @@ export const OrderSchema = Yup.object().shape({
   tailorId: Yup.string()
     .required('Tailor is required'),
   garmentType: Yup.string()
-    .oneOf(['shirt', 'pants', 'suit', 'dress', 'skirt', 'blazer', 'other'], 'Invalid garment type')
+    .oneOf(['shalwar', 'kameez'], 'Invalid garment type')
     .required('Garment type is required'),
+  shalwarStyle: Yup.string()
+    .oneOf(['simple', 'patiala', 'gharara', 'capri', 'other'], 'Invalid shalwar style')
+    .when('garmentType', {
+      is: 'shalwar',
+      then: Yup.string().required('Shalwar style is required'),
+    }),
+  kameezStyle: Yup.string()
+    .oneOf(['simple', 'anarkali', 'angrakka', 'a-line', 'other'], 'Invalid kameez style')
+    .when('garmentType', {
+      is: 'kameez',
+      then: Yup.string().required('Kameez style is required'),
+    }),
   notes: Yup.string()
     .max(500, 'Notes are too long (max 500 characters)')
 });
@@ -105,7 +117,47 @@ export const MeasurementsSchema = {
       .max(70, 'Neck measurement cannot exceed 70cm')
       .required('Neck measurement is required')
   }),
+  kameez: Yup.object().shape({
+    chest: Yup.number()
+      .min(50, 'Chest measurement must be at least 50cm')
+      .max(200, 'Chest measurement cannot exceed 200cm')
+      .required('Chest measurement is required'),
+    shoulder: Yup.number()
+      .min(30, 'Shoulder measurement must be at least 30cm')
+      .max(100, 'Shoulder measurement cannot exceed 100cm')
+      .required('Shoulder measurement is required'),
+    sleeveLength: Yup.number()
+      .min(40, 'Sleeve length must be at least 40cm')
+      .max(100, 'Sleeve length cannot exceed 100cm')
+      .required('Sleeve length is required'),
+    neck: Yup.number()
+      .min(25, 'Neck measurement must be at least 25cm')
+      .max(70, 'Neck measurement cannot exceed 70cm')
+      .required('Neck measurement is required')
+  }),
   pants: Yup.object().shape({
+    waist: Yup.number()
+      .min(50, 'Waist measurement must be at least 50cm')
+      .max(200, 'Waist measurement cannot exceed 200cm')
+      .required('Waist measurement is required'),
+    hip: Yup.number()
+      .min(70, 'Hip measurement must be at least 70cm')
+      .max(200, 'Hip measurement cannot exceed 200cm')
+      .required('Hip measurement is required'),
+    inseam: Yup.number()
+      .min(50, 'Inseam measurement must be at least 50cm')
+      .max(120, 'Inseam measurement cannot exceed 120cm')
+      .required('Inseam measurement is required'),
+    outseam: Yup.number()
+      .min(70, 'Outseam measurement must be at least 70cm')
+      .max(150, 'Outseam measurement cannot exceed 150cm')
+      .required('Outseam measurement is required'),
+    thigh: Yup.number()
+      .min(40, 'Thigh measurement must be at least 40cm')
+      .max(100, 'Thigh measurement cannot exceed 100cm')
+      .required('Thigh measurement is required')
+  }),
+  shalwar: Yup.object().shape({
     waist: Yup.number()
       .min(50, 'Waist measurement must be at least 50cm')
       .max(200, 'Waist measurement cannot exceed 200cm')
@@ -245,7 +297,11 @@ export const getRequiredMeasurementsForGarment = (garmentType) => {
   switch (garmentType) {
     case 'shirt':
       return ['chest', 'shoulder', 'sleeveLength', 'neck'];
+    case 'kameez':
+      return ['chest', 'shoulder', 'sleeveLength', 'neck'];
     case 'pants':
+      return ['waist', 'hip', 'inseam', 'outseam', 'thigh'];
+    case 'shalwar':
       return ['waist', 'hip', 'inseam', 'outseam', 'thigh'];
     case 'suit':
       return ['chest', 'shoulder', 'sleeveLength', 'waist', 'hip', 'inseam'];
@@ -277,11 +333,31 @@ export const measurementLabels = {
 
 // Garment type options for UI
 export const garmentTypeOptions = [
+  { label: 'Shalwar', value: 'shalwar' },
+  { label: 'Kameez', value: 'kameez' },
   { label: 'Shirt', value: 'shirt' },
   { label: 'Pants', value: 'pants' },
   { label: 'Suit', value: 'suit' },
   { label: 'Dress', value: 'dress' },
   { label: 'Skirt', value: 'skirt' },
   { label: 'Blazer', value: 'blazer' },
+  { label: 'Other', value: 'other' }
+];
+
+// Shalwar style options for UI
+export const shalwarStyleOptions = [
+  { label: 'Simple', value: 'simple' },
+  { label: 'Patiala', value: 'patiala' },
+  { label: 'Gharara', value: 'gharara' },
+  { label: 'Capri', value: 'capri' },
+  { label: 'Other', value: 'other' }
+];
+
+// Kameez style options for UI
+export const kameezStyleOptions = [
+  { label: 'Simple', value: 'simple' },
+  { label: 'Anarkali', value: 'anarkali' },
+  { label: 'Angrakka', value: 'angrakka' },
+  { label: 'A-line', value: 'a-line' },
   { label: 'Other', value: 'other' }
 ];
