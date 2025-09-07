@@ -1,4 +1,4 @@
-// admin-web/src/contexts/AuthContext.js - Enhanced with debugging
+// admin-web/src/contexts/AuthContext.js - Complete fixed version
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { auth } from '../services/api';
 
@@ -15,11 +15,14 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   // Check auth on app start
   useEffect(() => {
     const checkAuth = async () => {
-      console.log('AuthContext: Checking authentication...');
+      console.log('AuthContext: Initializing authentication check...');
+      setLoading(true);
+      
       const token = localStorage.getItem('adminToken');
       console.log('AuthContext: Token found:', !!token);
       
@@ -27,29 +30,53 @@ export const AuthProvider = ({ children }) => {
         try {
           console.log('AuthContext: Verifying token with server...');
           const response = await auth.whoami();
-          console.log('AuthContext: Server response:', response.data);
+          console.log('AuthContext: Token verification response:', response.data);
           
-          if (response.data.user.role === 'admin' || response.data.user.role === 'superadmin') {
-            console.log('AuthContext: Valid admin user, setting user state');
-            setUser(response.data.user);
+          if (response.data && response.data.user) {
+            const userData = response.data.user;
+            
+            // Check if user has admin privileges
+            const adminRoles = ['admin', 'superadmin', 'support'];
+            if (adminRoles.includes(userData.role)) {
+              console.log('AuthContext: Valid admin user found, setting user state');
+              setUser(userData);
+            } else {
+              console.warn('AuthContext: User does not have admin privileges:', userData.role);
+              localStorage.removeItem('adminToken');
+              localStorage.removeItem('adminRefreshToken');
+              setUser(null);
+            }
           } else {
-            console.log('AuthContext: User is not admin, clearing tokens');
+            console.error('AuthContext: Invalid response format from whoami');
             localStorage.removeItem('adminToken');
             localStorage.removeItem('adminRefreshToken');
+            setUser(null);
           }
         } catch (error) {
           console.error('AuthContext: Token verification failed:', error);
-          localStorage.removeItem('adminToken');
-          localStorage.removeItem('adminRefreshToken');
+          
+          // Only clear tokens if it's an auth error, not a network error
+          if (error.isAuthError || error.status === 401) {
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('adminRefreshToken');
+          }
+          
+          setUser(null);
         }
       } else {
-        console.log('AuthContext: No token found');
+        console.log('AuthContext: No token found, user not authenticated');
+        setUser(null);
       }
+      
       setLoading(false);
+      setInitialized(true);
+      console.log('AuthContext: Authentication check completed');
     };
     
-    checkAuth();
-  }, []);
+    if (!initialized) {
+      checkAuth();
+    }
+  }, [initialized]);
 
   const login = async (email, password) => {
     console.log('AuthContext: Login attempt for:', email);
@@ -57,45 +84,107 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('AuthContext: Calling API login...');
       const response = await auth.login(email, password);
-      console.log('AuthContext: API login response:', response);
+      console.log('AuthContext: API login response received');
       
-      // Check if user is admin
-      if (!['admin', 'superadmin', 'support'].includes(response.user.role)) {
-        console.error('AuthContext: User role not authorized:', response.user.role);
-        throw new Error('Access denied. Admin privileges required.');
+      // Validate response structure
+      if (!response.success || !response.user) {
+        throw new Error('Invalid login response from server');
       }
       
-      console.log('AuthContext: Login successful, setting user state');
+      // Check if user has admin privileges
+      const adminRoles = ['admin', 'superadmin', 'support'];
+      if (!adminRoles.includes(response.user.role)) {
+        console.error('AuthContext: User role not authorized:', response.user.role);
+        
+        // Clear any stored tokens for non-admin users
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminRefreshToken');
+        
+        return { 
+          success: false, 
+          error: 'Access denied. Admin privileges required.' 
+        };
+      }
+      
+      console.log('AuthContext: Valid admin login, setting user state');
       setUser(response.user);
       
       return { success: true };
     } catch (error) {
       console.error('AuthContext: Login error:', error);
-      const errorMsg = error.response?.data?.msg || error.message || 'Login failed';
+      
+      // Clear any potentially stored tokens on login failure
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminRefreshToken');
+      
+      let errorMessage = 'Login failed';
+      
+      if (error.isNetworkError) {
+        errorMessage = 'Server connection failed. Please check if the server is running.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.status === 401) {
+        errorMessage = 'Invalid email or password';
+      } else if (error.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
       return { 
         success: false, 
-        error: errorMsg
+        error: errorMessage
       };
     }
   };
 
   const logout = async () => {
-    console.log('AuthContext: Logout called');
+    console.log('AuthContext: Logout initiated');
+    setLoading(true);
+    
     try {
-      await auth.logout();
+      const result = await auth.logout();
       setUser(null);
-      console.log('AuthContext: Logout successful');
+      console.log('AuthContext: Logout completed successfully');
       return { success: true };
     } catch (error) {
-      console.error('AuthContext: Logout error:', error);
-      return { success: false, error: error.message };
+      console.error('AuthContext: Logout error (non-critical):', error);
+      // Even if logout fails on server, we clear local state
+      setUser(null);
+      return { success: true }; // Always return success for logout
+    } finally {
+      setLoading(false);
     }
   };
 
-  console.log('AuthContext: Current state - user:', !!user, 'loading:', loading);
+  // Refresh user data (useful after updates)
+  const refreshUser = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await auth.whoami();
+      if (response.data && response.data.user) {
+        setUser(response.data.user);
+      }
+    } catch (error) {
+      console.error('AuthContext: User refresh failed:', error);
+    }
+  };
+
+  console.log('AuthContext: Current state - user:', !!user, 'loading:', loading, 'initialized:', initialized);
+
+  const contextValue = {
+    user,
+    login,
+    logout,
+    refreshUser,
+    loading,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin',
+    isSuperAdmin: user?.role === 'superadmin',
+    isSupport: user?.role === 'support'
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
