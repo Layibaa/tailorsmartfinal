@@ -1,4 +1,4 @@
-// admin-web/src/components/Login.js - Simple login form
+// admin-web/src/components/Login.js - Enhanced with debugging
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,13 +12,25 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Login form submitted with:', { email, password: '***' });
+    
     setLoading(true);
     setError('');
 
-    const result = await login(email, password);
-    
-    if (!result.success) {
-      setError(result.error);
+    try {
+      console.log('Attempting login...');
+      const result = await login(email, password);
+      console.log('Login result:', result);
+      
+      if (!result.success) {
+        console.error('Login failed:', result.error);
+        setError(result.error);
+      } else {
+        console.log('Login successful, should redirect now...');
+      }
+    } catch (err) {
+      console.error('Login error caught:', err);
+      setError(err.message || 'Login failed');
     }
     
     setLoading(false);
@@ -88,6 +100,13 @@ const Login = () => {
             Superadmin: superadmin@tailorsmart.com / admin123<br />
             Admin: admin@tailorsmart.com / admin123
           </div>
+        </div>
+
+        {/* Debug info - remove in production */}
+        <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
+          <strong>Debug Info:</strong><br />
+          API URL: {process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}<br />
+          Current URL: {window.location.href}
         </div>
       </div>
     </div>
