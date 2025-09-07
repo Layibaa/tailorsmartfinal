@@ -160,4 +160,4 @@ if (require.main === module) {
   seedData();
 }
 
-module.exports = seedData;e
+module.exports = seedData;
