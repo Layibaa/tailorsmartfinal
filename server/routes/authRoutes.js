@@ -7,30 +7,29 @@ const {
   resendOtp, 
   forgotPassword, 
   resetPassword,
-  getCurrentUser,
   updatePassword,
-  getProfile,        // New method
-  updateProfile      // New method
+  getProfile,
+  updateProfile,
+  refreshToken,
+  logout,
+  whoami,
 } = require('../controllers/authController');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth'); // Fixed: destructure auth from the middleware object
 
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.post('/refresh', refreshToken);
+router.post('/logout', logout);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
-// New routes for profile management
-router.get('/me', getCurrentUser, getProfile);
-router.patch('/profile', getCurrentUser, updateProfile);
-
 // Protected routes
-router.get('/me', auth, getCurrentUser);
+router.get('/me', auth, getProfile);              
+router.patch('/profile', auth, updateProfile);    
 router.post('/update-password', auth, updatePassword);
-
-router.get('/me', getCurrentUser, getProfile);
-router.patch('/profile', getCurrentUser, updateProfile);
+router.get('/whoami', auth, whoami);              
 
 module.exports = router;
