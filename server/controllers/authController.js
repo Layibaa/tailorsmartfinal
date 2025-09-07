@@ -6,24 +6,32 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendEmail } = require('../utils/emailService');
 
-// Helper function to generate JWT tokens
+// Fix the token generation - use consistent field names
 const generateTokens = (user) => {
   const accessToken = jwt.sign(
-    { id: user._id, role: user.role },
+    { 
+      userId: user._id,  // ✅ Changed from 'id' to 'userId'
+      id: user._id,      // ✅ Keep both for backward compatibility
+      role: user.role 
+    },
     process.env.JWT_SECRET || 'secret',
-    { expiresIn: '15m' } // Short expiry for access token
+    { expiresIn: '30d' } // ✅ Extended for debugging
   );
 
   const refreshToken = jwt.sign(
-    { id: user._id, type: 'refresh' },
+    { 
+      userId: user._id,  // ✅ Changed from 'id' to 'userId'
+      type: 'refresh' 
+    },
     process.env.JWT_REFRESH_SECRET || 'refresh_secret',
-    { expiresIn: '7d' } // Longer expiry for refresh token
+    { expiresIn: '7d' }
   );
 
   return { accessToken, refreshToken };
 };
 
-// Enhanced login with refresh token
+
+// Update the login function to return the right token field
 const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -72,7 +80,8 @@ const login = async (req, res) => {
       tailorProfile: user.tailorProfile,
       customerProfile: user.customerProfile
     },
-    accessToken,
+    token: accessToken,        // ✅ Changed from accessToken to token (for frontend compatibility)
+    accessToken,               // ✅ Keep both for flexibility
     refreshToken
   });
 };
@@ -256,7 +265,7 @@ const register = async (req, res) => {
   }
 };
 
-// Verify OTP
+// Also fix verifyOtp to use consistent token generation
 const verifyOtp = async (req, res) => {
   const { userId, otp } = req.body;
 
@@ -297,13 +306,9 @@ const verifyOtp = async (req, res) => {
   user.otpExpires = undefined;
   await user.save();
 
-  // Create a token for the verified user ADDED LATER TO FIX BUG I AM LAIBA MWAHAHAH I AM CRYING MWAHAHAH
-  const token = jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET || 'secret',
-    { expiresIn: '30d' }
-  );
-//ALSO HERE THE EXTRA STUFF THAT IM RETURNIGN IS TO FIX BUG
+  // Use the same token generation function for consistency
+  const { accessToken } = generateTokens(user);
+
   res.status(StatusCodes.OK).json({
     success: true,
     msg: 'Email verified successfully',
@@ -314,9 +319,8 @@ const verifyOtp = async (req, res) => {
       role: user.role,
       isVerified: user.isVerified
     },
-    token
+    token: accessToken  // ✅ Using consistent token field
   });
-
 };
 
 // Resend OTP

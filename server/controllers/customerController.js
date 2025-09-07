@@ -1,95 +1,166 @@
-const User = require('../models/User');
+// controllers/customerController.js - CREATE THIS FILE
 const Order = require('../models/Order');
+const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
-const { BadRequestError, NotFoundError } = require('../errors');
+
+// Get customer's orders
+const getMyOrders = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+    
+    console.log('Getting orders for customer:', userId);
+    console.log('User role:', req.user.role);
+    
+    const orders = await Order.find({ customer: userId })
+      .populate('tailor', 'name email phone')
+      .populate('customer', 'name email phone')
+      .sort({ createdAt: -1 });
+
+    console.log(`Found ${orders.length} orders`);
+
+    res.json({
+      success: true,
+      orders: orders
+    });
+
+  } catch (error) {
+    console.error('Get customer orders error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching orders'
+    });
+  }
+};
+
+// Get specific order details
+const getOrderDetails = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+    const { id } = req.params;
+    
+    const order = await Order.findOne({ 
+      _id: id, 
+      customer: userId 
+    })
+      .populate('tailor', 'name email phone')
+      .populate('customer', 'name email phone');
+
+    if (!order) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'Order not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      order: order
+    });
+
+  } catch (error) {
+    console.error('Get order details error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching order details'
+    });
+  }
+};
 
 // Get all tailors
 const getAllTailors = async (req, res) => {
-  const tailors = await User.find({ role: 'tailor', isVerified: true })
-    .select('name tailorProfile createdAt')
-    .sort('createdAt');
-  
-  res.status(StatusCodes.OK).json({ count: tailors.length, tailors });
+  try {
+    const tailors = await User.find({ role: 'tailor', status: 'active' })
+      .select('name email phone tailorProfile')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      tailors: tailors
+    });
+
+  } catch (error) {
+    console.error('Get tailors error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching tailors'
+    });
+  }
 };
 
-// Get single tailor by ID
+// Get specific tailor
 const getTailor = async (req, res) => {
-  const { id: tailorId } = req.params;
-  
-  const tailor = await User.findOne({ 
-    _id: tailorId, 
-    role: 'tailor',
-    isVerified: true 
-  }).select('name tailorProfile createdAt');
-  
-  if (!tailor) {
-    throw new NotFoundError(`No tailor with id ${tailorId}`);
+  try {
+    const { id } = req.params;
+    
+    const tailor = await User.findOne({ 
+      _id: id, 
+      role: 'tailor', 
+      status: 'active' 
+    }).select('name email phone tailorProfile');
+
+    if (!tailor) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'Tailor not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      tailor: tailor
+    });
+
+  } catch (error) {
+    console.error('Get tailor error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching tailor'
+    });
   }
-  
-  res.status(StatusCodes.OK).json({ tailor });
 };
 
 // Update customer profile
 const updateProfile = async (req, res) => {
-  const { userId } = req.user;
-  const { name, age, gender, weight, height } = req.body;
-  
-  const updateData = { name };
-  
-  // Only update customerProfile fields if provided
-  if (age || gender || weight || height) {
-    updateData.customerProfile = {};
-    if (age) updateData.customerProfile.age = age;
-    if (gender) updateData.customerProfile.gender = gender;
-    if (weight) updateData.customerProfile.weight = weight;
-    if (height) updateData.customerProfile.height = height;
-  }
-  
-  const customer = await User.findByIdAndUpdate(
-    userId,
-    updateData,
-    { new: true, runValidators: true }
-  ).select('-password');
-  
-  if (!customer) {
-    throw new NotFoundError(`No customer with id ${userId}`);
-  }
-  
-  res.status(StatusCodes.OK).json({ customer });
-};
+  try {
+    const userId = req.user.userId || req.user.id;
+    const updates = req.body;
 
-// Get customer's orders
-const getMyOrders = async (req, res) => {
-  const { userId } = req.user;
-  
-  const orders = await Order.find({ customer: userId })
-    .populate('tailor', 'name tailorProfile')
-    .sort('-createdAt');
-  
-  res.status(StatusCodes.OK).json({ count: orders.length, orders });
-};
+    // Remove sensitive fields
+    delete updates.password;
+    delete updates.role;
+    delete updates._id;
 
-// Get single order details
-const getOrderDetails = async (req, res) => {
-  const { userId } = req.user;
-  const { id: orderId } = req.params;
-  
-  const order = await Order.findOne({
-    _id: orderId,
-    customer: userId
-  }).populate('tailor', 'name tailorProfile');
-  
-  if (!order) {
-    throw new NotFoundError(`No order with id ${orderId}`);
+    const customer = await User.findByIdAndUpdate(
+      userId,
+      updates,
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!customer) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'Customer not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      customer: customer
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while updating profile'
+    });
   }
-  
-  res.status(StatusCodes.OK).json({ order });
 };
 
 module.exports = {
+  getMyOrders,
+  getOrderDetails,
   getAllTailors,
   getTailor,
-  updateProfile,
-  getMyOrders,
-  getOrderDetails
+  updateProfile
 };
