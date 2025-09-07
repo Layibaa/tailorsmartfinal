@@ -1,18 +1,23 @@
-// admin-web/src/App.js - Main app component
+// admin-web/src/App.js - Debug version with connection test
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
+// Uncomment this line to show connection test
+// import ConnectionTest from './components/ConnectionTest';
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
+  console.log('ProtectedRoute: user =', !!user, 'loading =', loading);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <span className="ml-2">Loading...</span>
       </div>
     );
   }
@@ -25,6 +30,7 @@ const AppLayout = ({ children }) => {
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
+    console.log('Logout button clicked');
     await logout();
   };
 
@@ -65,6 +71,12 @@ const AppLayout = ({ children }) => {
   );
 };
 
+// Debug Route - uncomment to show connection test instead of login
+const DebugRoute = () => {
+  // return <ConnectionTest />;
+  return <Login />;
+};
+
 // Main App component
 const App = () => {
   return (
@@ -72,7 +84,10 @@ const App = () => {
       <Router>
         <div className="App">
           <Routes>
-            <Route path="/login" element={<Login />} />
+            {/* Uncomment the line below and comment the next line to show connection test */}
+            {/* <Route path="/login" element={<ConnectionTest />} /> */}
+            <Route path="/login" element={<DebugRoute />} />
+            
             <Route 
               path="/" 
               element={

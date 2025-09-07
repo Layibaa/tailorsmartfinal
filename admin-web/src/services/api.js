@@ -1,7 +1,9 @@
-// admin-web/src/services/api.js - Updated with user management endpoints
+// admin-web/src/services/api.js - Enhanced with debugging
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+console.log('API: Initializing with URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -14,17 +16,33 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  console.log('API Request:', config.method?.toUpperCase(), config.url, {
+    hasToken: !!token,
+    data: config.data
+  });
   return config;
 });
 
 // Handle token expiry
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('API Response:', response.config.method?.toUpperCase(), response.config.url, {
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
   async (error) => {
+    console.error('API Error:', error.config?.method?.toUpperCase(), error.config?.url, {
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
     if (error.response?.status === 401) {
       const refreshToken = localStorage.getItem('adminRefreshToken');
       if (refreshToken) {
         try {
+          console.log('API: Attempting token refresh...');
           const response = await api.post('/auth/refresh', { refreshToken });
           const { accessToken, refreshToken: newRefreshToken } = response.data;
           
@@ -32,8 +50,10 @@ api.interceptors.response.use(
           localStorage.setItem('adminRefreshToken', newRefreshToken);
           
           error.config.headers.Authorization = `Bearer ${accessToken}`;
+          console.log('API: Token refreshed, retrying request');
           return api.request(error.config);
         } catch (refreshError) {
+          console.error('API: Token refresh failed:', refreshError);
           localStorage.removeItem('adminToken');
           localStorage.removeItem('adminRefreshToken');
           window.location.href = '/login';
@@ -47,31 +67,50 @@ api.interceptors.response.use(
 // Auth API
 export const auth = {
   login: async (email, password) => {
-    const response = await api.post('/auth/login', { email, password });
-    const { accessToken, refreshToken } = response.data;
+    console.log('API Auth: Login called for:', email);
     
-    localStorage.setItem('adminToken', accessToken);
-    localStorage.setItem('adminRefreshToken', refreshToken);
-    
-    return response.data;
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { accessToken, refreshToken } = response.data;
+      
+      console.log('API Auth: Login successful, storing tokens');
+      localStorage.setItem('adminToken', accessToken);
+      localStorage.setItem('adminRefreshToken', refreshToken);
+      
+      return response.data;
+    } catch (error) {
+      console.error('API Auth: Login failed:', error);
+      throw error;
+    }
   },
   
   logout: async () => {
+    console.log('API Auth: Logout called');
     const refreshToken = localStorage.getItem('adminRefreshToken');
     if (refreshToken) {
-      await api.post('/auth/logout', { refreshToken });
+      try {
+        await api.post('/auth/logout', { refreshToken });
+      } catch (error) {
+        console.error('API Auth: Logout error (non-critical):', error);
+      }
     }
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminRefreshToken');
   },
   
-  whoami: () => api.get('/auth/whoami')
+  whoami: () => {
+    console.log('API Auth: Whoami called');
+    return api.get('/auth/whoami');
+  }
 };
 
 // Admin API
 export const admin = {
   // Dashboard
-  getDashboard: () => api.get('/admin/dashboard'),
+  getDashboard: () => {
+    console.log('API Admin: getDashboard called');
+    return api.get('/admin/dashboard');
+  },
   getMetrics: () => api.get('/admin/metrics'),
   
   // User Management - ENHANCED
