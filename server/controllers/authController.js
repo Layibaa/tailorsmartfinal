@@ -1,3 +1,4 @@
+// server/controllers/authController.js - Enhanced with refresh tokens
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 const jwt = require('jsonwebtoken');
@@ -5,8 +6,189 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendEmail } = require('../utils/emailService');
 
+// Helper function to generate JWT tokens
+const generateTokens = (user) => {
+  const accessToken = jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET || 'secret',
+    { expiresIn: '15m' } // Short expiry for access token
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user._id, type: 'refresh' },
+    process.env.JWT_REFRESH_SECRET || 'refresh_secret',
+    { expiresIn: '7d' } // Longer expiry for refresh token
+  );
+
+  return { accessToken, refreshToken };
+};
+
+// Enhanced login with refresh token
+const login = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      success: false,
+      msg: 'Please provide email and password'
+    });
+  }
+
+  const user = await User.findOne({ email });
+  if (!user || user.status !== 'active') {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      success: false,
+      msg: 'Invalid credentials'
+    });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      success: false,
+      msg: 'Invalid credentials'
+    });
+  }
+
+  // Generate tokens
+  const { accessToken, refreshToken } = generateTokens(user);
+  
+  // Save refresh token to database
+  user.refreshToken = refreshToken;
+  user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  user.lastLogin = new Date();
+  user.loginCount += 1;
+  await user.save();
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      isVerified: user.isVerified,
+      tailorProfile: user.tailorProfile,
+      customerProfile: user.customerProfile
+    },
+    accessToken,
+    refreshToken
+  });
+};
+
+// Refresh access token
+const refreshToken = async (req, res) => {
+  const { refreshToken: token } = req.body;
+
+  if (!token) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      success: false,
+      msg: 'Refresh token required'
+    });
+  }
+
+  try {
+    // Verify refresh token
+    const payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET || 'refresh_secret');
+    
+    if (payload.type !== 'refresh') {
+      throw new Error('Invalid token type');
+    }
+
+    // Find user with matching refresh token
+    const user = await User.findOne({
+      _id: payload.id,
+      refreshToken: token,
+      refreshTokenExpires: { $gt: new Date() },
+      status: 'active'
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        msg: 'Invalid or expired refresh token'
+      });
+    }
+
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
+    
+    // Update refresh token in database
+    user.refreshToken = newRefreshToken;
+    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      accessToken,
+      refreshToken: newRefreshToken
+    });
+
+  } catch (error) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      success: false,
+      msg: 'Invalid or expired refresh token'
+    });
+  }
+};
+
+// Logout - invalidate refresh token
+const logout = async (req, res) => {
+  try {
+    const { refreshToken: token } = req.body;
+    
+    if (token) {
+      // Clear refresh token from database
+      await User.updateOne(
+        { refreshToken: token },
+        { 
+          $unset: { 
+            refreshToken: 1, 
+            refreshTokenExpires: 1 
+          } 
+        }
+      );
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: 'Logged out successfully'
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Error during logout'
+    });
+  }
+};
+
+// Get current user (for protected routes)
+const whoami = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId)
+      .select('-password -refreshToken -otp -otpExpires -passwordResetToken -passwordResetExpires');
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      user,
+      role: req.user.role,
+      permissions: {
+        canManageUsers: ['superadmin', 'admin'].includes(req.user.role),
+        canManageOrders: ['superadmin', 'admin', 'support'].includes(req.user.role),
+        canViewAnalytics: ['superadmin', 'admin'].includes(req.user.role)
+      }
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Error fetching user data'
+    });
+  }
+};
 // Update your register function in authController.js
 
+// Also fix the register function - replace the BadRequestError with a proper response:
 const register = async (req, res) => {
   try {
     const { name, email, password, role, phone, age, gender, weight, height } = req.body;
@@ -14,7 +196,10 @@ const register = async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      throw new BadRequestError('Email already in use');
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Email already in use'
+      });
     }
     
     // Generate OTP
@@ -56,6 +241,7 @@ const register = async (req, res) => {
     }
     
     res.status(StatusCodes.CREATED).json({
+      success: true,
       message: 'User registered successfully. Please verify your email with the OTP sent.',
       userId: user._id,
       email: user.email
@@ -63,61 +249,11 @@ const register = async (req, res) => {
     
   } catch (error) {
     console.error('Registration error:', error);
-    throw error;
-  }
-};
-
-// Login User
-const login = async (req, res) => {
-  const { email, password } = req.body;
-
-  // Check if email and password were provided
-  if (!email || !password) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      msg: 'Please provide email and password'
+      msg: 'Error during registration'
     });
   }
-
-  // Find user by email
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(StatusCodes.UNAUTHORIZED).json({
-      success: false,
-      msg: 'Invalid credentials'
-    });
-  }
-
-  // Compare password
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return res.status(StatusCodes.UNAUTHORIZED).json({
-      success: false,
-      msg: 'Invalid credentials'
-    });
-  }
-
-  // Generate JWT token
-  const token = jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET || 'secret',
-    { expiresIn: '30d' }
-  );
-
-  // Return response
-  res.status(StatusCodes.OK).json({
-    success: true,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isVerified: user.isVerified,
-      tailorProfile: user.tailorProfile,
-      customerProfile: user.customerProfile
-    },
-    token
-  });
 };
 
 // Verify OTP
@@ -374,6 +510,8 @@ const updatePassword = async (req, res) => {
   });
 };
 
+
+
 // Add these methods to your existing authController.js
 
 // Get current user profile
@@ -384,13 +522,22 @@ const getProfile = async (req, res) => {
     const user = await User.findById(userId).select('-password -otp -otpExpires -passwordResetToken -passwordResetExpires');
     
     if (!user) {
-      throw new NotFoundError('User not found');
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'User not found'
+      });
     }
     
-    res.status(StatusCodes.OK).json({ user });
+    res.status(StatusCodes.OK).json({ 
+      success: true,
+      user 
+    });
   } catch (error) {
     console.error('Get profile error:', error);
-    throw error;
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Error fetching user profile'
+    });
   }
 };
 
@@ -469,6 +616,9 @@ const updateProfile = async (req, res) => {
 module.exports = {
   register,
   login,
+  refreshToken, // NEW
+  logout,      // NEW
+  whoami,      // NEW
   verifyOtp,
   resendOtp,
   forgotPassword,

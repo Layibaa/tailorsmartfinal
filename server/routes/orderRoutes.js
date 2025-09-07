@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth'); // ✅ Fixed: destructure auth
 
 const { 
   createOrder, 
@@ -8,14 +8,14 @@ const {
   confirmOrder,
   deleteOrder,
   lockOrder,
-  updateOrderDetails // ✅ new
+  updateOrderDetails
 } = require('../controllers/orderController');
 
 router.post('/', auth, createOrder);
 router.patch('/:id/status', auth, updateOrderStatus);
 router.patch('/:id/confirm', auth, confirmOrder);
 router.patch('/:id/lock', auth, lockOrder);
-router.put('/:id', auth, updateOrderDetails); // ✅ update details route
+router.put('/:id', auth, updateOrderDetails);
 router.delete('/:id', auth, deleteOrder);
 
 module.exports = router;
