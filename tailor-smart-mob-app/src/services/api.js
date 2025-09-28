@@ -398,9 +398,30 @@ export const lockOrder = async (orderId, isLocked) => {
 };
 
 // Customer API calls - Enhanced
-export const getAllTailors = async () => {
-  const response = await api.get('/customers/tailors');
-  return response.data;
+export const getAllTailors = async (filters = {}) => {
+  try {
+    let url = '/tailors';
+    const params = new URLSearchParams();
+    
+    if (filters.city) {
+      params.append('city', filters.city);
+    }
+    
+    if (filters.region && filters.city === 'Islamabad') {
+      params.append('region', filters.region);
+    }
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    console.log('Fetching tailors from:', url);
+    const response = await api.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Get all tailors error:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 export const getTailor = async (tailorId) => {

@@ -14,7 +14,8 @@ const {
   getOrderDetails,
   getPendingOrders,
   getActiveOrders,
-  getCompletedOrders
+  getCompletedOrders,
+   getAllTailors
 } = require('../controllers/tailorController');
 
 // Profile routes
@@ -38,6 +39,8 @@ router.get('/orders/active', auth, requireTailor, getActiveOrders);
 router.get('/orders/completed', auth, requireTailor, getCompletedOrders);
 router.get('/orders', auth, requireTailor, getMyOrders);
 router.get('/orders/:id', auth, requireTailor, getOrderDetails);
+
+router.get('/', getAllTailors);
 
 // Tailor listing routes - these don't need authentication as they're public
 router.get('/', (req, res) => {

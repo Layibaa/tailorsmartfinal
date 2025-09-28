@@ -307,6 +307,41 @@ const getCompletedOrders = async (req, res) => {
   res.status(StatusCodes.OK).json({ count: orders.length, orders });
 };
 
+// Get all tailors with optional city/region filtering
+const getAllTailors = async (req, res) => {
+  const { city, region } = req.query;
+  
+  try {
+    let filter = { role: 'tailor', status: 'active' };
+    
+    // Add city filter if provided
+    if (city) {
+      filter.city = city;
+    }
+    
+    // Add region filter if provided (only relevant for Islamabad)
+    if (region && city === 'Islamabad') {
+      filter.region = region;
+    }
+    
+    const tailors = await User.find(filter)
+      .select('name email city region tailorProfile createdAt')
+      .sort('-createdAt');
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      count: tailors.length,
+      tailors
+    });
+  } catch (error) {
+    console.error('Get all tailors error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to fetch tailors'
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -319,5 +354,6 @@ module.exports = {
   getOrderDetails,
   getPendingOrders,
   getActiveOrders,
-  getCompletedOrders
+  getCompletedOrders,
+  getAllTailors // ADD THIS LINE
 };
