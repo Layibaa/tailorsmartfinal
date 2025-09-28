@@ -2,7 +2,432 @@
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { StatusCodes } = require('http-status-codes');
-const { NotFoundError } = require('../errors');
+const { NotFoundError } = require('../errors'); 
+const bcrypt = require('bcryptjs');
+
+// Get dashboard statistics
+const getDashboard = async (req, res) => {
+  try {
+    console.log('AdminController: Fetching dashboard stats...');
+    
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Get all stats in parallel for better performance
+    const [
+      customerCount,
+      tailorCount,
+      totalOrders,
+      ordersByStatus,
+      weeklyUsers,
+      weeklyOrders,
+      completedOrders,
+      revenueStats
+    ] = await Promise.all([
+      User.countDocuments({ role: 'customer' }),
+      User.countDocuments({ role: 'tailor' }),
+      Order.countDocuments(),
+      
+      // Order status breakdown
+      Order.aggregate([
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+      
+      // Weekly user growth
+      User.countDocuments({
+        createdAt: { $gte: oneWeekAgo },
+        role: { $in: ['customer', 'tailor'] }
+      }),
+      
+      // Weekly order growth
+      Order.countDocuments({
+        createdAt: { $gte: oneWeekAgo }
+      }),
+      
+      // Completed orders count
+      Order.countDocuments({ status: 'completed' }),
+      
+      // Revenue statistics
+      Order.aggregate([
+        {
+          $match: { 
+            status: 'completed',
+            price: { $exists: true, $ne: null, $gt: 0 }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$price' },
+            avgOrderValue: { $avg: '$price' },
+            count: { $sum: 1 }
+          }
+        }
+      ])
+    ]);
+
+    // Format order status stats
+    const orderStatusStats = {};
+    const statusList = ['pending', 'accepted', 'rejected', 'confirmed', 'making', 'payment_done', 'completed'];
+    
+    // Initialize all statuses with 0
+    statusList.forEach(status => {
+      orderStatusStats[status] = 0;
+    });
+    
+    // Fill in actual counts
+    ordersByStatus.forEach(item => {
+      if (item._id && statusList.includes(item._id)) {
+        orderStatusStats[item._id] = item.count || 0;
+      }
+    });
+
+    // Format revenue stats
+    const revenue = revenueStats[0] || { totalRevenue: 0, avgOrderValue: 0, count: 0 };
+
+    const stats = {
+      customerCount: customerCount || 0,
+      tailorCount: tailorCount || 0,
+      orderCount: totalOrders || 0,
+      orderStatusStats,
+      weeklyUsers: weeklyUsers || 0,
+      weeklyOrders: weeklyOrders || 0,
+      completedOrders: completedOrders || 0,
+      totalRevenue: Math.round(revenue.totalRevenue || 0),
+      avgOrderValue: Math.round(revenue.avgOrderValue || 0)
+    };
+
+    console.log('AdminController: Dashboard stats compiled:', {
+      customerCount: stats.customerCount,
+      tailorCount: stats.tailorCount,
+      orderCount: stats.orderCount,
+      totalRevenue: stats.totalRevenue,
+      completedOrders: stats.completedOrders
+    });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      stats
+    });
+
+  } catch (error) {
+    console.error('AdminController: Dashboard error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching dashboard data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Get all users with filtering and pagination
+const getUsers = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      role,
+      status,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build filter object
+    let filter = {};
+
+    if (role && role !== 'all') {
+      filter.role = role;
+    }
+
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    if (search && search.trim()) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+    // Execute queries
+    const [users, totalUsers] = await Promise.all([
+      User.find(filter)
+        .select('-password -refreshTokens')
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      User.countDocuments(filter)
+    ]);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(totalUsers / limitNum);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          current: pageNum,
+          pages: totalPages,
+          total: totalUsers,
+          limit: limitNum,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching users'
+    });
+  }
+};
+
+// Get single user
+const getUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id)
+      .select('-password -refreshTokens')
+      .lean();
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'User not found'
+      });
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      user
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    if (error.name === 'CastError') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Invalid user ID'
+      });
+    }
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Server error while fetching user'
+    });
+  }
+};
+
+// Update user status
+const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
+      throw new BadRequestError('Valid status is required (active, inactive, suspended)');
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    // Prevent deactivating superadmin
+    if (user.role === 'superadmin' && status !== 'active') {
+      throw new BadRequestError('Cannot deactivate superadmin account');
+    }
+
+    // Prevent self-deactivation
+    if (user._id.toString() === req.user.userId && status !== 'active') {
+      throw new BadRequestError('Cannot deactivate your own account');
+    }
+
+    user.status = status;
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: 'User status updated successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      }
+    });
+  } catch (error) {
+    console.error('Update user status error:', error);
+    if (error.name === 'CastError') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Invalid user ID'
+      });
+    }
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: error.message || 'Server error while updating user status'
+    });
+  }
+};
+
+// Create new user
+const createUser = async (req, res) => {
+  try {
+    const { name, email, password, role = 'customer' } = req.body;
+
+    if (!name || !email || !password) {
+      throw new BadRequestError('Name, email, and password are required');
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new BadRequestError('User with this email already exists');
+    }
+
+    // Validate role
+    const validRoles = ['customer', 'tailor', 'support', 'admin'];
+    if (!validRoles.includes(role)) {
+      throw new BadRequestError('Invalid role specified');
+    }
+
+    // Only superadmin can create admin users
+    if (role === 'admin' && req.user.role !== 'superadmin') {
+      throw new BadRequestError('Only superadmin can create admin users');
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password, // Will be hashed by pre-save hook
+      role,
+      status: 'active',
+      isVerified: true
+    });
+
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      msg: 'User created successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      }
+    });
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: error.message || 'Server error while creating user'
+    });
+  }
+};
+
+// Delete user
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    // Prevent deleting superadmin
+    if (user.role === 'superadmin') {
+      throw new BadRequestError('Cannot delete superadmin account');
+    }
+
+    // Prevent self-deletion
+    if (user._id.toString() === req.user.userId) {
+      throw new BadRequestError('Cannot delete your own account');
+    }
+
+    await User.findByIdAndDelete(id);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    if (error.name === 'CastError') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Invalid user ID'
+      });
+    }
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: error.message || 'Server error while deleting user'
+    });
+  }
+};
+
+// System diagnostic
+const getDiagnostic = async (req, res) => {
+  try {
+    const [userCounts, orderCounts] = await Promise.all([
+      User.aggregate([
+        {
+          $group: {
+            _id: '$role',
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+      Order.aggregate([
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
+        }
+      ])
+    ]);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      diagnostic: {
+        database: 'connected',
+        users: userCounts,
+        orders: orderCounts,
+        timestamp: new Date().toISOString(),
+        server: 'healthy'
+      }
+    });
+  } catch (error) {
+    console.error('Diagnostic error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: 'Diagnostic check failed'
+    });
+  }
+};
+
+
 
 // Enhanced dashboard stats with proper error handling
 const getDashboardStats = async (req, res) => {
@@ -300,67 +725,67 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Update user status (activate/deactivate/suspend)
-const updateUserStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
+// // Update user status (activate/deactivate/suspend)
+// const updateUserStatus = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { status } = req.body;
 
-    console.log('AdminController: Updating user status:', id, 'to', status);
+//     console.log('AdminController: Updating user status:', id, 'to', status);
 
-    if (!['active', 'inactive', 'suspended'].includes(status)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        msg: 'Invalid status. Must be: active, inactive, or suspended'
-      });
-    }
+//     if (!['active', 'inactive', 'suspended'].includes(status)) {
+//       return res.status(StatusCodes.BAD_REQUEST).json({
+//         success: false,
+//         msg: 'Invalid status. Must be: active, inactive, or suspended'
+//       });
+//     }
 
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        msg: `User with id ${id} not found`
-      });
-    }
+//     const user = await User.findById(id);
+//     if (!user) {
+//       return res.status(StatusCodes.NOT_FOUND).json({
+//         success: false,
+//         msg: `User with id ${id} not found`
+//       });
+//     }
 
-    // Prevent modification of superadmin users
-    if (user.role === 'superadmin') {
-      return res.status(StatusCodes.FORBIDDEN).json({
-        success: false,
-        msg: 'Cannot modify superadmin users'
-      });
-    }
+//     // Prevent modification of superadmin users
+//     if (user.role === 'superadmin') {
+//       return res.status(StatusCodes.FORBIDDEN).json({
+//         success: false,
+//         msg: 'Cannot modify superadmin users'
+//       });
+//     }
 
-    user.status = status;
+//     user.status = status;
     
-    // If deactivating, clear refresh tokens
-    if (status !== 'active') {
-      user.refreshToken = undefined;
-      user.refreshTokenExpires = undefined;
-    }
+//     // If deactivating, clear refresh tokens
+//     if (status !== 'active') {
+//       user.refreshToken = undefined;
+//       user.refreshTokenExpires = undefined;
+//     }
 
-    await user.save();
+//     await user.save();
 
-    const updatedUser = await User.findById(id)
-      .select('-password -refreshToken -otp -otpExpires -passwordResetToken -passwordResetExpires')
-      .lean();
+//     const updatedUser = await User.findById(id)
+//       .select('-password -refreshToken -otp -otpExpires -passwordResetToken -passwordResetExpires')
+//       .lean();
 
-    console.log('AdminController: User status updated successfully');
+//     console.log('AdminController: User status updated successfully');
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      data: { user: updatedUser },
-      msg: `User ${status === 'active' ? 'activated' : status === 'inactive' ? 'deactivated' : 'suspended'} successfully`
-    });
-  } catch (error) {
-    console.error('AdminController: Update user status error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      msg: 'Failed to update user status',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
+//     res.status(StatusCodes.OK).json({
+//       success: true,
+//       data: { user: updatedUser },
+//       msg: `User ${status === 'active' ? 'activated' : status === 'inactive' ? 'deactivated' : 'suspended'} successfully`
+//     });
+//   } catch (error) {
+//     console.error('AdminController: Update user status error:', error);
+//     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+//       success: false,
+//       msg: 'Failed to update user status',
+//       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+//     });
+//   }
+// };
 
 // Keep existing methods for backward compatibility
 const getAllCustomers = async (req, res) => {
@@ -539,5 +964,11 @@ module.exports = {
   getAllOrders,
   getCustomer,
   getTailor,
-  getOrder
-};
+  getOrder,
+  getDashboard,
+  getUsers,
+  getUser, 
+  createUser,
+  deleteUser,
+  getDiagnostic
+}; 

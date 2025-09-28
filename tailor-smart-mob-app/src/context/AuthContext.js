@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { login, register, verifyOtp } from '../services/api';
+import { login, register, verifyOtp, updateProfile as updateProfileAPI } from '../services/api';
 
 export const AuthContext = createContext();
 
@@ -46,11 +46,21 @@ export const AuthProvider = ({ children }) => {
   const registerUser = async (userData) => {
     setIsLoading(true);
     try {
-      const response = await register(userData);
+      console.log('AuthContext register called with:', userData);
       
-      // Check if userId is present in the response
-      // The API might be returning user ID in a different structure
-      // like response.user.id or response.data.userId
+      // Validate required location fields
+      if (!userData.city) {
+        throw new Error('City is required');
+      }
+      
+      if (userData.city === 'Islamabad' && !userData.region) {
+        throw new Error('Region is required for Islamabad');
+      }
+      
+      const response = await register(userData);
+      console.log('Registration response:', response);
+      
+      // Extract user ID from various possible response structures
       const userId = response.userId || 
                      (response.user && response.user._id) || 
                      (response.user && response.user.id) || 
@@ -121,6 +131,47 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // NEW: Enhanced profile update function
+  const updateProfile = async (profileData) => {
+    setIsLoading(true);
+    try {
+      console.log('AuthContext updateProfile called with:', profileData);
+      
+      // Validate location if provided
+      if (profileData.city) {
+        if (profileData.city === 'Islamabad' && !profileData.region) {
+          throw new Error('Region is required for Islamabad');
+        }
+        if (profileData.city !== 'Islamabad' && profileData.region) {
+          // Clear region for non-Islamabad cities
+          profileData.region = null;
+        }
+      }
+      
+      const response = await updateProfileAPI(profileData);
+      
+      if (response.success && response.user) {
+        // Update local user state
+        setUser(response.user);
+        
+        // Update stored user data
+        await AsyncStorage.setItem('user', JSON.stringify(response.user));
+        
+        setIsLoading(false);
+        return { success: true, user: response.user };
+      } else {
+        throw new Error(response.msg || 'Profile update failed');
+      }
+    } catch (error) {
+      console.error('Profile update error in AuthContext:', error);
+      setIsLoading(false);
+      return { 
+        success: false, 
+        error: error.response?.data?.msg || error.message || 'Failed to update profile' 
+      };
+    }
+  };
+
   const logoutUser = async () => {
     setIsLoading(true);
     try {
@@ -128,6 +179,8 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('user');
       setUserToken(null);
       setUser(null);
+      setNeedsVerification(false);
+      setVerificationUserId(null);
       setIsLoading(false);
       return { success: true };
     } catch (error) {
@@ -146,8 +199,9 @@ export const AuthProvider = ({ children }) => {
       const userData = await AsyncStorage.getItem('user');
       
       if (token && userData) {
+        const parsedUserData = JSON.parse(userData);
         setUserToken(token);
-        setUser(JSON.parse(userData));
+        setUser(parsedUserData);
       }
       
       setIsLoading(false);
@@ -175,6 +229,7 @@ export const AuthProvider = ({ children }) => {
         register: registerUser,
         logout: logoutUser,
         verifyOtp: verifyUser,
+        updateProfile,  // NEW: Include the update profile function
         isLoggedIn
       }}
     >

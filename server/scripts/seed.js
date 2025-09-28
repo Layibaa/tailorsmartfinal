@@ -24,8 +24,8 @@ const seedData = async () => {
         password: 'admin123', // Will be hashed by pre-save hook
         role: 'superadmin',
         status: 'active',
-        isVerified: true
-      });
+        isVerified: true,
+city: 'Karachi'      });
       console.log('✅ Superadmin created:', superAdmin.email);
     } else {
       console.log('✅ Superadmin already exists');
@@ -40,8 +40,8 @@ const seedData = async () => {
         password: 'admin123',
         role: 'admin',
         status: 'active',
-        isVerified: true
-      });
+        isVerified: true,
+city: 'Karachi'      });
       console.log('✅ Admin created:', admin.email);
     } else {
       console.log('✅ Admin already exists');
@@ -56,8 +56,8 @@ const seedData = async () => {
         password: 'support123',
         role: 'support',
         status: 'active',
-        isVerified: true
-      });
+        isVerified: true,
+city: 'Karachi'      });
       console.log('✅ Support user created:', support.email);
     }
 
@@ -78,7 +78,8 @@ const seedData = async () => {
           specialties: ['formal wear', 'traditional'],
           rating: 4.5
         }
-      });
+      ,
+city: 'Karachi'      });
       console.log('✅ Sample tailor created:', tailor.email);
     }
 
@@ -97,7 +98,8 @@ const seedData = async () => {
           gender: 'female',
           height: 165,
           weight: 60
-        }
+        },
+        city: 'Karachi'
       });
       console.log('✅ Sample customer created:', customer.email);
 
@@ -118,6 +120,7 @@ const seedData = async () => {
               shoulder: 15,
               sleeveLength: 24
             },
+            
             notes: 'Blue color preferred'
           },
           {

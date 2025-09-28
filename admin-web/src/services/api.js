@@ -325,7 +325,7 @@ export const admin = {
     }
   },
   
-  reassignTailor: async (orderId, tailorId) => {
+   reassignTailor: async (orderId, tailorId) => {
     try {
       const response = await api.patch(`/admin/orders/${orderId}/reassign`, { tailorId });
       return response;
@@ -372,5 +372,6 @@ export const testConnection = async () => {
     };
   }
 };
+
 
 export default api;

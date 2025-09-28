@@ -13,11 +13,20 @@ const {
   getAllOrders,
   getCustomer,
   getTailor,
-  getOrder
+  getOrder,
 } = require('../controllers/adminController');
+
+const {  
+  updateOrderStatus,
+  reassignTailor,
+  deleteOrder,
+  getOrderStats,
+  getRecentOrders
+} = require('../controllers/adminOrderController');
 
 // All admin routes require authentication
 router.use(auth);
+router.use(requireAdmin); 
 
 // Dashboard endpoints
 router.get('/dashboard', requireAdmin, getDashboardStats);
@@ -26,6 +35,29 @@ router.get('/metrics', requireAdmin, getMetrics);
 // Enhanced User Management - NEW
 router.get('/users', requireAdmin, getAllUsers);
 router.patch('/users/:id/status', requireAdmin, updateUserStatus);
+
+// User management routes   
+router.patch('/users/:id/status', updateUserStatus); 
+
+// Legacy user routes (for backward compatibility)
+router.get('/customers', (req, res, next) => {
+  req.query.role = 'customer';
+  getUsers(req, res, next);
+});
+
+router.get('/tailors', (req, res, next) => {
+  req.query.role = 'tailor';
+  getUsers(req, res, next);
+});
+
+// Order management routes
+router.get('/orders', getAllOrders);
+router.get('/orders/stats', getOrderStats);
+router.get('/orders/recent', getRecentOrders);
+router.get('/orders/:id', getOrder);
+router.patch('/orders/:id/status', updateOrderStatus);
+router.patch('/orders/:id/reassign', reassignTailor);
+router.delete('/orders/:id', deleteOrder);
 
 // Legacy user endpoints (keep for backward compatibility)
 router.get('/customers', requireAdmin, getAllCustomers);

@@ -6,8 +6,7 @@ import {
   ScrollView, 
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  Image
+  TouchableOpacity
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -15,8 +14,10 @@ import { AuthContext } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import LocationPicker from '../../components/forms/LocationPicker'; // NEW
 import colors from '../../styles/colors';
 
+// Updated validation schema with location
 const TailorSignupSchema = Yup.object().shape({
   name: Yup.string()
     .min(3, 'Name must be at least 3 characters')
@@ -30,16 +31,24 @@ const TailorSignupSchema = Yup.object().shape({
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Passwords must match')
     .required('Confirm password is required'),
+  city: Yup.string()
+    .required('City is required'),
+  region: Yup.string().when('city', {
+    is: (val) => val === 'Islamabad',
+    then: (schema) => schema.required('Region is required for Islamabad'),
+    otherwise: (schema) => schema.notRequired()
+  }),
   shopName: Yup.string()
     .min(3, 'Shop name must be at least 3 characters')
     .required('Shop name is required'),
   shopLocation: Yup.string()
-    .min(5, 'Shop location must be at least 5 characters')
-    .required('Shop location is required'),
+    .min(5, 'Shop address must be at least 5 characters')
+    .required('Shop address is required'),
   averagePrice: Yup.number()
     .min(10, 'Average price must be at least 10')
     .required('Average price is required')
 });
+
 
 const TailorSignupScreen = ({ navigation }) => {
   const { register, isLoading } = useContext(AuthContext);
@@ -47,17 +56,21 @@ const TailorSignupScreen = ({ navigation }) => {
 
   const handleSignup = async (values) => {
     setError(null);
+    
+    // Prepare user data with location
     const userData = {
       name: values.name,
       email: values.email,
       password: values.password,
       role: 'tailor',
-      tailorProfile: {
-        shopName: values.shopName,
-        shopLocation: values.shopLocation,
-        averagePrice: values.averagePrice
-      }
+      city: values.city,              // NEW: Include location
+      region: values.region || null,  // NEW: Include region (null for non-Islamabad)
+      shopName: values.shopName,
+      shopLocation: values.shopLocation,
+      averagePrice: parseFloat(values.averagePrice)
     };
+
+    console.log('Tailor signup data with location:', userData);
 
     const result = await register(userData);
     
@@ -78,7 +91,6 @@ const TailorSignupScreen = ({ navigation }) => {
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Tailor Registration</Text>
           <Text style={styles.subtitle}>Join our platform to connect with customers</Text>
-           
         </View>
         
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -89,6 +101,8 @@ const TailorSignupScreen = ({ navigation }) => {
             email: '', 
             password: '', 
             confirmPassword: '',
+            city: '',        // NEW
+            region: '',      // NEW
             shopName: '',
             shopLocation: '',
             averagePrice: ''
@@ -139,6 +153,17 @@ const TailorSignupScreen = ({ navigation }) => {
                 error={touched.confirmPassword && errors.confirmPassword}
                 iconName="check"
               />
+
+              {/* NEW: Location Section */}
+              <Text style={styles.sectionTitle}>Location</Text>
+              <LocationPicker
+                city={values.city}
+                region={values.region}
+                onCityChange={(city) => setFieldValue('city', city)}
+                onRegionChange={(region) => setFieldValue('region', region)}
+                errors={errors}
+                touched={touched}
+              />
               
               <Text style={styles.sectionTitle}>Shop Information</Text>
               
@@ -152,16 +177,19 @@ const TailorSignupScreen = ({ navigation }) => {
               />
               
               <Input
-                placeholder="Shop Location"
+                placeholder="Shop Address (Street, Building, Landmark)"
                 value={values.shopLocation}
                 onChangeText={handleChange('shopLocation')}
                 onBlur={handleBlur('shopLocation')}
                 error={touched.shopLocation && errors.shopLocation}
                 iconName="map-pin"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
               />
               
               <Input
-                placeholder="Average Price ($)"
+                placeholder="Average Price (PKR)"
                 value={values.averagePrice}
                 onChangeText={(text) => {
                   const numericValue = text.replace(/[^0-9]/g, '');
@@ -219,11 +247,6 @@ const styles = StyleSheet.create({
     color: colors.gray,
     marginBottom: 20,
     textAlign: 'center'
-  },
-  headerImage: {
-    width: '100%',
-    height: 150,
-    borderRadius: 8
   },
   formContainer: {
     width: '100%'
