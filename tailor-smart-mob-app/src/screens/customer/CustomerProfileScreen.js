@@ -234,14 +234,14 @@ const CustomerProfileScreen = ({ navigation }) => {
               />
 
               <Input
-                label="Phone Number"
-                placeholder="Enter your phone number"
+                label="Email"
+                placeholder="Enter your email"
                 value={values.phone}
                 onChangeText={handleChange('phone')}
                 onBlur={handleBlur('phone')}
                 keyboardType="phone-pad"
                 error={touched.phone && errors.phone}
-                iconName="phone"
+                iconName="email"
               />
 
               <Text style={styles.sectionTitle}>Location</Text>

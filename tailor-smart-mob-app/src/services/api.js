@@ -353,49 +353,7 @@ export const getUserProfile = async () => {
     console.error('Get profile error:', error.response?.data || error.message);
     throw error;
   }
-}; 
-
-// Update order details (measurements, notes)
-export const updateOrder = async (orderId, updateData) => {
-  try {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await axios.put(
-      `${API_URL}/orders/${orderId}`,
-      updateData,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Update order error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-// Lock/unlock order
-export const lockOrder = async (orderId, isLocked) => {
-  try {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await axios.patch(
-      `${API_URL}/orders/${orderId}/lock`,
-      { isLocked },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Lock order error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+};  
 
 // Customer API calls - Enhanced
 export const getAllTailors = async (filters = {}) => {
@@ -570,6 +528,114 @@ export const deleteTailorAccount = async (otpData) => {
     return response.data;
   } catch (error) {
     console.error('Delete tailor account error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Add these to your services/api.js file
+
+// Fixed lockOrder function
+export const lockOrder = async (orderId, isLocked) => {
+  try {
+    console.log(`Locking order ${orderId} with isLocked: ${isLocked}`);
+    
+    const token = await AsyncStorage.getItem('userToken');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await axios.patch(
+      `${API_URL}/orders/${orderId}/lock`,
+      { isLocked: Boolean(isLocked) }, // Ensure it's a boolean
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('Lock order API response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Lock order API error:', error.response?.data || error.message);
+    
+    // Provide more specific error messages
+    if (error.response?.status === 403) {
+      throw new Error('Not authorized to lock/unlock this order');
+    } else if (error.response?.status === 400) {
+      throw new Error(error.response.data.msg || 'Cannot lock/unlock order in current status');
+    } else if (error.response?.status === 404) {
+      throw new Error('Order not found');
+    }
+    
+    throw error;
+  }
+};
+
+// Fixed updateOrder function with better error handling
+export const updateOrder = async (orderId, updateData) => {
+  try {
+    console.log(`Updating order ${orderId} with:`, updateData);
+    
+    const token = await AsyncStorage.getItem('userToken');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await axios.put(
+      `${API_URL}/orders/${orderId}`,
+      updateData,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('Update order API response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Update order API error:', error.response?.data || error.message);
+    
+    // Handle specific error cases
+    if (error.response?.data?.locked) {
+      throw new Error('This design is locked and cannot be edited');
+    } else if (error.response?.status === 403) {
+      throw new Error('Not authorized to update this order');
+    } else if (error.response?.status === 400) {
+      throw new Error(error.response.data.msg || 'Cannot update order');
+    }
+    
+    throw error;
+  }
+};
+
+// Add a function to get single order details
+export const getOrderDetails = async (orderId) => {
+  try {
+    console.log(`Getting details for order ${orderId}`);
+    
+    const token = await AsyncStorage.getItem('userToken');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await axios.get(
+      `${API_URL}/orders/${orderId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('Get order details API response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Get order details API error:', error.response?.data || error.message);
     throw error;
   }
 };
