@@ -146,18 +146,7 @@ export const resendOtp = async (userId) => {
     throw error;
   }
 };
-
-// Customer API calls
-export const getAllTailors = async () => {
-  const response = await api.get('/customers/tailors');
-  return response.data;
-};
-
-export const getTailor = async (tailorId) => {
-  const response = await api.get(`/customers/tailors/${tailorId}`);
-  return response.data;
-};
-
+ 
 // Enhanced profile update with location support
 export const updateProfile = async (profileData) => {
   try {
@@ -180,21 +169,7 @@ export const updateProfile = async (profileData) => {
     throw error;
   }
 };
-
-export const updateCustomerProfile = async (profileData) => {
-  const response = await api.patch('/customers/profile', profileData);
-  return response.data;
-};
-
-export const getCustomerOrders = async () => {
-  const response = await api.get('/customers/orders');
-  return response.data;
-};
-
-export const getCustomerOrderDetails = async (orderId) => {
-  const response = await api.get(`/customers/orders/${orderId}`);
-  return response.data;
-};
+ 
 
 // Tailor API calls
 export const updateTailorProfile = async (profileData) => {
@@ -383,19 +358,7 @@ export const getUserProfile = async () => {
     console.error('Get profile error:', error.response?.data || error.message);
     throw error;
   }
-};
-
-export const deleteAccount = async (password) => {
-  try {
-    const response = await api.delete('/auth/delete-account', {
-      data: { password }
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Delete account error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+}; 
 
 // Update order details (measurements, notes)
 export const updateOrder = async (orderId, updateData) => {
@@ -437,6 +400,87 @@ export const lockOrder = async (orderId, isLocked) => {
     console.error('Lock order error:', error.response?.data || error.message);
     throw error;
   }
+};
+
+// Customer API calls - Enhanced
+export const getAllTailors = async () => {
+  const response = await api.get('/customers/tailors');
+  return response.data;
+};
+
+export const getTailor = async (tailorId) => {
+  const response = await api.get(`/customers/tailors/${tailorId}`);
+  return response.data;
+};
+
+export const getCustomerProfile = async () => {
+  try {
+    const response = await api.get('/customers/profile');
+    return response.data;
+  } catch (error) {
+    console.error('Get customer profile error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updateCustomerProfile = async (profileData) => {
+  try {
+    const response = await api.put('/customers/profile', profileData);
+    return response.data;
+  } catch (error) {
+    console.error('Update customer profile error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const sendPasswordChangeOtp = async () => {
+  try {
+    const response = await api.post('/customers/password/send-otp');
+    return response.data;
+  } catch (error) {
+    console.error('Send password change OTP error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updatePassword = async (passwordData) => {
+  try {
+    const response = await api.put('/customers/password', passwordData);
+    return response.data;
+  } catch (error) {
+    console.error('Update password error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const sendDeleteAccountOtp = async () => {
+  try {
+    const response = await api.post('/customers/delete/send-otp');
+    return response.data;
+  } catch (error) {
+    console.error('Send delete account OTP error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteAccount = async (otpData) => {
+  try {
+    const response = await api.delete('/customers/delete', { data: otpData });
+    return response.data;
+  } catch (error) {
+    console.error('Delete account error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getCustomerOrders = async () => {
+  const response = await api.get('/customers/orders');
+  return response.data;
+};
+
+export const getCustomerOrderDetails = async (orderId) => {
+  const response = await api.get(`/customers/orders/${orderId}`);
+  return response.data;
 };
 
 export default api;

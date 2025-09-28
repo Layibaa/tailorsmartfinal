@@ -1,27 +1,36 @@
 const express = require('express');
 const router = express.Router();
-const { auth, requireCustomer } = require('../middleware/auth'); // Fixed import
+const { auth, requireCustomer } = require('../middleware/auth');
 
 // Import controllers
 const { 
   getAllTailors,
   getTailor,
-  updateProfile
+  getProfile,
+  updateProfile,
+  sendPasswordChangeOtp,
+  updatePassword,
+  sendDeleteAccountOtp,
+  deleteAccount,
+  getMyOrders,
+  getOrderDetails
 } = require('../controllers/customerController');
 
 // Profile routes
-router.get('/profile', auth, (req, res) => {
-  res.status(200).json({ 
-    msg: 'Customer profile route',
-    user: req.user 
-  });
-});
+router.get('/profile', auth, requireCustomer, getProfile);
+router.put('/profile', auth, requireCustomer, updateProfile);
 
-router.patch('/profile', auth, updateProfile);
+// Password change routes
+router.post('/password/send-otp', auth, requireCustomer, sendPasswordChangeOtp);
+router.put('/password', auth, requireCustomer, updatePassword);
 
-// Orders routes - using auth and optionally requireCustomer for extra security
-router.get('/orders', auth, requireCustomer);
-router.get('/orders/:id', auth, requireCustomer);
+// Account deletion routes
+router.post('/delete/send-otp', auth, requireCustomer, sendDeleteAccountOtp);
+router.delete('/delete', auth, requireCustomer, deleteAccount);
+
+// Orders routes
+router.get('/orders', auth, requireCustomer, getMyOrders);
+router.get('/orders/:id', auth, requireCustomer, getOrderDetails);
 
 // Tailor browsing routes - these don't need authentication
 router.get('/tailors', getAllTailors);
