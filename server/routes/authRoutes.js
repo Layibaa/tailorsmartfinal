@@ -13,8 +13,9 @@ const {
   refreshToken,
   logout,
   whoami,
+  getLocationOptions, // NEW
 } = require('../controllers/authController');
-const { auth } = require('../middleware/auth'); // Fixed: destructure auth from the middleware object
+const { auth } = require('../middleware/auth');
 
 // Public routes
 router.post('/register', register);
@@ -25,6 +26,7 @@ router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.get('/locations', getLocationOptions);  // NEW: Get location options
 
 // Protected routes
 router.get('/me', auth, getProfile);              

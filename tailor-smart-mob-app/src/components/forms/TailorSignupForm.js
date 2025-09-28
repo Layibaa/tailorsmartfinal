@@ -5,8 +5,10 @@ import * as Yup from 'yup';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import LocationPicker from './LocationPicker'; // NEW
 import colors from '../../styles/colors';
 
+// Updated validation schema with location
 const TailorSignupSchema = Yup.object().shape({
   name: Yup.string()
     .min(3, 'Name must be at least 3 characters')
@@ -20,6 +22,14 @@ const TailorSignupSchema = Yup.object().shape({
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Passwords must match')
     .required('Confirm password is required'),
+  city: Yup.string()
+    .required('City is required'),
+  region: Yup.string()
+    .when('city', {
+      is: 'Islamabad',
+      then: Yup.string().required('Region is required for Islamabad'),
+      otherwise: Yup.string().nullable()
+    }),
   shopName: Yup.string()
     .min(3, 'Shop name must be at least 3 characters')
     .required('Shop name is required'),
@@ -39,6 +49,8 @@ const TailorSignupForm = ({ onSubmit, isLoading }) => {
         email: '', 
         password: '', 
         confirmPassword: '',
+        city: '',        // NEW
+        region: '',      // NEW
         shopName: '',
         shopLocation: '',
         averagePrice: ''
@@ -89,6 +101,17 @@ const TailorSignupForm = ({ onSubmit, isLoading }) => {
             error={touched.confirmPassword && errors.confirmPassword}
             iconName="check"
           />
+
+          {/* NEW: Location Section */}
+          <Text style={styles.sectionTitle}>Location</Text>
+          <LocationPicker
+            city={values.city}
+            region={values.region}
+            onCityChange={(city) => setFieldValue('city', city)}
+            onRegionChange={(region) => setFieldValue('region', region)}
+            errors={errors}
+            touched={touched}
+          />
           
           <Text style={styles.sectionTitle}>Shop Information</Text>
           
@@ -102,12 +125,14 @@ const TailorSignupForm = ({ onSubmit, isLoading }) => {
           />
           
           <Input
-            placeholder="Shop Location"
+            placeholder="Shop Address (Detailed location)"
             value={values.shopLocation}
             onChangeText={handleChange('shopLocation')}
             onBlur={handleBlur('shopLocation')}
             error={touched.shopLocation && errors.shopLocation}
             iconName="map-pin"
+            multiline
+            numberOfLines={2}
           />
           
           <Input

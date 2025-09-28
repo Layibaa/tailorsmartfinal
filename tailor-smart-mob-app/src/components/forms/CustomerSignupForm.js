@@ -5,8 +5,10 @@ import * as Yup from 'yup';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import LocationPicker from './LocationPicker'; // NEW
 import colors from '../../styles/colors';
 
+// Updated validation schema with location
 const CustomerSignupSchema = Yup.object().shape({
   name: Yup.string()
     .min(3, 'Name must be at least 3 characters')
@@ -20,6 +22,14 @@ const CustomerSignupSchema = Yup.object().shape({
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Passwords must match')
     .required('Confirm password is required'),
+  city: Yup.string()
+    .required('City is required'),
+  region: Yup.string()
+    .when('city', {
+      is: 'Islamabad',
+      then: Yup.string().required('Region is required for Islamabad'),
+      otherwise: Yup.string().nullable()
+    }),
   age: Yup.number()
     .min(16, 'You must be at least 16 years old')
     .max(100, 'Age cannot exceed 100')
@@ -45,6 +55,8 @@ const CustomerSignupForm = ({ onSubmit, isLoading }) => {
         email: '', 
         password: '', 
         confirmPassword: '',
+        city: '',        // NEW
+        region: '',      // NEW
         age: '',
         gender: 'male',
         weight: '',
@@ -55,6 +67,8 @@ const CustomerSignupForm = ({ onSubmit, isLoading }) => {
     >
       {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
         <View style={styles.formContainer}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          
           <Input
             placeholder="Full Name"
             value={values.name}
@@ -94,6 +108,19 @@ const CustomerSignupForm = ({ onSubmit, isLoading }) => {
             error={touched.confirmPassword && errors.confirmPassword}
             iconName="check"
           />
+
+          {/* NEW: Location Section */}
+          <Text style={styles.sectionTitle}>Location</Text>
+          <LocationPicker
+            city={values.city}
+            region={values.region}
+            onCityChange={(city) => setFieldValue('city', city)}
+            onRegionChange={(region) => setFieldValue('region', region)}
+            errors={errors}
+            touched={touched}
+          />
+
+          <Text style={styles.sectionTitle}>Physical Details</Text>
           
           <Input
             placeholder="Age"
@@ -108,7 +135,7 @@ const CustomerSignupForm = ({ onSubmit, isLoading }) => {
             iconName="calendar"
           />
           
-          <Text style={styles.sectionTitle}>Gender</Text>
+          <Text style={styles.genderLabel}>Gender</Text>
           <View style={styles.radioContainer}>
             <TouchableOpacity
               style={[
@@ -207,6 +234,13 @@ const styles = StyleSheet.create({
     width: '100%'
   },
   sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.black,
+    marginBottom: 15,
+    marginTop: 10
+  },
+  genderLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.black,

@@ -143,41 +143,8 @@ const LoginScreen = ({ navigation }) => {
           </View>
         </View>
         
-        {/* Admin Login Button */}
-        <TouchableOpacity 
-          style={styles.adminButton}
-          onPress={() => setAdminModalVisible(true)}
-        >
-          <Text style={styles.adminButtonText}>Admin Login</Text>
-        </TouchableOpacity>
         
-        {/* Admin Login Modal */}
-        <Modal
-          visible={adminModalVisible}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setAdminModalVisible(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Admin Login</Text>
-              <AdminLoginForm 
-                onSubmit={handleAdminLogin} 
-                isLoading={isLoading}
-                error={adminError}
-              />
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => {
-                  setAdminModalVisible(false);
-                  setAdminError(null);
-                }}
-              >
-                <Text style={styles.closeButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+      
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -2,7 +2,6 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
 // Get API URL from app.json or use default
 export const API_URL = Constants.manifest?.extra?.apiUrl || 'http://192.168.1.91:8000/api/v1';
 
@@ -34,7 +33,6 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Log the error for debugging
     console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
@@ -53,7 +51,24 @@ export const login = async (email, password) => {
 
 export const register = async (userData) => {
   try {
+    console.log('API register called with:', userData);
+    
+    // Validate location data before sending
+    if (!userData.city) {
+      throw new Error('City is required');
+    }
+    
+    if (userData.city === 'Islamabad' && !userData.region) {
+      throw new Error('Region is required for Islamabad');
+    }
+    
+    // Ensure region is null for non-Islamabad cities
+    if (userData.city !== 'Islamabad') {
+      userData.region = null;
+    }
+    
     const response = await api.post('/auth/register', userData);
+    console.log('API register response:', response.data);
     return response.data;
   } catch (error) {
     console.error('Register error:', error.response?.data || error.message);
@@ -75,14 +90,24 @@ export const verifyOtp = async (userId, otp) => {
     
     const response = await api.post('/auth/verify-otp', { 
       userId, 
-      otp,
-      // Add any other required fields your API might expect
+      otp
     });
     
     console.log('API verifyOtp response:', response.data);
     return response.data;
   } catch (error) {
     console.error('OTP verification error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// NEW: Get location options
+export const getLocationOptions = async () => {
+  try {
+    const response = await api.get('/auth/locations');
+    return response.data;
+  } catch (error) {
+    console.error('Get location options error:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -133,10 +158,27 @@ export const getTailor = async (tailorId) => {
   return response.data;
 };
 
-// Add to your api.js file
+// Enhanced profile update with location support
 export const updateProfile = async (profileData) => {
-  const response = await api.patch('/auth/profile', profileData);
-  return response.data;
+  try {
+    console.log('API updateProfile called with:', profileData);
+    
+    // Validate location data if provided
+    if (profileData.city === 'Islamabad' && !profileData.region) {
+      throw new Error('Region is required for Islamabad');
+    }
+    
+    if (profileData.city !== 'Islamabad') {
+      profileData.region = null; // Ensure region is null for non-Islamabad cities
+    }
+    
+    const response = await api.patch('/auth/profile', profileData);
+    console.log('API updateProfile response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Update profile error:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 export const updateCustomerProfile = async (profileData) => {
@@ -186,23 +228,17 @@ export const getCompletedOrders = async () => {
 };
 
 // Admin API calls
-// Admin API calls
 export const getDashboardStats = async (timestamp) => {
   try {
-    // Add timestamp as a query parameter to bust cache
     const queryParam = timestamp ? `?t=${timestamp}` : '';
     const response = await api.get(`/admin/dashboard${queryParam}`);
-    
-    // Log the response for debugging
     console.log('Dashboard stats response:', response.data);
-    
     return response.data;
   } catch (error) {
     console.error('Get dashboard stats error:', error.response?.data || error.message);
     throw error;
   }
 };
-// Add this to your api.js file
 
 export const getDiagnosticData = async () => {
   try {
@@ -250,11 +286,7 @@ export const createOrder = async (orderData) => {
   console.log('API createOrder called with:', orderData);
   try {
     console.log('Making POST request to /orders');
-    
-    // Make sure we're properly sending the authenticated request
-    // The user ID should be extracted from the token by the auth middleware
     const response = await api.post('/orders', orderData);
-    
     console.log('API createOrder response:', response.data);
     return response.data;
   } catch (error) {
@@ -263,6 +295,7 @@ export const createOrder = async (orderData) => {
     throw error;
   }
 };
+
 export const deleteOrder = async (orderId) => {
   try {
     const response = await api.delete(`/orders/${orderId}`);
@@ -272,6 +305,7 @@ export const deleteOrder = async (orderId) => {
     throw error;
   }
 };
+
 export const updateOrderStatus = async (orderId, statusData) => {
   const response = await api.patch(`/orders/${orderId}/status`, statusData);
   return response.data;
@@ -283,7 +317,6 @@ export const confirmOrder = async (orderId) => {
 };
 
 // Message API calls
-// FIXING BUG
 export const sendMessage = async (messageData) => {
   try {
     console.log('Sending message via API:', messageData);
@@ -341,7 +374,7 @@ export const getUnreadCount = async () => {
   return response.data;
 };
 
-// Add these functions to api.js
+// Profile and account management
 export const getUserProfile = async () => {
   try {
     const response = await api.get('/auth/me');
@@ -363,8 +396,6 @@ export const deleteAccount = async (password) => {
     throw error;
   }
 };
-
-// Add these functions to your services/api.js file
 
 // Update order details (measurements, notes)
 export const updateOrder = async (orderId, updateData) => {
