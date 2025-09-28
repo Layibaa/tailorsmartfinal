@@ -8,7 +8,8 @@ import {
   Image,
   FlatList,
   RefreshControl,
-  Alert
+  Alert,
+  Modal
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { getCustomerOrders, getAllConversations } from '../../services/api';
@@ -17,13 +18,14 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import OrderCard from '../../components/orders/OrderCard';
 import colors from '../../styles/colors';
 import globalStyles from '../../styles/globalStyles';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
 
 const CustomerDashboard = ({ navigation }) => {
   const [recentOrders, setRecentOrders] = useState([]);
-  const [conversations, setConversations] = useState([]); // Initialize as empty array
+  const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const { user, logout } = useContext(AuthContext);
 
   // Load dashboard data
@@ -31,7 +33,6 @@ const CustomerDashboard = ({ navigation }) => {
     try {
       // Load orders
       const ordersResponse = await getCustomerOrders();
-      // Sort by date and take the 5 most recent
       const sortedOrders = ordersResponse?.orders
         ? ordersResponse.orders
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -41,12 +42,10 @@ const CustomerDashboard = ({ navigation }) => {
 
       // Load conversations
       const conversationsResponse = await getAllConversations();
-      // Check if conversations property exists before setting state
       setConversations(conversationsResponse?.conversations || []);
     } catch (error) {
       Alert.alert('Error', 'Failed to load dashboard data');
       console.error('Error loading dashboard data:', error);
-      // Set empty arrays on error to prevent undefined values
       setRecentOrders([]);
       setConversations([]);
     } finally {
@@ -71,13 +70,16 @@ const CustomerDashboard = ({ navigation }) => {
   };
 
   // Handle Logout
-const handleLogout = async () => {
+  const handleLogout = async () => {
   try {
-    // Use the logout function from AuthContext
     const result = await logout();
     if (result.success) {
-      // After successful logout, navigate to Login
-      navigation.navigate('Login');
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        })
+      );
     } else {
       Alert.alert('Error', result.error || 'Failed to logout');
     }
@@ -86,6 +88,28 @@ const handleLogout = async () => {
     Alert.alert('Error', 'An unexpected error occurred during logout');
   }
 };
+
+  // Menu items
+  const menuItems = [
+    {
+      id: 'profile',
+      title: 'My Profile',
+      icon: 'user',
+      onPress: () => {
+        setShowMenu(false);
+        navigation.navigate('Profile');
+      }
+    },
+    {
+      id: 'logout',
+      title: 'Logout',
+      icon: 'log-out',
+      onPress: () => {
+        setShowMenu(false);
+        handleLogout();
+      }
+    }
+  ];
 
   if (isLoading) {
     return <LoadingSpinner fullScreen text="Loading dashboard..." />;
@@ -98,8 +122,11 @@ const handleLogout = async () => {
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.userName}>{user?.name || 'User'}</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout}>
-          <Feather name="log-out" size={24} color={colors.black} />
+        <TouchableOpacity 
+          style={styles.menuButton}
+          onPress={() => setShowMenu(true)}
+        >
+          <Feather name="menu" size={24} color={colors.black} />
         </TouchableOpacity>
       </View>
 
@@ -241,8 +268,49 @@ const handleLogout = async () => {
             ))
           )}
         </View>
- 
       </ScrollView>
+
+      {/* Hamburger Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableOpacity 
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMenu(false)}
+        >
+          <View style={styles.menuContainer}>
+            <View style={styles.menuHeader}>
+              <View style={styles.userInfo}>
+                <View style={styles.avatar}>
+                  <Feather name="user" size={24} color={colors.white} />
+                </View>
+                <View>
+                  <Text style={styles.menuUserName}>{user?.name || 'User'}</Text>
+                  <Text style={styles.menuUserEmail}>{user?.email || 'email@example.com'}</Text>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.menuItems}>
+              {menuItems.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.menuItem}
+                  onPress={item.onPress}
+                >
+                  <Feather name={item.icon} size={20} color={colors.black} />
+                  <Text style={styles.menuItemText}>{item.title}</Text>
+                  <Feather name="chevron-right" size={16} color={colors.gray} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -269,6 +337,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.black
+  },
+  menuButton: {
+    padding: 8
   },
   scrollView: {
     flex: 1
@@ -439,26 +510,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold'
   },
-  fabricsContainer: {
+  // Menu styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end'
+  },
+  menuContainer: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34 // Safe area padding
+  },
+  menuHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
+  },
+  userInfo: {
     flexDirection: 'row',
-    marginTop: 12,
-    paddingBottom: 8
+    alignItems: 'center'
   },
-  fabricItem: {
-    marginRight: 16,
-    width: 140
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.black,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16
   },
-  fabricImage: {
-    width: 140,
-    height: 100,
-    borderRadius: 8,
-    marginBottom: 8
-  },
-  fabricName: {
-    fontSize: 14,
-    fontWeight: '500',
+  menuUserName: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: colors.black,
-    textAlign: 'center'
+    marginBottom: 4
+  },
+  menuUserEmail: {
+    fontSize: 14,
+    color: colors.gray
+  },
+  menuItems: {
+    paddingTop: 8
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
+  },
+  menuItemText: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.black,
+    marginLeft: 16
   }
 });
 
