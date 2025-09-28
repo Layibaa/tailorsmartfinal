@@ -29,6 +29,7 @@ import ProfileScreen from '../screens/customer/CustomerProfileScreen';
 import TailorDashboard from '../screens/tailor/TailorDashboard';
 import OrderRequestsScreen from '../screens/tailor/OrderRequestsScreen';
 import ActiveOrdersScreen from '../screens/tailor/ActiveOrdersScreen';
+import TailorProfileScreen from '../screens/tailor/TailorProfileScreen';
 
 // Shared screens
 import ChatScreen from '../screens/shared/ChatScreen';
@@ -304,6 +305,13 @@ const TailorStackNavigator = () => (
     }}
   >
     <TailorStack.Screen name="TailorTabs" component={TailorTabNavigator} />
+    <TailorStack.Screen 
+      name="Profile" 
+      component={TailorProfileScreen}
+      options={{ 
+        headerShown: false
+      }} 
+    />
     <TailorStack.Screen 
       name="OrderDetails" 
       component={OrderDetailsScreen} 

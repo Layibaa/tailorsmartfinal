@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { auth, requireTailor } = require('../middleware/auth'); // Fixed import
+const { auth, requireTailor } = require('../middleware/auth');
 
 // Import controllers
 const { 
+  getProfile,
   updateProfile, 
+  sendPasswordChangeOtp,
+  updatePassword,
+  sendDeleteAccountOtp,
+  deleteAccount,
   getMyOrders, 
   getOrderDetails,
   getPendingOrders,
@@ -13,13 +18,18 @@ const {
 } = require('../controllers/tailorController');
 
 // Profile routes
-router.get('/profile', auth, requireTailor, (req, res) => {
-  res.status(200).json({ 
-    msg: 'Tailor profile route',
-    user: req.user 
-  });
-});
+router.get('/profile', auth, requireTailor, getProfile);
+router.put('/profile', auth, requireTailor, updateProfile);
 
+// Password management routes
+router.post('/password/send-otp', auth, requireTailor, sendPasswordChangeOtp);
+router.put('/password', auth, requireTailor, updatePassword);
+
+// Account deletion routes
+router.post('/delete/send-otp', auth, requireTailor, sendDeleteAccountOtp);
+router.delete('/delete', auth, requireTailor, deleteAccount);
+
+// Legacy profile route (keep for backward compatibility)
 router.patch('/profile', auth, requireTailor, updateProfile);
 
 // Orders routes - Note: specific routes should come before general ones

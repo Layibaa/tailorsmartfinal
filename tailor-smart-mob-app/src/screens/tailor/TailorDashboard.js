@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Alert
+  Alert,
+  Modal
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { 
@@ -28,6 +29,7 @@ const TailorDashboard = ({ navigation }) => {
   const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const { user, logout } = useContext(AuthContext);
 
   // Load dashboard data
@@ -94,18 +96,32 @@ const TailorDashboard = ({ navigation }) => {
     navigation.navigate('OrderDetails', { orderId });
   };
 
-  // Handle logout
-  const handleLogout = () => {
-    // Call the logout function from the context to clear user data
-    logout();  // Make sure logout clears any authentication-related state, such as user details or tokens
-    
-    // Navigate to the Login screen
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+  // Handle logout 
+const handleLogout = async () => {
+  try {
+    const result = await logout();
+    if (result.success) {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        })
+      );
+    } else {
+      Alert.alert('Error', result.error || 'Failed to logout');
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    Alert.alert('Error', 'An unexpected error occurred during logout');
+  }
+};
+
+
+  // Handle profile navigation
+  const handleProfile = () => {
+    setShowMenu(false);
+    navigation.navigate('Profile');
   };
-  
 
   if (isLoading) {
     return <LoadingSpinner fullScreen text="Loading dashboard..." />;
@@ -121,8 +137,10 @@ const TailorDashboard = ({ navigation }) => {
             {user?.tailorProfile?.shopName || 'Your Tailoring Shop'}
           </Text>
         </View>
-        <TouchableOpacity onPress={handleLogout}>
-          <Feather name="log-out" size={24} color={colors.black} />
+        
+        {/* Hamburger Menu */}
+        <TouchableOpacity onPress={() => setShowMenu(true)} style={styles.menuButton}>
+          <Feather name="menu" size={24} color={colors.black} />
         </TouchableOpacity>
       </View>
 
@@ -279,6 +297,39 @@ const TailorDashboard = ({ navigation }) => {
           )}
         </View>
       </ScrollView>
+
+      {/* Hamburger Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableOpacity 
+          style={styles.menuOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowMenu(false)}
+        >
+          <View style={styles.menuContainer}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Menu</Text>
+              <TouchableOpacity onPress={() => setShowMenu(false)}>
+                <Feather name="x" size={24} color={colors.black} />
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleProfile}>
+              <Feather name="user" size={20} color={colors.black} />
+              <Text style={styles.menuItemText}>Profile</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+              <Feather name="log-out" size={20} color={colors.error || '#dc3545'} />
+              <Text style={[styles.menuItemText, { color: colors.error || '#dc3545' }]}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -309,6 +360,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.darkGray,
     marginTop: 2
+  },
+  menuButton: {
+    padding: 8
   },
   scrollView: {
     flex: 1
@@ -455,26 +509,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold'
   },
-  galleryContainer: {
+  // Menu Modal Styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end'
+  },
+  menuContainer: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40
+  },
+  menuHeader: {
     flexDirection: 'row',
-    marginTop: 12,
-    paddingBottom: 8
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
   },
-  galleryItem: {
-    marginRight: 16,
-    width: 140
+  menuTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.black
   },
-  galleryImage: {
-    width: 140,
-    height: 100,
-    borderRadius: 8,
-    marginBottom: 8
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15
   },
-  galleryName: {
-    fontSize: 14,
-    fontWeight: '500',
+  menuItemText: {
+    fontSize: 16,
     color: colors.black,
-    textAlign: 'center'
+    marginLeft: 15
   }
 });
 

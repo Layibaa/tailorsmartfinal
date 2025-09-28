@@ -2,9 +2,221 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const { StatusCodes } = require('http-status-codes');
 const { BadRequestError, NotFoundError } = require('../errors');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const validator = require('validator');
 
-// Update tailor profile
+// Get tailor profile
+const getProfile = async (req, res) => {
+  const { userId } = req.user;
+  
+  const tailor = await User.findById(userId).select('-password -otp -otpExpires -passwordResetToken -passwordResetExpires -refreshToken -refreshTokenExpires');
+  
+  if (!tailor) {
+    throw new NotFoundError(`No tailor with id ${userId}`);
+  }
+  
+  res.status(StatusCodes.OK).json({ success: true, tailor });
+};
+
+// Update tailor profile (except password)
 const updateProfile = async (req, res) => {
+  const { userId } = req.user;
+  const { name, email, city, region, shopName, shopLocation, averagePrice } = req.body;
+  
+  // Validate required fields
+  if (!name || name.trim().length < 2) {
+    throw new BadRequestError('Name must be at least 2 characters');
+  }
+  
+  if (email && !validator.isEmail(email)) {
+    throw new BadRequestError('Please provide a valid email');
+  }
+  
+  if (!city) {
+    throw new BadRequestError('City is required');
+  }
+  
+  if (city === 'Islamabad' && !region) {
+    throw new BadRequestError('Region is required for Islamabad');
+  }
+  
+  if (!shopName || shopName.trim().length === 0) {
+    throw new BadRequestError('Shop name is required');
+  }
+  
+  if (!shopLocation || shopLocation.trim().length === 0) {
+    throw new BadRequestError('Shop address is required');
+  }
+  
+  if (!averagePrice || isNaN(averagePrice) || parseFloat(averagePrice) <= 0) {
+    throw new BadRequestError('Valid average price is required');
+  }
+  
+  // Check if email is already taken by another user
+  if (email) {
+    const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+    if (existingUser) {
+      throw new BadRequestError('Email is already taken');
+    }
+  }
+  
+  const updateData = { 
+    name: name.trim(),
+    city,
+    region: city === 'Islamabad' ? region : null
+  };
+  
+  if (email) {
+    updateData.email = email;
+  }
+  
+  // Update tailorProfile fields
+  updateData.tailorProfile = {
+    shopName: shopName.trim(),
+    shopLocation: shopLocation.trim(),
+    averagePrice: parseFloat(averagePrice)
+  };
+  
+  const tailor = await User.findByIdAndUpdate(
+    userId,
+    updateData,
+    { new: true, runValidators: true }
+  ).select('-password -otp -otpExpires -passwordResetToken -passwordResetExpires -refreshToken -refreshTokenExpires');
+  
+  if (!tailor) {
+    throw new NotFoundError(`No tailor with id ${userId}`);
+  }
+  
+  res.status(StatusCodes.OK).json({ 
+    success: true, 
+    message: 'Profile updated successfully',
+    tailor 
+  });
+};
+
+// Send OTP for password change
+const sendPasswordChangeOtp = async (req, res) => {
+  const { userId } = req.user;
+  
+  const tailor = await User.findById(userId);
+  if (!tailor) {
+    throw new NotFoundError(`No tailor with id ${userId}`);
+  }
+  
+  // Generate OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  
+  tailor.otp = otp;
+  tailor.otpExpires = otpExpires;
+  await tailor.save();
+  
+  // In production, send email here
+  console.log(`Password change OTP for ${tailor.email}: ${otp}`);
+  
+  res.status(StatusCodes.OK).json({
+    success: true,
+    message: 'OTP sent to your email for password change'
+  });
+};
+
+// Update password with OTP verification
+const updatePassword = async (req, res) => {
+  const { userId } = req.user;
+  const { otp, newPassword } = req.body;
+  
+  if (!otp || otp.length !== 6) {
+    throw new BadRequestError('Valid 6-digit OTP is required');
+  }
+  
+  if (!newPassword || newPassword.length < 6) {
+    throw new BadRequestError('Password must be at least 6 characters');
+  }
+  
+  const tailor = await User.findById(userId);
+  if (!tailor) {
+    throw new NotFoundError(`No tailor with id ${userId}`);
+  }
+  
+  // Check OTP
+  if (!tailor.otp || tailor.otp !== otp || new Date() > tailor.otpExpires) {
+    throw new BadRequestError('Invalid or expired OTP');
+  }
+  
+  // Update password
+  const salt = await bcrypt.genSalt(10);
+  tailor.password = await bcrypt.hash(newPassword, salt);
+  tailor.otp = undefined;
+  tailor.otpExpires = undefined;
+  
+  await tailor.save();
+  
+  res.status(StatusCodes.OK).json({
+    success: true,
+    message: 'Password updated successfully'
+  });
+};
+
+// Send OTP for account deletion
+const sendDeleteAccountOtp = async (req, res) => {
+  const { userId } = req.user;
+  
+  const tailor = await User.findById(userId);
+  if (!tailor) {
+    throw new NotFoundError(`No tailor with id ${userId}`);
+  }
+  
+  // Generate OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  
+  tailor.otp = otp;
+  tailor.otpExpires = otpExpires;
+  await tailor.save();
+  
+  // In production, send email here
+  console.log(`Account deletion OTP for ${tailor.email}: ${otp}`);
+  
+  res.status(StatusCodes.OK).json({
+    success: true,
+    message: 'OTP sent to your email for account deletion'
+  });
+};
+
+// Delete account with OTP verification
+const deleteAccount = async (req, res) => {
+  const { userId } = req.user;
+  const { otp } = req.body;
+  
+  if (!otp || otp.length !== 6) {
+    throw new BadRequestError('Valid 6-digit OTP is required');
+  }
+  
+  const tailor = await User.findById(userId);
+  if (!tailor) {
+    throw new NotFoundError(`No tailor with id ${userId}`);
+  }
+  
+  // Check OTP
+  if (!tailor.otp || tailor.otp !== otp || new Date() > tailor.otpExpires) {
+    throw new BadRequestError('Invalid or expired OTP');
+  }
+  
+  // Delete all orders related to this tailor
+  await Order.deleteMany({ tailor: userId });
+  
+  // Delete tailor account
+  await User.findByIdAndDelete(userId);
+  
+  res.status(StatusCodes.OK).json({
+    success: true,
+    message: 'Account deleted successfully'
+  });
+};
+
+// Update tailor profile (original function kept for backward compatibility)
+const updateProfileOld = async (req, res) => {
   const { userId } = req.user;
   const { name, shopName, shopLocation, averagePrice } = req.body;
   
@@ -96,7 +308,13 @@ const getCompletedOrders = async (req, res) => {
 };
 
 module.exports = {
+  getProfile,
   updateProfile,
+  sendPasswordChangeOtp,
+  updatePassword,
+  sendDeleteAccountOtp,
+  deleteAccount,
+  updateProfile: updateProfileOld, // Keep old function name for existing routes
   getMyOrders,
   getOrderDetails,
   getPendingOrders,
