@@ -172,11 +172,6 @@ export const updateProfile = async (profileData) => {
  
 
 // Tailor API calls
-export const updateTailorProfile = async (profileData) => {
-  const response = await api.patch('/tailors/profile', profileData);
-  return response.data;
-};
-
 export const getTailorOrders = async () => {
   const response = await api.get('/tailors/orders');
   return response.data;
@@ -481,6 +476,81 @@ export const getCustomerOrders = async () => {
 export const getCustomerOrderDetails = async (orderId) => {
   const response = await api.get(`/customers/orders/${orderId}`);
   return response.data;
+};
+
+// Add these functions to your existing services/api.js file
+
+// Tailor Profile Management API calls
+export const getTailorProfile = async () => {
+  try {
+    const response = await api.get('/tailors/profile');
+    return response.data;
+  } catch (error) {
+    console.error('Get tailor profile error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updateTailorProfile = async (profileData) => {
+  try {
+    console.log('API updateTailorProfile called with:', profileData);
+    
+    // Validate location data if provided
+    if (profileData.city === 'Islamabad' && !profileData.region) {
+      throw new Error('Region is required for Islamabad');
+    }
+    
+    if (profileData.city !== 'Islamabad') {
+      profileData.region = null; // Ensure region is null for non-Islamabad cities
+    }
+    
+    const response = await api.put('/tailors/profile', profileData);
+    console.log('API updateTailorProfile response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Update tailor profile error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const sendTailorPasswordChangeOtp = async () => {
+  try {
+    const response = await api.post('/tailors/password/send-otp');
+    return response.data;
+  } catch (error) {
+    console.error('Send tailor password change OTP error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updateTailorPassword = async (passwordData) => {
+  try {
+    const response = await api.put('/tailors/password', passwordData);
+    return response.data;
+  } catch (error) {
+    console.error('Update tailor password error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const sendTailorDeleteAccountOtp = async () => {
+  try {
+    const response = await api.post('/tailors/delete/send-otp');
+    return response.data;
+  } catch (error) {
+    console.error('Send tailor delete account OTP error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteTailorAccount = async (otpData) => {
+  try {
+    const response = await api.delete('/tailors/delete', { data: otpData });
+    return response.data;
+  } catch (error) {
+    console.error('Delete tailor account error:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 export default api;
