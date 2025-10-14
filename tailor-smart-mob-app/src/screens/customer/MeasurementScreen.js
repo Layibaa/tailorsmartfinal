@@ -1,5 +1,5 @@
-// Updated MeasurementScreen.js
-import React, { useState, useEffect } from 'react';
+// ✨ UPDATED: MeasurementScreen.js with Image Upload & Canvas Drawing
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,14 @@ import {
   Alert,
   TouchableOpacity,
   Image,
-  Switch
+  Switch,
+  Modal,
+  Dimensions
 } from 'react-native';
 import { Formik } from 'formik';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import SignatureCanvas from 'react-native-signature-canvas';
 import { 
   MeasurementsSchema, 
   getRequiredMeasurementsForGarment,
@@ -25,7 +29,7 @@ import api, { API_URL, createOrder } from '../../services/api';
 import { EventRegister } from 'react-native-event-listeners';
 import { useAutofillMeasurements } from '../../hooks/useAutofillMeasurements';
 
-
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MeasurementScreen = ({ route, navigation }) => {
   const { tailorId, tailorName, garmentType, notes } = route.params;
@@ -33,7 +37,13 @@ const MeasurementScreen = ({ route, navigation }) => {
   const [requiredMeasurements, setRequiredMeasurements] = useState([]);
   const [formikRef, setFormikRef] = useState(null);
 
-  // Use the autofill hook
+  // ✨ NEW: Image & Canvas States
+  const [referenceImage, setReferenceImage] = useState(null);
+  const [customerSketch, setCustomerSketch] = useState(null);
+  const [isCanvasVisible, setIsCanvasVisible] = useState(false);
+  const signatureRef = useRef(null);
+  // ✨ END NEW
+
   const {
     isAutofillEnabled,
     isLoading: autofillLoading,
@@ -52,7 +62,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         console.log('API connection successful:', response.data);
       } catch (error) {
         console.error('API connection failed:', error.message);
-        console.error('Error details:', error.response || error);
       }
     };
     
@@ -60,9 +69,86 @@ const MeasurementScreen = ({ route, navigation }) => {
     
     const measurements = getRequiredMeasurementsForGarment(garmentType);
     setRequiredMeasurements(measurements);
+
+    // ✨ NEW: Request camera/gallery permissions
+    requestPermissions();
   }, [garmentType]);
 
-  // Initial form values - set all to empty
+  // ✨ NEW: Request Permissions
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera roll access is needed to upload images.');
+    }
+  };
+
+  // ✨ NEW: Pick Image from Gallery
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Check file size (approximate)
+        const sizeInMB = (asset.base64.length * 3) / (4 * 1024 * 1024);
+        
+        if (sizeInMB > 5) {
+          Alert.alert('File Too Large', 'Please select an image smaller than 5MB');
+          return;
+        }
+
+        // Store as base64 with data URI
+        const base64Image = `data:image/jpeg;base64,${asset.base64}`;
+        setReferenceImage({
+          uri: asset.uri,
+          base64: base64Image
+        });
+        
+        Alert.alert('Success', 'Reference image added successfully!');
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  // ✨ NEW: Open Canvas for Drawing
+  const openCanvas = () => {
+    setIsCanvasVisible(true);
+  };
+
+  // ✨ NEW: Handle Canvas Save
+  const handleCanvasSave = (signature) => {
+    setCustomerSketch(signature); // signature is already base64
+    setIsCanvasVisible(false);
+    Alert.alert('Success', 'Your sketch has been saved!');
+  };
+
+  // ✨ NEW: Clear Reference Image
+  const clearReferenceImage = () => {
+    Alert.alert(
+      'Remove Image',
+      'Are you sure you want to remove this reference image?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => setReferenceImage(null)
+        }
+      ]
+    );
+  };
+  // ✨ END NEW
+
+  // Initial form values
   const initialValues = {
     chest: '',
     waist: '',
@@ -102,7 +188,6 @@ const MeasurementScreen = ({ route, navigation }) => {
     try {
       const predictions = await generatePredictedMeasurements();
       if (predictions && formikRef) {
-        // Set the predicted values in the form
         Object.keys(predictions).forEach(key => {
           if (requiredMeasurements.includes(key)) {
             formikRef.setFieldValue(key, predictions[key].toString());
@@ -153,10 +238,17 @@ const MeasurementScreen = ({ route, navigation }) => {
         tailorId,
         garmentType,
         measurements,
-        notes
+        notes,
+        // ✨ NEW: Include image data (only if present)
+        referenceImage: referenceImage?.base64 || null,
+        customerSketch: customerSketch || null
       };
       
-      console.log("Sending order data to API:", orderData);
+      console.log("Sending order data to API:", {
+        ...orderData,
+        referenceImage: referenceImage ? 'HAS_IMAGE' : null,
+        customerSketch: customerSketch ? 'HAS_SKETCH' : null
+      });
       
       const response = await createOrder(orderData);
       
@@ -256,6 +348,74 @@ const MeasurementScreen = ({ route, navigation }) => {
         )}
       </View>
 
+      {/* ✨ NEW: Design Reference Section */}
+      <View style={styles.designReferenceContainer}>
+        <View style={styles.sectionHeader}>
+          <Feather name="image" size={20} color={colors.black} />
+          <Text style={styles.sectionTitle}>Design Reference (Optional)</Text>
+        </View>
+        <Text style={styles.sectionDescription}>
+          Upload a reference image or draw a sketch to help the tailor understand your design
+        </Text>
+
+        {/* Reference Image */}
+        <View style={styles.imageOptionContainer}>
+          <Text style={styles.imageOptionTitle}>Reference Image</Text>
+          {referenceImage ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: referenceImage.uri }} 
+                style={styles.imagePreview}
+                resizeMode="cover"
+              />
+              <TouchableOpacity 
+                style={styles.removeImageButton}
+                onPress={clearReferenceImage}
+              >
+                <Feather name="x" size={20} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.uploadButton}
+              onPress={pickImage}
+            >
+              <Feather name="upload" size={20} color={colors.primary} />
+              <Text style={styles.uploadButtonText}>Upload Image</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Customer Sketch */}
+        <View style={styles.imageOptionContainer}>
+          <Text style={styles.imageOptionTitle}>Draw Your Design</Text>
+          {customerSketch ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: customerSketch }} 
+                style={styles.imagePreview}
+                resizeMode="contain"
+              />
+              <TouchableOpacity 
+                style={styles.removeImageButton}
+                onPress={clearSketch}
+              >
+                <Feather name="x" size={20} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.uploadButton}
+              onPress={openCanvas}
+            >
+              <Feather name="edit-3" size={20} color={colors.primary} />
+              <Text style={styles.uploadButtonText}>Draw Sketch</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+      {/* ✨ END NEW */}
+
       <View style={styles.measurementGuideContainer}>
         <View style={styles.measurementGuideHeader}>
           <Feather name="info" size={20} color={colors.black} />
@@ -265,7 +425,6 @@ const MeasurementScreen = ({ route, navigation }) => {
           Please provide accurate measurements in centimeters. Refer to the guide below
           for how to measure correctly.
         </Text>
-         
       </View>
 
       <Formik
@@ -274,7 +433,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         onSubmit={handleSubmit}
       >
         {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
-          // Store formik reference for autofill
           if (!formikRef) {
             setFormikRef({ setFieldValue });
           }
@@ -300,14 +458,11 @@ const MeasurementScreen = ({ route, navigation }) => {
 
               <View style={styles.buttonsContainer}>
                 <Button
-  title="Submit Order"
-  onPress={async () => {
-    await formikSubmit();       // first submit form
-    navigation.navigate('Orders'); // then navigate
-  }}
-  loading={loading}
-  buttonStyle={{ marginTop: 10 }}
-/>
+                  title="Submit Order"
+                  onPress={formikSubmit}
+                  loading={loading}
+                  buttonStyle={{ marginTop: 10 }}
+                />
 
                 <Button
                   title="Go Back"
@@ -320,6 +475,46 @@ const MeasurementScreen = ({ route, navigation }) => {
           );
         }}
       </Formik>
+
+      {/* ✨ NEW: Canvas Modal */}
+      <Modal
+        visible={isCanvasVisible}
+        animationType="slide"
+        onRequestClose={() => setIsCanvasVisible(false)}
+      >
+        <View style={styles.canvasModal}>
+          <View style={styles.canvasHeader}>
+            <Text style={styles.canvasTitle}>Draw Your Design</Text>
+            <TouchableOpacity onPress={() => setIsCanvasVisible(false)}>
+              <Feather name="x" size={24} color={colors.black} />
+            </TouchableOpacity>
+          </View>
+          
+          <SignatureCanvas
+            ref={signatureRef}
+            onOK={handleCanvasSave}
+            descriptionText="Draw your design sketch here"
+            clearText="Clear"
+            confirmText="Save"
+            webStyle={`
+              .m-signature-pad {
+                box-shadow: none;
+                border: 1px solid #e8e8e8;
+                background-color: white;
+              }
+              .m-signature-pad--body {
+                border: none;
+              }
+              .m-signature-pad--footer {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px;
+              }
+            `}
+          />
+        </View>
+      </Modal>
+      {/* ✨ END NEW */}
     </ScrollView>
   );
 };
@@ -403,6 +598,105 @@ const styles = StyleSheet.create({
     color: colors.warning,
     marginLeft: 6
   },
+  // ✨ NEW: Design Reference Styles
+  designReferenceContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: colors.black
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: colors.darkGray,
+    lineHeight: 20,
+    marginBottom: 16
+  },
+  imageOptionContainer: {
+    marginBottom: 16
+  },
+  imageOptionTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.black,
+    marginBottom: 8
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20
+  },
+  uploadButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginLeft: 8
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.lightGray
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.error,
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  canvasModal: {
+    flex: 1,
+    backgroundColor: colors.white
+  },
+  canvasHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingTop: 50,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
+  },
+  canvasTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.black
+  },
+  // ✨ END NEW
   measurementGuideContainer: {
     backgroundColor: colors.lightGray,
     borderRadius: 8,
@@ -426,11 +720,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 12
   },
-  measurementImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8
-  },
   formContainer: {
     marginBottom: 24
   },
@@ -443,3 +732,19 @@ const styles = StyleSheet.create({
 });
 
 export default MeasurementScreen;
+
+  // ✨ NEW: Clear Sketch
+  const clearSketch = () => {
+    Alert.alert(
+      'Remove Sketch',
+      'Are you sure you want to remove your sketch?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => setCustomerSketch(null)
+        }
+      ]
+    );
+  };

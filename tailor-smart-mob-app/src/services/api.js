@@ -10,19 +10,27 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 15000 // 15 second timeout
 });
 
 // Add request interceptor to add auth token
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('userToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      console.log(`📤 ${config.method.toUpperCase()} ${config.url}`);
+      return config;
+    } catch (error) {
+      console.error('❌ Request interceptor error:', error);
+      return config;
     }
-    return config;
   },
   (error) => {
+    console.error('❌ Request setup error:', error);
     return Promise.reject(error);
   }
 );
@@ -30,28 +38,116 @@ api.interceptors.request.use(
 // Add response interceptor to handle errors consistently
 api.interceptors.response.use(
   (response) => {
+    console.log(`✅ Response from ${response.config.url}:`, response.status);
     return response;
   },
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+  async (error) => {
+    // Log detailed error information
+    console.error('❌ API Error Details:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+
+    // Handle network errors (no response from server)
+    if (!error.response) {
+      console.error('🔌 Network Error: Server might be down or unreachable');
+      return Promise.reject({
+        message: 'Cannot connect to server. Please check:\n1. Server is running\n2. API URL is correct\n3. Internet connection',
+        isNetworkError: true
+      });
+    }
+
+    // Handle 401 Unauthorized
+    if (error.response.status === 401) {
+      console.warn('🚫 Unauthorized request');
+      
+      // Don't clear tokens during login/register attempts
+      const isAuthEndpoint = error.config?.url?.includes('/auth/login') || 
+                            error.config?.url?.includes('/auth/register');
+      
+      if (!isAuthEndpoint) {
+        console.log('🧹 Clearing expired tokens');
+        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('user');
+      }
+    }
+
     return Promise.reject(error);
   }
 );
 
-// Auth API calls
+// ============================================
+// AUTH API CALLS - FIXED
+// ============================================
+
 export const login = async (email, password) => {
   try {
-    const response = await api.post('/auth/login', { email, password });
+    console.log('🔐 Login attempt for:', email);
+    
+    // Validate inputs
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+    
+    // Trim and normalize email to lowercase (matching server behavior)
+    const normalizedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+    
+    console.log('📧 Normalized email:', normalizedEmail);
+    
+    const response = await api.post('/auth/login', { 
+      email: normalizedEmail, 
+      password: trimmedPassword 
+    });
+    
+    console.log('✅ Login successful:', {
+      hasToken: !!response.data.token,
+      hasUser: !!response.data.user,
+      userRole: response.data.user?.role
+    });
+    
+    // Store token if present
+    if (response.data.token || response.data.accessToken) {
+      const token = response.data.token || response.data.accessToken;
+      await AsyncStorage.setItem('userToken', token);
+      console.log('💾 Token stored');
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('Login error:', error.response?.data || error.message);
+    console.error('❌ Login error:', {
+      status: error.response?.status,
+      message: error.response?.data?.msg || error.message,
+      data: error.response?.data
+    });
+    
+    // Throw user-friendly error
+    if (error.isNetworkError) {
+      throw new Error('Cannot connect to server. Please check if the server is running.');
+    } else if (error.response?.status === 401) {
+      throw new Error(error.response.data?.msg || 'Invalid email or password');
+    } else if (error.response?.status === 400) {
+      throw new Error(error.response.data?.msg || 'Please provide valid credentials');
+    } else if (error.response?.status >= 500) {
+      throw new Error('Server error. Please try again later.');
+    }
+    
     throw error;
   }
 };
 
 export const register = async (userData) => {
   try {
-    console.log('API register called with:', userData);
+    console.log('📝 Register attempt with:', {
+      email: userData.email,
+      role: userData.role,
+      city: userData.city,
+      region: userData.region
+    });
     
     // Validate location data before sending
     if (!userData.city) {
@@ -62,16 +158,22 @@ export const register = async (userData) => {
       throw new Error('Region is required for Islamabad');
     }
     
+    // Normalize email
+    const normalizedData = {
+      ...userData,
+      email: userData.email.trim().toLowerCase()
+    };
+    
     // Ensure region is null for non-Islamabad cities
-    if (userData.city !== 'Islamabad') {
-      userData.region = null;
+    if (normalizedData.city !== 'Islamabad') {
+      normalizedData.region = null;
     }
     
-    const response = await api.post('/auth/register', userData);
-    console.log('API register response:', response.data);
+    const response = await api.post('/auth/register', normalizedData);
+    console.log('✅ Registration successful:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Register error:', error.response?.data || error.message);
+    console.error('❌ Register error:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -86,22 +188,32 @@ export const verifyOtp = async (userId, otp) => {
       throw new Error('Valid 6-digit OTP is required');
     }
     
-    console.log('API verifyOtp request payload:', { userId, otp });
+    console.log('🔢 Verifying OTP for userId:', userId);
     
     const response = await api.post('/auth/verify-otp', { 
       userId, 
-      otp
+      otp: otp.toString()
     });
     
-    console.log('API verifyOtp response:', response.data);
+    console.log('✅ OTP verification successful');
+    
+    // Store token if present
+    if (response.data.token) {
+      await AsyncStorage.setItem('userToken', response.data.token);
+      console.log('💾 Token stored after verification');
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('OTP verification error:', error.response?.data || error.message);
+    console.error('❌ OTP verification error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-// NEW: Get location options
+// ============================================
+// LOCATION API
+// ============================================
+
 export const getLocationOptions = async () => {
   try {
     const response = await api.get('/auth/locations');
@@ -111,6 +223,10 @@ export const getLocationOptions = async () => {
     throw error;
   }
 };
+
+// ============================================
+// PASSWORD MANAGEMENT
+// ============================================
 
 export const forgotPassword = async (email) => {
   try {
@@ -138,7 +254,7 @@ export const resendOtp = async (userId) => {
       throw new Error('User ID is required for resending OTP');
     }
     
-    console.log('Resending OTP for userId:', userId);
+    console.log('📤 Resending OTP for userId:', userId);
     const response = await api.post('/auth/resend-otp', { userId });
     return response.data;
   } catch (error) {
@@ -146,32 +262,83 @@ export const resendOtp = async (userId) => {
     throw error;
   }
 };
- 
-// Enhanced profile update with location support
+
+// ============================================
+// PROFILE MANAGEMENT
+// ============================================
+
 export const updateProfile = async (profileData) => {
   try {
-    console.log('API updateProfile called with:', profileData);
+    console.log('📝 Updating profile with:', profileData);
     
     // Validate location data if provided
     if (profileData.city === 'Islamabad' && !profileData.region) {
       throw new Error('Region is required for Islamabad');
     }
     
-    if (profileData.city !== 'Islamabad') {
-      profileData.region = null; // Ensure region is null for non-Islamabad cities
+    if (profileData.city && profileData.city !== 'Islamabad') {
+      profileData.region = null;
     }
     
     const response = await api.patch('/auth/profile', profileData);
-    console.log('API updateProfile response:', response.data);
+    console.log('✅ Profile updated successfully');
     return response.data;
   } catch (error) {
     console.error('Update profile error:', error.response?.data || error.message);
     throw error;
   }
 };
- 
 
-// Tailor API calls
+export const getUserProfile = async () => {
+  try {
+    const response = await api.get('/auth/me');
+    return response.data;
+  } catch (error) {
+    console.error('Get profile error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updatePassword = async (passwordData) => {
+  try {
+    const response = await api.put('/customers/password', passwordData);
+    return response.data;
+  } catch (error) {
+    console.error('Update password error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// ============================================
+// TAILOR APIs
+// ============================================
+
+export const getAllTailors = async (filters = {}) => {
+  try {
+    let url = '/tailors';
+    const params = new URLSearchParams();
+    
+    if (filters.city) {
+      params.append('city', filters.city);
+    }
+    
+    if (filters.region && filters.city === 'Islamabad') {
+      params.append('region', filters.region);
+    }
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    console.log('📍 Fetching tailors from:', url);
+    const response = await api.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Get all tailors error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export const getTailorOrders = async () => {
   const response = await api.get('/tailors/orders');
   return response.data;
@@ -197,71 +364,73 @@ export const getCompletedOrders = async () => {
   return response.data;
 };
 
-// Admin API calls
-export const getDashboardStats = async (timestamp) => {
+export const getTailorProfile = async () => {
   try {
-    const queryParam = timestamp ? `?t=${timestamp}` : '';
-    const response = await api.get(`/admin/dashboard${queryParam}`);
-    console.log('Dashboard stats response:', response.data);
+    const response = await api.get('/tailors/profile');
     return response.data;
   } catch (error) {
-    console.error('Get dashboard stats error:', error.response?.data || error.message);
+    console.error('Get tailor profile error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-export const getDiagnosticData = async () => {
+export const updateTailorProfile = async (profileData) => {
   try {
-    const response = await api.get('/admin/diagnostic');
-    console.log('Diagnostic data:', response.data);
+    console.log('📝 Updating tailor profile with:', profileData);
+    
+    if (profileData.city === 'Islamabad' && !profileData.region) {
+      throw new Error('Region is required for Islamabad');
+    }
+    
+    if (profileData.city !== 'Islamabad') {
+      profileData.region = null;
+    }
+    
+    const response = await api.put('/tailors/profile', profileData);
     return response.data;
   } catch (error) {
-    console.error('Diagnostic API error:', error);
+    console.error('Update tailor profile error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-export const getAllCustomers = async () => {
-  const response = await api.get('/admin/customers');
-  return response.data;
-};
+// ============================================
+// ORDER APIs
+// ============================================
 
-export const getAllTailorsAdmin = async () => {
-  const response = await api.get('/admin/tailors');
-  return response.data;
-};
-
-export const getAllOrdersAdmin = async () => {
-  const response = await api.get('/admin/orders');
-  return response.data;
-};
-
-export const getCustomerDetails = async (customerId) => {
-  const response = await api.get(`/admin/customers/${customerId}`);
-  return response.data;
-};
-
-export const getTailorDetailsAdmin = async (tailorId) => {
-  const response = await api.get(`/admin/tailors/${tailorId}`);
-  return response.data;
-};
-
-export const getOrderDetailsAdmin = async (orderId) => {
-  const response = await api.get(`/admin/orders/${orderId}`);
-  return response.data;
-};
-
-// Order API calls
 export const createOrder = async (orderData) => {
-  console.log('API createOrder called with:', orderData);
+  console.log('📦 Creating order with:', orderData);
   try {
-    console.log('Making POST request to /orders');
     const response = await api.post('/orders', orderData);
-    console.log('API createOrder response:', response.data);
+    console.log('✅ Order created:', response.data);
     return response.data;
   } catch (error) {
-    console.error('API createOrder error:', error.message);
-    console.error('Error details:', JSON.stringify(error, null, 2));
+    console.error('❌ Create order error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getOrderDetails = async (orderId) => {
+  try {
+    const response = await api.get(`/orders/${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Get order details error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updateOrder = async (orderId, updateData) => {
+  try {
+    console.log(`📝 Updating order ${orderId} with:`, updateData);
+    const response = await api.put(`/orders/${orderId}`, updateData);
+    return response.data;
+  } catch (error) {
+    console.error('Update order error:', error.response?.data || error.message);
+    
+    if (error.response?.data?.locked) {
+      throw new Error('This design is locked and cannot be edited');
+    }
     throw error;
   }
 };
@@ -286,163 +455,15 @@ export const confirmOrder = async (orderId) => {
   return response.data;
 };
 
-// Message API calls
-export const sendMessage = async (messageData) => {
+export const lockOrder = async (orderId, isLocked) => {
   try {
-    console.log('Sending message via API:', messageData);
-    const response = await api.post('/messages', {
-      receiverId: messageData.receiverId,
-      content: messageData.content,
-      orderId: messageData.orderId || null
+    console.log(`🔒 ${isLocked ? 'Locking' : 'Unlocking'} order ${orderId}`);
+    const response = await api.patch(`/orders/${orderId}/lock`, { 
+      isLocked: Boolean(isLocked) 
     });
-    console.log('API response for sendMessage:', response.data);
     return response.data;
   } catch (error) {
-    console.error("API Error in sendMessage:", error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const getConversation = async (userId) => {
-  try {
-    if (!userId) throw new Error('User ID is missing!');
-    console.log(`Getting conversation with user ${userId}`);
-    const response = await api.get(`/messages/conversations/${userId}`);
-    return response.data;
-  } catch (error) {
-    console.error("API Error in getConversation:", error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const getAllConversations = async () => {
-  try {
-    console.log('Getting all conversations');
-    const response = await api.get('/messages/conversations');
-    return response.data;
-  } catch (error) {
-    console.error("API Error in getAllConversations:", 
-      error.response?.data?.message || error.message);
-    throw error;
-  }
-};
-
-export const markConversationAsRead = async (conversationId) => {
-  try {
-    console.log(`Marking conversation ${conversationId} as read`);
-    const response = await api.patch(`/messages/conversations/${conversationId}/read`);
-    return response.data;
-  } catch (error) {
-    console.error("API Error in markConversationAsRead:", 
-      error.response?.data?.message || error.message);
-    throw error;
-  }
-};
-
-export const getUnreadCount = async () => {
-  const response = await api.get('/messages/unread');
-  return response.data;
-};
-
-// Profile and account management
-export const getUserProfile = async () => {
-  try {
-    const response = await api.get('/auth/me');
-    return response.data;
-  } catch (error) {
-    console.error('Get profile error:', error.response?.data || error.message);
-    throw error;
-  }
-};  
-
-// Customer API calls - Enhanced
-export const getAllTailors = async (filters = {}) => {
-  try {
-    let url = '/tailors';
-    const params = new URLSearchParams();
-    
-    if (filters.city) {
-      params.append('city', filters.city);
-    }
-    
-    if (filters.region && filters.city === 'Islamabad') {
-      params.append('region', filters.region);
-    }
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-    
-    console.log('Fetching tailors from:', url);
-    const response = await api.get(url);
-    return response.data;
-  } catch (error) {
-    console.error('Get all tailors error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const getTailor = async (tailorId) => {
-  const response = await api.get(`/customers/tailors/${tailorId}`);
-  return response.data;
-};
-
-export const getCustomerProfile = async () => {
-  try {
-    const response = await api.get('/customers/profile');
-    return response.data;
-  } catch (error) {
-    console.error('Get customer profile error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const updateCustomerProfile = async (profileData) => {
-  try {
-    const response = await api.put('/customers/profile', profileData);
-    return response.data;
-  } catch (error) {
-    console.error('Update customer profile error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const sendPasswordChangeOtp = async () => {
-  try {
-    const response = await api.post('/customers/password/send-otp');
-    return response.data;
-  } catch (error) {
-    console.error('Send password change OTP error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const updatePassword = async (passwordData) => {
-  try {
-    const response = await api.put('/customers/password', passwordData);
-    return response.data;
-  } catch (error) {
-    console.error('Update password error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const sendDeleteAccountOtp = async () => {
-  try {
-    const response = await api.post('/customers/delete/send-otp');
-    return response.data;
-  } catch (error) {
-    console.error('Send delete account OTP error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-export const deleteAccount = async (otpData) => {
-  try {
-    const response = await api.delete('/customers/delete', { data: otpData });
-    return response.data;
-  } catch (error) {
-    console.error('Delete account error:', error.response?.data || error.message);
+    console.error('Lock order error:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -457,187 +478,99 @@ export const getCustomerOrderDetails = async (orderId) => {
   return response.data;
 };
 
-// Add these functions to your existing services/api.js file
+// ============================================
+// MESSAGING APIs
+// ============================================
 
-// Tailor Profile Management API calls
-export const getTailorProfile = async () => {
+export const sendMessage = async (messageData) => {
   try {
-    const response = await api.get('/tailors/profile');
+    console.log('💬 Sending message:', messageData);
+    const response = await api.post('/messages', {
+      receiverId: messageData.receiverId,
+      content: messageData.content,
+      orderId: messageData.orderId || null
+    });
     return response.data;
   } catch (error) {
-    console.error('Get tailor profile error:', error.response?.data || error.message);
+    console.error("Send message error:", error.response?.data || error.message);
     throw error;
   }
 };
 
-export const updateTailorProfile = async (profileData) => {
+export const getConversation = async (userId) => {
   try {
-    console.log('API updateTailorProfile called with:', profileData);
-    
-    // Validate location data if provided
-    if (profileData.city === 'Islamabad' && !profileData.region) {
-      throw new Error('Region is required for Islamabad');
-    }
-    
-    if (profileData.city !== 'Islamabad') {
-      profileData.region = null; // Ensure region is null for non-Islamabad cities
-    }
-    
-    const response = await api.put('/tailors/profile', profileData);
-    console.log('API updateTailorProfile response:', response.data);
+    if (!userId) throw new Error('User ID is missing!');
+    const response = await api.get(`/messages/conversations/${userId}`);
     return response.data;
   } catch (error) {
-    console.error('Update tailor profile error:', error.response?.data || error.message);
+    console.error("Get conversation error:", error.response?.data || error.message);
     throw error;
   }
 };
 
-export const sendTailorPasswordChangeOtp = async () => {
+export const getAllConversations = async () => {
   try {
-    const response = await api.post('/tailors/password/send-otp');
+    const response = await api.get('/messages/conversations');
     return response.data;
   } catch (error) {
-    console.error('Send tailor password change OTP error:', error.response?.data || error.message);
+    console.error("Get all conversations error:", error.response?.data || error.message);
     throw error;
   }
 };
 
-export const updateTailorPassword = async (passwordData) => {
+export const markConversationAsRead = async (conversationId) => {
   try {
-    const response = await api.put('/tailors/password', passwordData);
+    const response = await api.patch(`/messages/conversations/${conversationId}/read`);
     return response.data;
   } catch (error) {
-    console.error('Update tailor password error:', error.response?.data || error.message);
+    console.error("Mark conversation as read error:", error.response?.data || error.message);
     throw error;
   }
 };
 
-export const sendTailorDeleteAccountOtp = async () => {
+export const getUnreadCount = async () => {
+  const response = await api.get('/messages/unread');
+  return response.data;
+};
+
+// ============================================
+// ADMIN APIs
+// ============================================
+
+export const getDashboardStats = async (timestamp) => {
   try {
-    const response = await api.post('/tailors/delete/send-otp');
+    const queryParam = timestamp ? `?t=${timestamp}` : '';
+    const response = await api.get(`/admin/dashboard${queryParam}`);
     return response.data;
   } catch (error) {
-    console.error('Send tailor delete account OTP error:', error.response?.data || error.message);
+    console.error('Get dashboard stats error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-export const deleteTailorAccount = async (otpData) => {
+export const getDiagnosticData = async () => {
   try {
-    const response = await api.delete('/tailors/delete', { data: otpData });
+    const response = await api.get('/admin/diagnostic');
     return response.data;
   } catch (error) {
-    console.error('Delete tailor account error:', error.response?.data || error.message);
+    console.error('Diagnostic API error:', error);
     throw error;
   }
 };
 
-// Add these to your services/api.js file
-
-// Fixed lockOrder function
-export const lockOrder = async (orderId, isLocked) => {
-  try {
-    console.log(`Locking order ${orderId} with isLocked: ${isLocked}`);
-    
-    const token = await AsyncStorage.getItem('userToken');
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await axios.patch(
-      `${API_URL}/orders/${orderId}/lock`,
-      { isLocked: Boolean(isLocked) }, // Ensure it's a boolean
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    console.log('Lock order API response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Lock order API error:', error.response?.data || error.message);
-    
-    // Provide more specific error messages
-    if (error.response?.status === 403) {
-      throw new Error('Not authorized to lock/unlock this order');
-    } else if (error.response?.status === 400) {
-      throw new Error(error.response.data.msg || 'Cannot lock/unlock order in current status');
-    } else if (error.response?.status === 404) {
-      throw new Error('Order not found');
-    }
-    
-    throw error;
-  }
+export const getAllCustomers = async () => {
+  const response = await api.get('/admin/customers');
+  return response.data;
 };
 
-// Fixed updateOrder function with better error handling
-export const updateOrder = async (orderId, updateData) => {
-  try {
-    console.log(`Updating order ${orderId} with:`, updateData);
-    
-    const token = await AsyncStorage.getItem('userToken');
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await axios.put(
-      `${API_URL}/orders/${orderId}`,
-      updateData,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    console.log('Update order API response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Update order API error:', error.response?.data || error.message);
-    
-    // Handle specific error cases
-    if (error.response?.data?.locked) {
-      throw new Error('This design is locked and cannot be edited');
-    } else if (error.response?.status === 403) {
-      throw new Error('Not authorized to update this order');
-    } else if (error.response?.status === 400) {
-      throw new Error(error.response.data.msg || 'Cannot update order');
-    }
-    
-    throw error;
-  }
+export const getAllTailorsAdmin = async () => {
+  const response = await api.get('/admin/tailors');
+  return response.data;
 };
 
-// Add a function to get single order details
-export const getOrderDetails = async (orderId) => {
-  try {
-    console.log(`Getting details for order ${orderId}`);
-    
-    const token = await AsyncStorage.getItem('userToken');
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await axios.get(
-      `${API_URL}/orders/${orderId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    console.log('Get order details API response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Get order details API error:', error.response?.data || error.message);
-    throw error;
-  }
+export const getAllOrdersAdmin = async () => {
+  const response = await api.get('/admin/orders');
+  return response.data;
 };
 
 export default api;

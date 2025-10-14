@@ -1,3 +1,4 @@
+// ✨ UPDATED: OrderDetailsScreen.js - Added Image Display Section
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -7,7 +8,8 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  TextInput
+  TextInput,
+  Image // ✨ NEW
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -46,10 +48,13 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPriceModalVisible, setIsPriceModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
+  // ✨ NEW: Image modal states
+  const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  // ✨ END NEW
   
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
- 
 
   const handleDeleteOrder = async () => {
     console.log('Delete function triggered');
@@ -58,13 +63,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       const response = await deleteOrder(orderId);
       console.log('Order deleted successfully:', response);
       
-      // TEMP: Skip Alert and navigate directly
       navigation.navigate('CustomerTabs', { screen: 'Orders' });
-
-      
-      // OR try replace
-      // navigation.replace('OrderHistory');
-  
     } catch (error) {
       console.error('Delete failed:', error.response?.data || error.message);
       Alert.alert(
@@ -75,11 +74,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setIsUpdating(false);
     }
   };
-  
-  
-  
-  
-  // Get order details based on user role
+
   const loadOrderDetails = async () => {
     try {
       let response;
@@ -90,7 +85,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       }
       setOrder(response.order);
       
-      // If action required, show appropriate modal
       if (actionRequired) {
         if (user.role === 'tailor' && response.order.status === 'pending') {
           if (action === 'reject') {
@@ -114,14 +108,18 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     loadOrderDetails();
   }, [orderId]);
 
-  
-  // Helper function to format date
+  // ✨ NEW: Handle Image Preview
+  const openImageModal = (imageUrl, title) => {
+    setSelectedImage({ url: imageUrl, title });
+    setIsImageModalVisible(true);
+  };
+  // ✨ END NEW
+
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Get status label
   const getStatusLabel = (status) => {
     const statusMap = {
       pending: 'Pending Approval',
@@ -135,12 +133,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     return statusMap[status] || status;
   };
 
-  // Get status color
   const getStatusColor = (status) => {
     return colors[status] || colors.gray;
   };
 
-  // Handle accept order with price
   const handleAcceptOrder = async (values) => {
     try {
       setIsUpdating(true);
@@ -149,7 +145,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         price: parseFloat(values.price)
       });
       
-      // Send notification
       if (order.customer) {
         sendOrderNotification(
           order.customer._id,
@@ -170,11 +165,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-
-
-  
- 
-// Handle reject order
   const handleRejectOrder = async () => {
     Alert.alert(
       'Reject Order',
@@ -189,7 +179,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
               setIsUpdating(true);
               await updateOrderStatus(orderId, { status: 'rejected' });
               
-              // Send notification
               if (order.customer) {
                 sendOrderNotification(
                   order.customer._id,
@@ -213,13 +202,11 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     );
   };
 
-  // Handle confirm order (customer)
   const handleConfirmOrder = async () => {
     try {
       setIsUpdating(true);
       await confirmOrder(orderId);
       
-      // Send notification
       if (order.tailor) {
         sendOrderNotification(
           order.tailor._id,
@@ -240,13 +227,11 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Handle update status (tailor)
   const handleUpdateStatus = async (newStatus) => {
     try {
       setIsUpdating(true);
       await updateOrderStatus(orderId, { status: newStatus });
       
-      // Send notification
       if (order.customer) {
         const statusMessages = {
           making: 'Your order is now being made',
@@ -272,7 +257,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Render price modal for tailor accepting order
   const renderPriceModal = () => (
     <Modal
       visible={isPriceModalVisible}
@@ -326,7 +310,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     </Modal>
   );
 
-  // Render status confirmation modal for customer
   const renderStatusModal = () => (
     <Modal
       visible={isStatusModalVisible}
@@ -360,7 +343,37 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     </Modal>
   );
 
-  // Determine available next status for tailor
+  // ✨ NEW: Render Image Modal
+  const renderImageModal = () => (
+    <Modal
+      visible={isImageModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setIsImageModalVisible(false)}
+    >
+      <View style={styles.imageModalOverlay}>
+        <TouchableOpacity 
+          style={styles.imageModalClose}
+          onPress={() => setIsImageModalVisible(false)}
+        >
+          <Feather name="x" size={32} color={colors.white} />
+        </TouchableOpacity>
+        
+        {selectedImage && (
+          <>
+            <Text style={styles.imageModalTitle}>{selectedImage.title}</Text>
+            <Image 
+              source={{ uri: selectedImage.url }}
+              style={styles.imageModalContent}
+              resizeMode="contain"
+            />
+          </>
+        )}
+      </View>
+    </Modal>
+  );
+  // ✨ END NEW
+
   const getNextStatus = () => {
     if (!order) return null;
     
@@ -446,6 +459,60 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         )}
       </View>
 
+      {/* ✨ NEW: Design Reference Section */}
+      {(order.referenceImage?.url || order.customerSketch?.url) && (
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>Design Reference</Text>
+          
+          {order.referenceImage?.url && (
+            <View style={styles.designReferenceItem}>
+              <View style={styles.designReferenceHeader}>
+                <Feather name="image" size={18} color={colors.black} />
+                <Text style={styles.designReferenceLabel}>Reference Image</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.designImageContainer}
+                onPress={() => openImageModal(order.referenceImage.url, 'Reference Image')}
+              >
+                <Image 
+                  source={{ uri: order.referenceImage.url }}
+                  style={styles.designImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.imageOverlay}>
+                  <Feather name="maximize-2" size={24} color={colors.white} />
+                  <Text style={styles.imageOverlayText}>Tap to view full size</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {order.customerSketch?.url && (
+            <View style={styles.designReferenceItem}>
+              <View style={styles.designReferenceHeader}>
+                <Feather name="edit-3" size={18} color={colors.black} />
+                <Text style={styles.designReferenceLabel}>Customer Sketch</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.designImageContainer}
+                onPress={() => openImageModal(order.customerSketch.url, 'Customer Sketch')}
+              >
+                <Image 
+                  source={{ uri: order.customerSketch.url }}
+                  style={styles.designImage}
+                  resizeMode="contain"
+                />
+                <View style={styles.imageOverlay}>
+                  <Feather name="maximize-2" size={24} color={colors.white} />
+                  <Text style={styles.imageOverlayText}>Tap to view full size</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+      {/* ✨ END NEW */}
+
       {/* Measurements Section */}
       <View style={styles.infoSection}>
         <Text style={styles.sectionTitle}>Measurements</Text>
@@ -495,6 +562,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             )}
           </>
         )}
+        
         {/* Customer Actions */}
         {user.role === 'customer' && (
           <>
@@ -517,7 +585,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           </>
         )}
 
-        
         {/* Message Action for both roles */}
         <Button
           title={`Message ${user.role === 'customer' ? 'Tailor' : 'Customer'}`}
@@ -535,6 +602,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       {/* Modals */}
       {renderPriceModal()}
       {renderStatusModal()}
+      {renderImageModal()} {/* ✨ NEW */}
     </ScrollView>
   );
 };
@@ -618,6 +686,74 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 20
   },
+  // ✨ NEW: Design Reference Styles
+  designReferenceItem: {
+    marginBottom: 16
+  },
+  designReferenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  designReferenceLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.black,
+    marginLeft: 8
+  },
+  designImageContainer: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.lightGray
+  },
+  designImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  imageOverlayText: {
+    color: colors.white,
+    fontSize: 12,
+    marginLeft: 6,
+    fontWeight: '500'
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  imageModalClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 8
+  },
+  imageModalTitle: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center'
+  },
+  imageModalContent: {
+    width: '90%',
+    height: '70%'
+  },
+  // ✨ END NEW
   noDataText: {
     fontSize: 14,
     color: colors.gray,

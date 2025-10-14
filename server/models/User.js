@@ -89,14 +89,16 @@ const UserSchema = new mongoose.Schema(
     refreshTokenExpires: Date,
     
     phone: {
-      type: String,
-      validate: {
-        validator: function(v) {
-          return !v || validator.isMobilePhone(v);
-        },
-        message: 'Please provide a valid phone number'
-      }
+  type: String,
+  validate: {
+    validator: function(v) {
+      // Allow empty phone, or validate against Pakistani mobile format
+      return !v || validator.isMobilePhone(v, 'en-PK');
     },
+    message: 'Please provide a valid Pakistani phone number (e.g. +923001234567 or 03001234567)'
+  }
+},
+
     
     // Role-specific profiles
     tailorProfile: {

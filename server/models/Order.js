@@ -34,14 +34,12 @@ const OrderSchema = new mongoose.Schema(
         message: '{VALUE} is not a supported kameez style'
       }
     },
-    // ✅ Fixed: Match frontend field names exactly
     measurements: {
       chest: { type: Number, min: 0 },
       waist: { type: Number, min: 0 },
       shoulder: { type: Number, min: 0 },
-      length: { type: Number, min: 0 },     // ✅ 'length' not 'sleeveLength'
-      sleeve: { type: Number, min: 0 },     // ✅ 'sleeve' not 'neck', 'inseam', etc.
-      // Removed unused fields that don't match frontend
+      length: { type: Number, min: 0 },
+      sleeve: { type: Number, min: 0 },
     },
     status: {
       type: String,
@@ -51,7 +49,6 @@ const OrderSchema = new mongoose.Schema(
       },
       default: 'pending'
     },
-    // ✅ Lock field - this is crucial for the functionality
     isLocked: {
       type: Boolean,
       default: false
@@ -59,12 +56,24 @@ const OrderSchema = new mongoose.Schema(
     price: {
       type: Number,
       min: 0,
-      default: 0  // ✅ Added default value
+      default: 0
     },
     notes: {
       type: String,
       maxlength: 500
     },
+    // ✨ NEW: Image/Sketch fields
+    referenceImage: {
+      url: { type: String },
+      publicId: { type: String }, // For Cloudinary deletion
+      uploadedAt: { type: Date }
+    },
+    customerSketch: {
+      url: { type: String },
+      publicId: { type: String },
+      uploadedAt: { type: Date }
+    },
+    // ✨ END NEW
     timeline: [
       {
         status: {
@@ -97,7 +106,6 @@ const OrderSchema = new mongoose.Schema(
 
 // Pre-save middleware to update timeline
 OrderSchema.pre('save', function(next) {
-  // If this is a new order or status has changed
   if (this.isNew || this.isModified('status')) {
     this.timeline.push({
       status: this.status,
@@ -112,6 +120,6 @@ OrderSchema.pre('save', function(next) {
 OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ tailor: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
-OrderSchema.index({ isLocked: 1 }); // ✅ Added index for lock queries
+OrderSchema.index({ isLocked: 1 });
 
 module.exports = mongoose.model('Order', OrderSchema);

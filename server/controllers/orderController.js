@@ -3,8 +3,36 @@ const User = require('../models/User');
 const Message = require('../models/Message');
 const { StatusCodes } = require('http-status-codes');
 const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
+const { uploadImage, deleteImage } = require('../config/cloudinary'); // ✨ NEW
 
-// ---------------- CREATE ORDER ----------------
+// ✨ HELPER: Validate and process image data
+const processImageUpload = async (imageData, type) => {
+  if (!imageData) return null;
+  
+  // Validate base64 format
+  if (!imageData.startsWith('data:image/')) {
+    throw new Error('Invalid image format. Must be base64 encoded image.');
+  }
+  
+  // Check size (approximate, base64 is ~33% larger than original)
+  const sizeInBytes = (imageData.length * 3) / 4;
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  
+  if (sizeInBytes > maxSize) {
+    throw new Error('Image size exceeds 5MB limit');
+  }
+  
+  // Upload to Cloudinary
+  const uploadResult = await uploadImage(imageData, `tailor-orders/${type}`);
+  
+  return {
+    url: uploadResult.url,
+    publicId: uploadResult.publicId,
+    uploadedAt: new Date()
+  };
+};
+
+// ---------------- CREATE ORDER (UPDATED) ----------------
 const createOrder = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
@@ -16,7 +44,14 @@ const createOrder = async (req, res) => {
       });
     }
 
-    const { tailorId, garmentType, measurements, notes } = req.body;
+    const { 
+      tailorId, 
+      garmentType, 
+      measurements, 
+      notes,
+      referenceImage, // ✨ NEW
+      customerSketch   // ✨ NEW
+    } = req.body;
     
     const tailor = await User.findOne({ _id: tailorId, role: 'tailor' });
     if (!tailor) {
@@ -25,6 +60,25 @@ const createOrder = async (req, res) => {
       });
     }
 
+    // ✨ NEW: Process image uploads
+    let referenceImageData = null;
+    let customerSketchData = null;
+
+    try {
+      if (referenceImage) {
+        referenceImageData = await processImageUpload(referenceImage, 'reference');
+      }
+      
+      if (customerSketch) {
+        customerSketchData = await processImageUpload(customerSketch, 'sketch');
+      }
+    } catch (imageError) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: imageError.message
+      });
+    }
+    // ✨ END NEW
+
     const order = await Order.create({
       customer: userId,
       tailor: tailorId,
@@ -32,14 +86,18 @@ const createOrder = async (req, res) => {
       measurements,
       notes,
       status: 'pending',
-      isLocked: false
+      isLocked: false,
+      referenceImage: referenceImageData, // ✨ NEW
+      customerSketch: customerSketchData   // ✨ NEW
     });
 
     // Create notification message
+    const messageContent = `New order request for ${garmentType}${referenceImageData || customerSketchData ? ' (includes design reference)' : ''}`;
+    
     await Message.create({
       sender: userId,
       receiver: tailorId,
-      content: `New order request for ${garmentType}`,
+      content: messageContent,
       order: order._id
     });
 
@@ -93,7 +151,7 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
-// ---------------- LOCK/UNLOCK ORDER - FIXED ----------------
+// ---------------- LOCK/UNLOCK ORDER ----------------
 const lockOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -103,7 +161,6 @@ const lockOrder = async (req, res) => {
 
     console.log(`Lock request - Order: ${id}, User: ${userId}, Role: ${role}, isLocked: ${isLocked}`);
 
-    // Validate input - THIS WAS THE MAIN ISSUE
     if (typeof isLocked !== 'boolean') {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'isLocked must be a boolean value',
@@ -112,7 +169,6 @@ const lockOrder = async (req, res) => {
       });
     }
 
-    // Find order
     const order = await Order.findById(id).populate('customer tailor');
     if (!order) {
       return res.status(StatusCodes.NOT_FOUND).json({ 
@@ -122,7 +178,6 @@ const lockOrder = async (req, res) => {
 
     console.log(`Order found - Customer: ${order.customer._id}, Current lock: ${order.isLocked}`);
 
-    // Only customer can lock/unlock their own orders
     if (role !== 'customer') {
       return res.status(StatusCodes.FORBIDDEN).json({ 
         msg: 'Only customers can lock/unlock orders' 
@@ -135,21 +190,18 @@ const lockOrder = async (req, res) => {
       });
     }
 
-    // Check if order status allows locking/unlocking
     if (!['pending', 'accepted'].includes(order.status)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'Order cannot be locked/unlocked in current status. Only pending or accepted orders can be locked.' 
       });
     }
 
-    // FIXED: Direct assignment instead of using findByIdAndUpdate
     order.isLocked = isLocked;
     order.updatedAt = new Date();
     const savedOrder = await order.save();
 
     console.log(`Order lock updated successfully: ${savedOrder.isLocked}`);
 
-    // Send notification to tailor
     if (order.tailor) {
       try {
         await Message.create({
@@ -161,11 +213,9 @@ const lockOrder = async (req, res) => {
         console.log('Notification sent to tailor');
       } catch (msgError) {
         console.error('Failed to send notification:', msgError);
-        // Don't fail the request if notification fails
       }
     }
 
-    // FIXED: Return the saved order with populated data
     await savedOrder.populate('customer tailor');
 
     res.json({
@@ -200,14 +250,12 @@ const updateOrderDetails = async (req, res) => {
       });
     }
 
-    // Only customer can update their orders
     if (role !== 'customer' || order.customer._id.toString() !== userId) {
       return res.status(StatusCodes.FORBIDDEN).json({ 
         msg: 'Not authorized to update this order' 
       });
     }
 
-    // Check if order is locked
     if (order.isLocked) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'This design is locked and cannot be edited.',
@@ -215,19 +263,16 @@ const updateOrderDetails = async (req, res) => {
       });
     }
 
-    // Check if order status allows editing
     if (!['pending', 'accepted'].includes(order.status)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'Order cannot be edited in current status' 
       });
     }
 
-    // Update measurements
     if (measurements) {
       order.measurements = { ...order.measurements, ...measurements };
     }
 
-    // Update notes
     if (notes !== undefined) {
       order.notes = notes;
     }
@@ -302,7 +347,6 @@ const updateOrderStatus = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('customer tailor');
 
-    // Send notification
     const notificationMessages = {
       accepted: `Your order has been accepted. The price is PKR ${price}`,
       rejected: 'Your order has been rejected by the tailor',
@@ -385,7 +429,7 @@ const confirmOrder = async (req, res) => {
   }
 };
 
-// ---------------- DELETE ORDER ----------------
+// ---------------- DELETE ORDER (UPDATED) ----------------
 const deleteOrder = async (req, res) => {
   try {
     const { userId, role } = req.user;
@@ -407,6 +451,20 @@ const deleteOrder = async (req, res) => {
       });
     }
 
+    // ✨ NEW: Delete images from Cloudinary before deleting order
+    try {
+      if (order.referenceImage?.publicId) {
+        await deleteImage(order.referenceImage.publicId);
+      }
+      if (order.customerSketch?.publicId) {
+        await deleteImage(order.customerSketch.publicId);
+      }
+    } catch (imageError) {
+      console.error('Error deleting images:', imageError);
+      // Continue with order deletion even if image deletion fails
+    }
+    // ✨ END NEW
+
     await Order.findByIdAndDelete(orderId);
     await Message.deleteMany({ order: orderId });
 
@@ -425,7 +483,7 @@ const deleteOrder = async (req, res) => {
 
 module.exports = {
   createOrder,
-  getOrderDetails,  // ✅ Export the new function
+  getOrderDetails,
   updateOrderStatus,
   confirmOrder,
   deleteOrder,
