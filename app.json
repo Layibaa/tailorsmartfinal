@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "bec50122-4356-492b-bab3-89a2f0d2324c"
+      }
+    },
+    "android": {
+      "package": "com.layiba.workspace"
+    }
+  }
+}

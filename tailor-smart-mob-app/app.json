@@ -4,46 +4,38 @@
     "slug": "tailoring-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "updates": {
-      "fallbackToCacheTimeout": 0
-    },
-    "assetBundlePatterns": [
-      "**/*"
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.24"
+          }
+        }
+      ],
+      [
+        "expo-notifications"
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera."
+        }
+      ]
     ],
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
+      "package": "com.layiba.workspace",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       }
     },
-    "web": {
-      "favicon": "./assets/favicon.png",
-      "notification": {
-        "vapidPublicKey": "BOsdGqYBirdW5cn9aB_7LGy-0IT_u1sdyo_2ynSec183Qkgrh2EkB9Xqf9G57fJA2DAoAtanfpu4JL3sBxaUivg"
-      },
-      "serviceWorkerPath": "./service-worker.js"  
-    },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#ffffff"
-        }
-      ] 
-    ],
     "extra": {
-  "apiUrl": "http://localhost:8000/api/v1"
-}
-
+      "eas": {
+        "projectId": "e17d8425-8452-4c30-bb19-0be2e6dbe0a0"
+      },
+      "apiUrl": "http://localhost:8000/api/v1"
+    }
   }
 }
