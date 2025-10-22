@@ -29,6 +29,7 @@ import Input from '../../components/ui/Input';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors'; 
 import { CommonActions } from '@react-navigation/native';
+import TailorReviewsSection from '../../components/TailorReviewsSection';
 
 // Validation schemas
 const ProfileSchema = Yup.object().shape({
@@ -332,6 +333,8 @@ const TailorProfileScreen = ({ navigation }) => {
             </View>
           )}
         </Formik>
+
+<TailorReviewsSection tailorId={user.id} />
 
         <View style={styles.actionButtons}>
           <TouchableOpacity

@@ -33,6 +33,8 @@ import { measurementLabels } from '../../utils/validation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../../services/api';
+import ReviewModal from '../../components/ui/ReviewModal';
+import { checkReviewEligibility, createReview } from '../../services/api';
 
 const priceSchema = Yup.object().shape({
   price: Yup.number()
@@ -52,7 +54,9 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   // ✨ END NEW
-  
+  const [showReviewModal, setShowReviewModal] = useState(false);
+const [reviewEligibility, setReviewEligibility] = useState(null);
+const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
 
@@ -103,6 +107,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setIsLoading(false);
     }
   };
+
+useEffect(() => {
+  if (order && order.status === 'completed' && user.role === 'customer') {
+    checkIfCanReview();
+  }
+}, [order]);
 
   useEffect(() => {
     loadOrderDetails();
@@ -309,6 +319,56 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       </View>
     </Modal>
   );
+
+const checkIfCanReview = async () => {
+  try {
+    const response = await checkReviewEligibility(orderId);
+    setReviewEligibility(response);
+    
+    // Auto-show review modal if eligible
+    if (response.eligible) {
+      setTimeout(() => setShowReviewModal(true), 500);
+    }
+  } catch (error) {
+    console.error('Error checking review eligibility:', error);
+  }
+};
+
+const handleReviewSubmit = async (reviewData) => {
+  try {
+    setIsSubmittingReview(true);
+    await createReview(reviewData);
+    
+    Alert.alert(
+      'Thank You!',
+      'Your review has been submitted successfully.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            setShowReviewModal(false);
+            checkIfCanReview();
+          }
+        }
+      ]
+    );
+  } catch (error) {
+    Alert.alert(
+      'Error',
+      error.response?.data?.msg || 'Failed to submit review. Please try again.'
+    );
+  } finally {
+    setIsSubmittingReview(false);
+  }
+};
+
+const openReviewModal = () => {
+  if (reviewEligibility?.eligible) {
+    setShowReviewModal(true);
+  } else if (reviewEligibility?.reason === 'Already reviewed') {
+    Alert.alert('Already Reviewed', 'You have already reviewed this order.');
+  }
+};
 
   const renderStatusModal = () => (
     <Modal
@@ -582,6 +642,15 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 buttonStyle={{ marginTop: 12 }}
               />
             )}
+            {user.role === 'customer' && order.status === 'completed' && reviewEligibility?.eligible && (
+  <Button
+    title="Write a Review"
+    onPress={openReviewModal}
+    outline
+    icon="star"
+    buttonStyle={{ marginTop: 12 }}
+  />
+)}
           </>
         )}
 
@@ -603,6 +672,19 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       {renderPriceModal()}
       {renderStatusModal()}
       {renderImageModal()} {/* ✨ NEW */}
+
+      {/* Review Modal */}
+<ReviewModal
+  visible={showReviewModal}
+  onClose={() => setShowReviewModal(false)}
+  onSubmit={handleReviewSubmit}
+  orderDetails={{
+    orderId: order?._id,
+    garmentType: order?.garmentType
+  }}
+  isLoading={isSubmittingReview}
+/>
+
     </ScrollView>
   );
 };
