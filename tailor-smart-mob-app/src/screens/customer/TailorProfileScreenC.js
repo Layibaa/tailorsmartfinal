@@ -15,7 +15,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors';
 import TailorReviewsSection from '../../components/TailorReviewsSection';
 
-const TailorProfileScreenC = ({ route, navigation }) => {
+const TailorProfileScreen = ({ route, navigation }) => {
   const { tailorId } = route.params;
   const [tailor, setTailor] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -363,4 +363,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default TailorProfileScreenC;
+export default TailorProfileScreen;
