@@ -24,6 +24,8 @@ import CreateOrderScreen from '../screens/customer/CreateOrderScreen';
 import MeasurementScreen from '../screens/customer/MeasurementScreen';
 import OrderHistoryScreen from '../screens/customer/OrderHistoryScreen';
 import ProfileScreen from '../screens/customer/CustomerProfileScreen';
+import TailorProfileScreenC from '../screens/customer/TailorProfileScreenC';
+
 
 // Tailor screens
 import TailorDashboard from '../screens/tailor/TailorDashboard';
@@ -245,7 +247,7 @@ const ChatListStackNavigator = () => (
   </ChatListStack.Navigator>
 );
 
-// Customer stack navigator (including tab navigator)
+// Customer stack navigator (including tab navigator) 
 const CustomerStack = createStackNavigator();
 const CustomerStackNavigator = () => (
   <CustomerStack.Navigator
@@ -257,6 +259,14 @@ const CustomerStackNavigator = () => (
     <CustomerStack.Screen 
       name="Profile" 
       component={ProfileScreen} 
+      options={{ 
+        headerShown: false
+      }} 
+    />
+    {/* ADD THIS NEW SCREEN */}
+    <CustomerStack.Screen 
+      name="TailorProfile" 
+      component={TailorProfileScreenC} 
       options={{ 
         headerShown: false
       }} 
