@@ -633,4 +633,16 @@ export const deleteReview = async (reviewId) => {
   }
 };
 
+export const getTailorById = async (tailorId) => {
+  try {
+    console.log('👤 Fetching tailor details for:', tailorId);
+    const response = await api.get(`/customers/tailors/${tailorId}`);
+    console.log('✅ Tailor details fetched successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get tailor by ID error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export default api;

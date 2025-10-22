@@ -95,11 +95,11 @@ const handleRegionChange = (region) => {
 
 
 
-  // Navigate to tailor profile
   const handleTailorPress = (tailor) => {
-    // For now, just log the tailor. We could navigate to a detail screen in the future.
-    console.log('Tailor pressed:', tailor);
-  };
+  navigation.navigate('TailorProfile', {
+    tailorId: tailor._id
+  });
+};
 
   // Navigate to chat with tailor
   const handleMessagePress = (tailor) => {
