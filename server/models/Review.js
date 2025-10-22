@@ -1,3 +1,4 @@
+// server/models/Review.js - REPLACE THE ENTIRE FILE
 const mongoose = require('mongoose');
 
 const ReviewSchema = new mongoose.Schema(
@@ -16,21 +17,28 @@ const ReviewSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Order',
       required: [true, 'Order ID is required'],
-      unique: true
+      unique: true // One review per order
     },
     rating: {
-      type: String,
-      enum: {
-        values: ['positive', 'negative'],
-        message: '{VALUE} is not a valid rating type'
-      },
-      required: [true, 'Rating is required']
+      type: Number,
+      required: [true, 'Rating is required'],
+      min: [1, 'Rating must be at least 1'],
+      max: [5, 'Rating cannot exceed 5']
     },
     comment: {
       type: String,
-      maxlength: [200, 'Comment cannot exceed 200 characters'],
+      maxlength: [500, 'Comment cannot exceed 500 characters'],
       trim: true
     },
+    images: [{
+      type: String, // Store image URLs or paths
+      validate: {
+        validator: function(v) {
+          return this.images.length <= 3;
+        },
+        message: 'Cannot upload more than 3 images'
+      }
+    }],
     isVisible: {
       type: Boolean,
       default: true
@@ -41,11 +49,14 @@ const ReviewSchema = new mongoose.Schema(
   }
 );
 
+// Indexes for better query performance
 ReviewSchema.index({ customer: 1, order: 1 }, { unique: true });
 ReviewSchema.index({ tailor: 1, createdAt: -1 });
+ReviewSchema.index({ tailor: 1, rating: 1 });
 
+// Virtual for checking if review is positive (4+ stars)
 ReviewSchema.virtual('isPositive').get(function() {
-  return this.rating === 'positive';
+  return this.rating >= 4;
 });
 
 ReviewSchema.set('toJSON', { virtuals: true });

@@ -1,3 +1,4 @@
+// server/controllers/reviewController.js - REPLACE THE ENTIRE FILE
 const Review = require('../models/Review');
 const Order = require('../models/Order');
 const User = require('../models/User');
@@ -8,7 +9,7 @@ const createReview = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { role } = req.user;
-    const { orderId, rating, comment } = req.body;
+    const { orderId, rating, comment, images } = req.body;
 
     // Verify customer role
     if (role !== 'customer') {
@@ -26,11 +27,19 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Validate rating value
-    if (!['positive', 'negative'].includes(rating)) {
+    // Validate rating value (1-5)
+    if (rating < 1 || rating > 5 || !Number.isInteger(rating)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        msg: 'Rating must be either "positive" or "negative"'
+        msg: 'Rating must be an integer between 1 and 5'
+      });
+    }
+
+    // Validate images array (max 3)
+    if (images && (!Array.isArray(images) || images.length > 3)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'You can upload maximum 3 images'
       });
     }
 
@@ -73,8 +82,9 @@ const createReview = async (req, res) => {
       customer: userId,
       tailor: order.tailor,
       order: orderId,
-      rating,
-      comment: comment?.trim() || ''
+      rating: parseInt(rating),
+      comment: comment?.trim() || '',
+      images: images || []
     });
 
     // Update tailor's review stats
@@ -134,15 +144,27 @@ const getTailorReviews = async (req, res) => {
       .sort({ createdAt: -1 });
 
     // Calculate stats
-    const stats = {
-      total: reviews.length,
-      positive: reviews.filter(r => r.rating === 'positive').length,
-      negative: reviews.filter(r => r.rating === 'negative').length
+    const totalReviews = reviews.length;
+    const averageRating = totalReviews > 0 
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+      : 0;
+
+    // Rating distribution
+    const ratingDistribution = {
+      5: reviews.filter(r => r.rating === 5).length,
+      4: reviews.filter(r => r.rating === 4).length,
+      3: reviews.filter(r => r.rating === 3).length,
+      2: reviews.filter(r => r.rating === 2).length,
+      1: reviews.filter(r => r.rating === 1).length
     };
 
     res.json({
       success: true,
-      stats,
+      stats: {
+        total: totalReviews,
+        averageRating: parseFloat(averageRating),
+        ratingDistribution
+      },
       reviews
     });
   } catch (error) {
@@ -245,15 +267,14 @@ const updateTailorReviewStats = async (tailorId) => {
   try {
     const reviews = await Review.find({ tailor: tailorId, isVisible: true });
     
-    const positiveCount = reviews.filter(r => r.rating === 'positive').length;
     const totalCount = reviews.length;
-    
-    // Calculate rating (0-5 scale)
-    const rating = totalCount > 0 ? (positiveCount / totalCount) * 5 : 0;
+    const averageRating = totalCount > 0 
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalCount
+      : 0;
 
     // Update tailor profile
     await User.findByIdAndUpdate(tailorId, {
-      'tailorProfile.rating': rating.toFixed(1),
+      'tailorProfile.rating': parseFloat(averageRating.toFixed(1)),
       'tailorProfile.reviewCount': totalCount
     });
   } catch (error) {

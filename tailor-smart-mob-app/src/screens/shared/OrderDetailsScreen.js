@@ -1,4 +1,4 @@
-// ✨ UPDATED: OrderDetailsScreen.js - Added Image Display Section
+// OrderDetailsScreen.js - Complete version with Review functionality
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -9,7 +9,7 @@ import {
   Alert,
   Modal,
   TextInput,
-  Image // ✨ NEW
+  Image
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -20,7 +20,9 @@ import {
   updateOrderStatus,
   confirmOrder,
   deleteOrder,
-  sendMessage
+  sendMessage,
+  checkReviewEligibility,
+  createReview
 } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { NotificationContext } from '../../context/NotificationContext';
@@ -34,7 +36,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../../services/api';
 import ReviewModal from '../../components/ui/ReviewModal';
-import { checkReviewEligibility, createReview } from '../../services/api';
 
 const priceSchema = Yup.object().shape({
   price: Yup.number()
@@ -50,13 +51,18 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPriceModalVisible, setIsPriceModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
-  // ✨ NEW: Image modal states
+  
+  // Image modal states
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  // ✨ END NEW
+  
+  // Review states
   const [showReviewModal, setShowReviewModal] = useState(false);
-const [reviewEligibility, setReviewEligibility] = useState(null);
-const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewEligibility, setReviewEligibility] = useState(null);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [canReview, setCanReview] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
+  
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
 
@@ -108,22 +114,77 @@ const [isSubmittingReview, setIsSubmittingReview] = useState(false);
     }
   };
 
-useEffect(() => {
-  if (order && order.status === 'completed' && user.role === 'customer') {
-    checkIfCanReview();
-  }
-}, [order]);
+  // Check review eligibility when order is loaded
+  useEffect(() => {
+    if (order && order.status === 'completed' && user?.role === 'customer') {
+      checkIfCanReview();
+    }
+  }, [order]);
 
   useEffect(() => {
     loadOrderDetails();
   }, [orderId]);
 
-  // ✨ NEW: Handle Image Preview
+  // Check if user can review this order
+  const checkIfCanReview = async () => {
+    try {
+      const response = await checkReviewEligibility(orderId);
+      setReviewEligibility(response);
+      setCanReview(response.eligible);
+      setHasReviewed(!response.eligible && response.reason === 'Already reviewed');
+      
+      // Auto-show review modal if eligible
+      if (response.eligible) {
+        setTimeout(() => setShowReviewModal(true), 500);
+      }
+    } catch (error) {
+      console.error('Error checking review eligibility:', error);
+    }
+  };
+
+  // Handle review submission
+  const handleReviewSubmit = async (reviewData) => {
+    try {
+      setIsSubmittingReview(true);
+      await createReview(reviewData);
+      
+      Alert.alert(
+        'Thank You!',
+        'Your review has been submitted successfully.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowReviewModal(false);
+              checkIfCanReview();
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error.response?.data?.msg || 'Failed to submit review. Please try again.'
+      );
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  // Open review modal
+  const openReviewModal = () => {
+    if (reviewEligibility?.eligible) {
+      setShowReviewModal(true);
+    } else if (reviewEligibility?.reason === 'Already reviewed') {
+      Alert.alert('Already Reviewed', 'You have already reviewed this order.');
+    }
+  };
+
+  // Handle Image Preview
   const openImageModal = (imageUrl, title) => {
     setSelectedImage({ url: imageUrl, title });
     setIsImageModalVisible(true);
   };
-  // ✨ END NEW
 
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -320,56 +381,6 @@ useEffect(() => {
     </Modal>
   );
 
-const checkIfCanReview = async () => {
-  try {
-    const response = await checkReviewEligibility(orderId);
-    setReviewEligibility(response);
-    
-    // Auto-show review modal if eligible
-    if (response.eligible) {
-      setTimeout(() => setShowReviewModal(true), 500);
-    }
-  } catch (error) {
-    console.error('Error checking review eligibility:', error);
-  }
-};
-
-const handleReviewSubmit = async (reviewData) => {
-  try {
-    setIsSubmittingReview(true);
-    await createReview(reviewData);
-    
-    Alert.alert(
-      'Thank You!',
-      'Your review has been submitted successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setShowReviewModal(false);
-            checkIfCanReview();
-          }
-        }
-      ]
-    );
-  } catch (error) {
-    Alert.alert(
-      'Error',
-      error.response?.data?.msg || 'Failed to submit review. Please try again.'
-    );
-  } finally {
-    setIsSubmittingReview(false);
-  }
-};
-
-const openReviewModal = () => {
-  if (reviewEligibility?.eligible) {
-    setShowReviewModal(true);
-  } else if (reviewEligibility?.reason === 'Already reviewed') {
-    Alert.alert('Already Reviewed', 'You have already reviewed this order.');
-  }
-};
-
   const renderStatusModal = () => (
     <Modal
       visible={isStatusModalVisible}
@@ -403,7 +414,6 @@ const openReviewModal = () => {
     </Modal>
   );
 
-  // ✨ NEW: Render Image Modal
   const renderImageModal = () => (
     <Modal
       visible={isImageModalVisible}
@@ -432,7 +442,6 @@ const openReviewModal = () => {
       </View>
     </Modal>
   );
-  // ✨ END NEW
 
   const getNextStatus = () => {
     if (!order) return null;
@@ -519,7 +528,7 @@ const openReviewModal = () => {
         )}
       </View>
 
-      {/* ✨ NEW: Design Reference Section */}
+      {/* Design Reference Section */}
       {(order.referenceImage?.url || order.customerSketch?.url) && (
         <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Design Reference</Text>
@@ -571,7 +580,6 @@ const openReviewModal = () => {
           )}
         </View>
       )}
-      {/* ✨ END NEW */}
 
       {/* Measurements Section */}
       <View style={styles.infoSection}>
@@ -642,15 +650,6 @@ const openReviewModal = () => {
                 buttonStyle={{ marginTop: 12 }}
               />
             )}
-            {user.role === 'customer' && order.status === 'completed' && reviewEligibility?.eligible && (
-  <Button
-    title="Write a Review"
-    onPress={openReviewModal}
-    outline
-    icon="star"
-    buttonStyle={{ marginTop: 12 }}
-  />
-)}
           </>
         )}
 
@@ -668,23 +667,47 @@ const openReviewModal = () => {
         />
       </View>
 
+      {/* Review Section - Only for completed orders by customers */}
+      {user?.role === 'customer' && order?.status === 'completed' && (
+        <View style={styles.reviewSection}>
+          {canReview && (
+            <>
+              <Text style={styles.reviewPrompt}>
+                How was your experience with this tailor?
+              </Text>
+              <Button
+                title="Write a Review"
+                onPress={openReviewModal}
+                icon="star"
+                buttonStyle={styles.reviewButton}
+              />
+            </>
+          )}
+          {hasReviewed && (
+            <View style={styles.reviewedBadge}>
+              <Feather name="check-circle" size={20} color={colors.success} />
+              <Text style={styles.reviewedText}>You've reviewed this order</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Modals */}
       {renderPriceModal()}
       {renderStatusModal()}
-      {renderImageModal()} {/* ✨ NEW */}
+      {renderImageModal()}
 
       {/* Review Modal */}
-<ReviewModal
-  visible={showReviewModal}
-  onClose={() => setShowReviewModal(false)}
-  onSubmit={handleReviewSubmit}
-  orderDetails={{
-    orderId: order?._id,
-    garmentType: order?.garmentType
-  }}
-  isLoading={isSubmittingReview}
-/>
-
+      <ReviewModal
+        visible={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSubmit={handleReviewSubmit}
+        orderDetails={{
+          orderId: order?._id,
+          garmentType: order?.garmentType
+        }}
+        isLoading={isSubmittingReview}
+      />
     </ScrollView>
   );
 };
@@ -768,7 +791,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 20
   },
-  // ✨ NEW: Design Reference Styles
   designReferenceItem: {
     marginBottom: 16
   },
@@ -835,7 +857,6 @@ const styles = StyleSheet.create({
     width: '90%',
     height: '70%'
   },
-  // ✨ END NEW
   noDataText: {
     fontSize: 14,
     color: colors.gray,
@@ -866,6 +887,37 @@ const styles = StyleSheet.create({
   },
   goBackButton: {
     marginTop: 20
+  },
+  reviewSection: {
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: colors.lightGray,
+    borderRadius: 12
+  },
+  reviewPrompt: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.black,
+    marginBottom: 12,
+    textAlign: 'center'
+  },
+  reviewButton: {
+    marginTop: 8
+  },
+  reviewedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: colors.success + '20',
+    borderRadius: 8
+  },
+  reviewedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.success,
+    marginLeft: 8
   },
   modalOverlay: {
     flex: 1,

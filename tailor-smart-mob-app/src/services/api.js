@@ -577,10 +577,31 @@ export const getAllOrdersAdmin = async () => {
 // REVIEW APIs - ADD THESE TO YOUR api.js FILE
 // Add these at the bottom, before "export default api;"
 // ============================================
+ 
 
+export const getTailorById = async (tailorId) => {
+  try {
+    console.log('👤 Fetching tailor details for:', tailorId);
+    const response = await api.get(`/customers/tailors/${tailorId}`);
+    console.log('✅ Tailor details fetched successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get tailor by ID error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+// ADD THESE FUNCTIONS TO: tailor-smart-mob-app/src/services/api.js 
+
+// Update the existing createReview function:
 export const createReview = async (reviewData) => {
   try {
     console.log('⭐ Creating review:', reviewData);
+    
+    // Validate rating
+    if (!reviewData.rating || reviewData.rating < 1 || reviewData.rating > 5) {
+      throw new Error('Rating must be between 1 and 5');
+    }
+    
     const response = await api.post('/reviews', reviewData);
     console.log('✅ Review created successfully');
     return response.data;
@@ -590,6 +611,7 @@ export const createReview = async (reviewData) => {
   }
 };
 
+// Update the existing getTailorReviews function:
 export const getTailorReviews = async (tailorId) => {
   try {
     console.log('📊 Fetching reviews for tailor:', tailorId);
@@ -601,6 +623,7 @@ export const getTailorReviews = async (tailorId) => {
   }
 };
 
+// These should already exist, but here they are for reference:
 export const checkReviewEligibility = async (orderId) => {
   try {
     console.log('🔍 Checking review eligibility for order:', orderId);
@@ -632,17 +655,4 @@ export const deleteReview = async (reviewId) => {
     throw error;
   }
 };
-
-export const getTailorById = async (tailorId) => {
-  try {
-    console.log('👤 Fetching tailor details for:', tailorId);
-    const response = await api.get(`/customers/tailors/${tailorId}`);
-    console.log('✅ Tailor details fetched successfully');
-    return response.data;
-  } catch (error) {
-    console.error('❌ Get tailor by ID error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
 export default api;

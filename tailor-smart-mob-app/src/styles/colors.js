@@ -28,9 +28,10 @@ const colors = {
   transparentBlack: 'rgba(0, 0, 0, 0.5)',
   transparentWhite: 'rgba(255, 255, 255, 0.8)',
 
-  success: '#10b981',    // ✨ For positive reviews
-  error: '#ef4444',      // ✨ For negative reviews
-  warning: '#f59e0b',   // ✨ For star icons
+  success: '#10b981',  // Green for positive reviews
+  warning: '#f59e0b',  // Orange for average reviews
+  error: '#ef4444',    // Red for negative reviews
+  star: '#FFD700',     // Gold for stars
 };
 
 export default colors;
