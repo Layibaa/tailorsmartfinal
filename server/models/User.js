@@ -102,18 +102,19 @@ const UserSchema = new mongoose.Schema(
     
     // Role-specific profiles
     tailorProfile: {
-      shopName: String,
-      shopLocation: String, // Keep this for more specific location details
-      experience: Number,
-      specialties: [String],
-      rating: { type: Number, min: 0, max: 5, default: 0 },
-      reviews: [{
-        customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        rating: { type: Number, min: 1, max: 5, required: true },
-        comment: String,
-        date: { type: Date, default: Date.now }
-      }]
-    },
+  shopName: String,
+  shopLocation: String,
+  experience: Number,
+  specialties: [String],
+  rating: { type: Number, min: 0, max: 5, default: 0 },
+  reviewCount: { type: Number, default: 0 }, // ✨ NEW
+  reviews: [{
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    rating: { type: Number, min: 1, max: 5, required: true },
+    comment: String,
+    date: { type: Date, default: Date.now }
+  }]
+},
     
     customerProfile: {
       age: Number,

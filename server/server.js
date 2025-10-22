@@ -56,6 +56,12 @@ if (process.env.NODE_ENV === 'production') {
 app.use(limiter);
 }
 
+// Import review routes (with other imports)
+const reviewRoutes = require('./routes/reviewRoutes');
+
+// Register routes (with other routes)
+app.use('/api/v1/reviews', reviewRoutes);
+
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/customers', customerRoutes);

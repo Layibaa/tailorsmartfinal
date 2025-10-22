@@ -26,7 +26,11 @@ const colors = {
   
   // Transparent colors
   transparentBlack: 'rgba(0, 0, 0, 0.5)',
-  transparentWhite: 'rgba(255, 255, 255, 0.8)'
+  transparentWhite: 'rgba(255, 255, 255, 0.8)',
+
+  success: '#10b981',    // ✨ For positive reviews
+  error: '#ef4444',      // ✨ For negative reviews
+  warning: '#f59e0b',   // ✨ For star icons
 };
 
 export default colors;

@@ -1,4 +1,4 @@
-// ✨ UPDATED: MeasurementScreen.js with Image Upload & Canvas Drawing
+// ✨ FIXED: MeasurementScreen.js with proper scrolling and image handling
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -10,7 +10,9 @@ import {
   Image,
   Switch,
   Modal,
-  Dimensions
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Formik } from 'formik';
 import { Feather } from '@expo/vector-icons';
@@ -37,12 +39,11 @@ const MeasurementScreen = ({ route, navigation }) => {
   const [requiredMeasurements, setRequiredMeasurements] = useState([]);
   const [formikRef, setFormikRef] = useState(null);
 
-  // ✨ NEW: Image & Canvas States
+  // Image & Canvas States
   const [referenceImage, setReferenceImage] = useState(null);
   const [customerSketch, setCustomerSketch] = useState(null);
   const [isCanvasVisible, setIsCanvasVisible] = useState(false);
   const signatureRef = useRef(null);
-  // ✨ END NEW
 
   const {
     isAutofillEnabled,
@@ -55,26 +56,12 @@ const MeasurementScreen = ({ route, navigation }) => {
   } = useAutofillMeasurements();
 
   useEffect(() => {
-    const testApiConnection = async () => {
-      try {
-        console.log('Testing API connection...');
-        const response = await api.get('/health-check');
-        console.log('API connection successful:', response.data);
-      } catch (error) {
-        console.error('API connection failed:', error.message);
-      }
-    };
-    
-    testApiConnection();
-    
     const measurements = getRequiredMeasurementsForGarment(garmentType);
     setRequiredMeasurements(measurements);
-
-    // ✨ NEW: Request camera/gallery permissions
     requestPermissions();
   }, [garmentType]);
 
-  // ✨ NEW: Request Permissions
+  // Request Permissions
   const requestPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -82,7 +69,7 @@ const MeasurementScreen = ({ route, navigation }) => {
     }
   };
 
-  // ✨ NEW: Pick Image from Gallery
+  // Pick Image from Gallery
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -96,7 +83,7 @@ const MeasurementScreen = ({ route, navigation }) => {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         
-        // Check file size (approximate)
+        // Check file size
         const sizeInMB = (asset.base64.length * 3) / (4 * 1024 * 1024);
         
         if (sizeInMB > 5) {
@@ -104,7 +91,7 @@ const MeasurementScreen = ({ route, navigation }) => {
           return;
         }
 
-        // Store as base64 with data URI
+        // Store as base64 with proper data URI
         const base64Image = `data:image/jpeg;base64,${asset.base64}`;
         setReferenceImage({
           uri: asset.uri,
@@ -119,19 +106,19 @@ const MeasurementScreen = ({ route, navigation }) => {
     }
   };
 
-  // ✨ NEW: Open Canvas for Drawing
+  // Open Canvas for Drawing
   const openCanvas = () => {
     setIsCanvasVisible(true);
   };
 
-  // ✨ NEW: Handle Canvas Save
+  // Handle Canvas Save
   const handleCanvasSave = (signature) => {
-    setCustomerSketch(signature); // signature is already base64
+    setCustomerSketch(signature);
     setIsCanvasVisible(false);
     Alert.alert('Success', 'Your sketch has been saved!');
   };
 
-  // ✨ NEW: Clear Reference Image
+  // Clear Reference Image
   const clearReferenceImage = () => {
     Alert.alert(
       'Remove Image',
@@ -146,26 +133,25 @@ const MeasurementScreen = ({ route, navigation }) => {
       ]
     );
   };
-  // ✨ END NEW
 
-  // Initial form values
-  const initialValues = {
-    chest: '',
-    waist: '',
-    hip: '',
-    shoulder: '',
-    sleeveLength: '',
-    neck: '',
-    inseam: '',
-    outseam: '',
-    thigh: ''
+  // Clear Sketch - FIXED: Moved function definition before JSX
+  const clearSketch = () => {
+    Alert.alert(
+      'Remove Sketch',
+      'Are you sure you want to remove your sketch?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => setCustomerSketch(null)
+        }
+      ]
+    );
   };
 
-  // Handle autofill button press
+  // Handle autofill
   const handleAutofill = async () => {
-    console.log('Autofill clicked. Profile complete:', isProfileComplete);
-    console.log('Customer profile:', customerProfile);
-    
     if (!isProfileComplete) {
       Alert.alert(
         'Profile Incomplete',
@@ -176,7 +162,6 @@ const MeasurementScreen = ({ route, navigation }) => {
             text: 'Refresh Profile', 
             onPress: async () => {
               await refreshProfile();
-              console.log('Profile refreshed');
             }
           },
           { text: 'Go to Profile', onPress: () => navigation.navigate('Profile') }
@@ -206,6 +191,19 @@ const MeasurementScreen = ({ route, navigation }) => {
     }
   };
 
+  // Initial form values
+  const initialValues = {
+    chest: '',
+    waist: '',
+    hip: '',
+    shoulder: '',
+    sleeveLength: '',
+    neck: '',
+    inseam: '',
+    outseam: '',
+    thigh: ''
+  };
+
   const handleSubmit = async (values) => {
     console.log("handleSubmit called with values:", values);
     
@@ -217,7 +215,7 @@ const MeasurementScreen = ({ route, navigation }) => {
       console.log("Missing required measurements:", missingMeasurements);
       Alert.alert(
         "Missing Measurements",
-        `Please enter values for: ${missingMeasurements.join(', ')}`
+        `Please enter values for: ${missingMeasurements.map(m => measurementLabels[m] || m).join(', ')}`
       );
       return;
     }
@@ -238,13 +236,13 @@ const MeasurementScreen = ({ route, navigation }) => {
         tailorId,
         garmentType,
         measurements,
-        notes,
-        // ✨ NEW: Include image data (only if present)
-        referenceImage: referenceImage?.base64 || null,
-        customerSketch: customerSketch || null
+        notes: notes || '',
+        // Only include images if they exist
+        ...(referenceImage?.base64 && { referenceImage: referenceImage.base64 }),
+        ...(customerSketch && { customerSketch: customerSketch })
       };
       
-      console.log("Sending order data to API:", {
+      console.log("Sending order data:", {
         ...orderData,
         referenceImage: referenceImage ? 'HAS_IMAGE' : null,
         customerSketch: customerSketch ? 'HAS_SKETCH' : null
@@ -252,7 +250,7 @@ const MeasurementScreen = ({ route, navigation }) => {
       
       const response = await createOrder(orderData);
       
-      console.log("API response received:", response);
+      console.log("Order created successfully:", response);
       
       EventRegister.emit('newOrderCreated', response.order);
       
@@ -263,10 +261,9 @@ const MeasurementScreen = ({ route, navigation }) => {
           { 
             text: 'OK', 
             onPress: () => {
-              console.log("Navigating to Orders screen");
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Orders' }],
+                routes: [{ name: 'CustomerTabs', params: { screen: 'Orders' } }],
               });
             }
           }
@@ -274,13 +271,11 @@ const MeasurementScreen = ({ route, navigation }) => {
       );
     } catch (error) {
       console.error('Error creating order:', error);
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        console.error('Error response headers:', error.response.headers);
-      } else if (error.request) {
-        console.error('Error request:', error.request);
-      }
+      console.error('Error details:', {
+        response: error.response?.data,
+        status: error.response?.status,
+        message: error.message
+      });
       
       Alert.alert(
         'Error',
@@ -292,230 +287,240 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Enter Measurements</Text>
-        <Text style={styles.headerSubtitle}>
-          For {garmentType} • Tailor: {tailorName}
-        </Text>
-      </View>
-
-      {/* Autofill Toggle Section */}
-      <View style={styles.autofillContainer}>
-        <View style={styles.autofillHeader}>
-          <View style={styles.autofillTitleContainer}>
-            <Feather name="zap" size={20} color={colors.primary} />
-            <Text style={styles.autofillTitle}>AI Autofill</Text>
-          </View>
-          <Switch
-            value={isAutofillEnabled}
-            onValueChange={toggleAutofill}
-            trackColor={{ false: colors.lightGray, true: colors.primary + '40' }}
-            thumbColor={isAutofillEnabled ? colors.primary : colors.gray}
-          />
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+      >
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Enter Measurements</Text>
+          <Text style={styles.headerSubtitle}>
+            For {garmentType} • Tailor: {tailorName}
+          </Text>
         </View>
-        <Text style={styles.autofillDescription}>
-          Use AI to predict your measurements based on your profile data
-        </Text>
-        
-        {isAutofillEnabled && (
-          <TouchableOpacity
-            style={styles.autofillButton}
-            onPress={handleAutofill}
-            disabled={autofillLoading || !isProfileComplete}
-          >
-            <Feather 
-              name="zap" 
-              size={16} 
-              color={autofillLoading || !isProfileComplete ? colors.gray : colors.white} 
+
+        {/* Autofill Toggle Section */}
+        <View style={styles.autofillContainer}>
+          <View style={styles.autofillHeader}>
+            <View style={styles.autofillTitleContainer}>
+              <Feather name="zap" size={20} color={colors.primary} />
+              <Text style={styles.autofillTitle}>AI Autofill</Text>
+            </View>
+            <Switch
+              value={isAutofillEnabled}
+              onValueChange={toggleAutofill}
+              trackColor={{ false: colors.lightGray, true: colors.primary + '40' }}
+              thumbColor={isAutofillEnabled ? colors.primary : colors.gray}
             />
-            <Text style={[
-              styles.autofillButtonText,
-              { color: autofillLoading || !isProfileComplete ? colors.gray : colors.white }
-            ]}>
-              {autofillLoading ? 'Predicting...' : 'Auto-fill Measurements'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        
-        {!isProfileComplete && isAutofillEnabled && (
-          <View style={styles.warningContainer}>
-            <Feather name="alert-triangle" size={16} color={colors.warning} />
-            <Text style={styles.warningText}>
-              Complete your profile to enable autofill
-            </Text>
           </View>
-        )}
-      </View>
-
-      {/* ✨ NEW: Design Reference Section */}
-      <View style={styles.designReferenceContainer}>
-        <View style={styles.sectionHeader}>
-          <Feather name="image" size={20} color={colors.black} />
-          <Text style={styles.sectionTitle}>Design Reference (Optional)</Text>
-        </View>
-        <Text style={styles.sectionDescription}>
-          Upload a reference image or draw a sketch to help the tailor understand your design
-        </Text>
-
-        {/* Reference Image */}
-        <View style={styles.imageOptionContainer}>
-          <Text style={styles.imageOptionTitle}>Reference Image</Text>
-          {referenceImage ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: referenceImage.uri }} 
-                style={styles.imagePreview}
-                resizeMode="cover"
-              />
-              <TouchableOpacity 
-                style={styles.removeImageButton}
-                onPress={clearReferenceImage}
-              >
-                <Feather name="x" size={20} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity 
-              style={styles.uploadButton}
-              onPress={pickImage}
-            >
-              <Feather name="upload" size={20} color={colors.primary} />
-              <Text style={styles.uploadButtonText}>Upload Image</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Customer Sketch */}
-        <View style={styles.imageOptionContainer}>
-          <Text style={styles.imageOptionTitle}>Draw Your Design</Text>
-          {customerSketch ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: customerSketch }} 
-                style={styles.imagePreview}
-                resizeMode="contain"
-              />
-              <TouchableOpacity 
-                style={styles.removeImageButton}
-                onPress={clearSketch}
-              >
-                <Feather name="x" size={20} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity 
-              style={styles.uploadButton}
-              onPress={openCanvas}
-            >
-              <Feather name="edit-3" size={20} color={colors.primary} />
-              <Text style={styles.uploadButtonText}>Draw Sketch</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-      {/* ✨ END NEW */}
-
-      <View style={styles.measurementGuideContainer}>
-        <View style={styles.measurementGuideHeader}>
-          <Feather name="info" size={20} color={colors.black} />
-          <Text style={styles.measurementGuideTitle}>Measurement Guide</Text>
-        </View>
-        <Text style={styles.measurementGuideText}>
-          Please provide accurate measurements in centimeters. Refer to the guide below
-          for how to measure correctly.
-        </Text>
-      </View>
-
-      <Formik
-        initialValues={initialValues}
-        validationSchema={MeasurementsSchema[garmentType]}
-        onSubmit={handleSubmit}
-      >
-        {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
-          if (!formikRef) {
-            setFormikRef({ setFieldValue });
-          }
-
-          return (
-            <View style={styles.formContainer}>
-              {requiredMeasurements.map((measurement) => (
-                <Input
-                  key={measurement}
-                  label={measurementLabels[measurement]}
-                  placeholder={`Enter ${measurement} measurement`}
-                  value={values[measurement]}
-                  onChangeText={(text) => {
-                    const sanitizedText = text.replace(/[^0-9.]/g, '');
-                    handleChange(measurement)(sanitizedText);
-                  }}
-                  onBlur={handleBlur(measurement)}
-                  keyboardType="numeric"
-                  error={touched[measurement] && errors[measurement]}
-                  iconName="layout"
-                />
-              ))}
-
-              <View style={styles.buttonsContainer}>
-                <Button
-                  title="Submit Order"
-                  onPress={formikSubmit}
-                  loading={loading}
-                  buttonStyle={{ marginTop: 10 }}
-                />
-
-                <Button
-                  title="Go Back"
-                  onPress={() => navigation.goBack()}
-                  outline
-                  buttonStyle={styles.backButton}
-                />
-              </View>
-            </View>
-          );
-        }}
-      </Formik>
-
-      {/* ✨ NEW: Canvas Modal */}
-      <Modal
-        visible={isCanvasVisible}
-        animationType="slide"
-        onRequestClose={() => setIsCanvasVisible(false)}
-      >
-        <View style={styles.canvasModal}>
-          <View style={styles.canvasHeader}>
-            <Text style={styles.canvasTitle}>Draw Your Design</Text>
-            <TouchableOpacity onPress={() => setIsCanvasVisible(false)}>
-              <Feather name="x" size={24} color={colors.black} />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.autofillDescription}>
+            Use AI to predict your measurements based on your profile data
+          </Text>
           
-          <SignatureCanvas
-            ref={signatureRef}
-            onOK={handleCanvasSave}
-            descriptionText="Draw your design sketch here"
-            clearText="Clear"
-            confirmText="Save"
-            webStyle={`
-              .m-signature-pad {
-                box-shadow: none;
-                border: 1px solid #e8e8e8;
-                background-color: white;
-              }
-              .m-signature-pad--body {
-                border: none;
-              }
-              .m-signature-pad--footer {
-                display: flex;
-                justify-content: space-between;
-                padding: 10px;
-              }
-            `}
-          />
+          {isAutofillEnabled && (
+            <TouchableOpacity
+              style={styles.autofillButton}
+              onPress={handleAutofill}
+              disabled={autofillLoading || !isProfileComplete}
+            >
+              <Feather 
+                name="zap" 
+                size={16} 
+                color={autofillLoading || !isProfileComplete ? colors.gray : colors.white} 
+              />
+              <Text style={[
+                styles.autofillButtonText,
+                { color: autofillLoading || !isProfileComplete ? colors.gray : colors.white }
+              ]}>
+                {autofillLoading ? 'Predicting...' : 'Auto-fill Measurements'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          
+          {!isProfileComplete && isAutofillEnabled && (
+            <View style={styles.warningContainer}>
+              <Feather name="alert-triangle" size={16} color={colors.warning} />
+              <Text style={styles.warningText}>
+                Complete your profile to enable autofill
+              </Text>
+            </View>
+          )}
         </View>
-      </Modal>
-      {/* ✨ END NEW */}
-    </ScrollView>
+
+        {/* Design Reference Section */}
+        <View style={styles.designReferenceContainer}>
+          <View style={styles.sectionHeader}>
+            <Feather name="image" size={20} color={colors.black} />
+            <Text style={styles.sectionTitle}>Design Reference (Optional)</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Upload a reference image or draw a sketch to help the tailor understand your design
+          </Text>
+
+          {/* Reference Image */}
+          <View style={styles.imageOptionContainer}>
+            <Text style={styles.imageOptionTitle}>Reference Image</Text>
+            {referenceImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: referenceImage.uri }} 
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={clearReferenceImage}
+                >
+                  <Feather name="x" size={20} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.uploadButton}
+                onPress={pickImage}
+              >
+                <Feather name="upload" size={20} color={colors.primary} />
+                <Text style={styles.uploadButtonText}>Upload Image</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Customer Sketch */}
+          <View style={styles.imageOptionContainer}>
+            <Text style={styles.imageOptionTitle}>Draw Your Design</Text>
+            {customerSketch ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: customerSketch }} 
+                  style={styles.imagePreview}
+                  resizeMode="contain"
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={clearSketch}
+                >
+                  <Feather name="x" size={20} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.uploadButton}
+                onPress={openCanvas}
+              >
+                <Feather name="edit-3" size={20} color={colors.primary} />
+                <Text style={styles.uploadButtonText}>Draw Sketch</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.measurementGuideContainer}>
+          <View style={styles.measurementGuideHeader}>
+            <Feather name="info" size={20} color={colors.black} />
+            <Text style={styles.measurementGuideTitle}>Measurement Guide</Text>
+          </View>
+          <Text style={styles.measurementGuideText}>
+            Please provide accurate measurements in centimeters. All fields are required.
+          </Text>
+        </View>
+
+        <Formik
+          initialValues={initialValues}
+          validationSchema={MeasurementsSchema[garmentType]}
+          onSubmit={handleSubmit}
+        >
+          {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
+            if (!formikRef) {
+              setFormikRef({ setFieldValue });
+            }
+
+            return (
+              <View style={styles.formContainer}>
+                {requiredMeasurements.map((measurement) => (
+                  <Input
+                    key={measurement}
+                    label={measurementLabels[measurement] || measurement}
+                    placeholder={`Enter ${measurementLabels[measurement] || measurement}`}
+                    value={values[measurement]}
+                    onChangeText={(text) => {
+                      const sanitizedText = text.replace(/[^0-9.]/g, '');
+                      handleChange(measurement)(sanitizedText);
+                    }}
+                    onBlur={handleBlur(measurement)}
+                    keyboardType="numeric"
+                    error={touched[measurement] && errors[measurement]}
+                    iconName="layout"
+                  />
+                ))}
+
+                <View style={styles.buttonsContainer}>
+                  <Button
+                    title="Submit Order"
+                    onPress={formikSubmit}
+                    loading={loading}
+                    buttonStyle={{ marginTop: 10 }}
+                    disabled={loading}
+                  />
+
+                  <Button
+                    title="Go Back"
+                    onPress={() => navigation.goBack()}
+                    outline
+                    buttonStyle={styles.backButton}
+                    disabled={loading}
+                  />
+                </View>
+              </View>
+            );
+          }}
+        </Formik>
+
+        {/* Canvas Modal */}
+        <Modal
+          visible={isCanvasVisible}
+          animationType="slide"
+          onRequestClose={() => setIsCanvasVisible(false)}
+        >
+          <View style={styles.canvasModal}>
+            <View style={styles.canvasHeader}>
+              <Text style={styles.canvasTitle}>Draw Your Design</Text>
+              <TouchableOpacity onPress={() => setIsCanvasVisible(false)}>
+                <Feather name="x" size={24} color={colors.black} />
+              </TouchableOpacity>
+            </View>
+            
+            <SignatureCanvas
+              ref={signatureRef}
+              onOK={handleCanvasSave}
+              descriptionText="Draw your design sketch here"
+              clearText="Clear"
+              confirmText="Save"
+              webStyle={`
+                .m-signature-pad {
+                  box-shadow: none;
+                  border: 1px solid #e8e8e8;
+                  background-color: white;
+                }
+                .m-signature-pad--body {
+                  border: none;
+                }
+                .m-signature-pad--footer {
+                  display: flex;
+                  justify-content: space-between;
+                  padding: 10px;
+                }
+              `}
+            />
+          </View>
+        </Modal>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -525,7 +530,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white
   },
   contentContainer: {
-    padding: 16
+    padding: 16,
+    paddingBottom: 40 // Extra padding at bottom for scrolling
   },
   headerContainer: {
     marginBottom: 24
@@ -598,7 +604,6 @@ const styles = StyleSheet.create({
     color: colors.warning,
     marginLeft: 6
   },
-  // ✨ NEW: Design Reference Styles
   designReferenceContainer: {
     backgroundColor: colors.white,
     borderRadius: 12,
@@ -696,7 +701,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.black
   },
-  // ✨ END NEW
   measurementGuideContainer: {
     backgroundColor: colors.lightGray,
     borderRadius: 8,
@@ -732,19 +736,3 @@ const styles = StyleSheet.create({
 });
 
 export default MeasurementScreen;
-
-  // ✨ NEW: Clear Sketch
-  const clearSketch = () => {
-    Alert.alert(
-      'Remove Sketch',
-      'Are you sure you want to remove your sketch?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive',
-          onPress: () => setCustomerSketch(null)
-        }
-      ]
-    );
-  };

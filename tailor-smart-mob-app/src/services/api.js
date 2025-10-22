@@ -573,4 +573,64 @@ export const getAllOrdersAdmin = async () => {
   return response.data;
 };
 
+// ============================================
+// REVIEW APIs - ADD THESE TO YOUR api.js FILE
+// Add these at the bottom, before "export default api;"
+// ============================================
+
+export const createReview = async (reviewData) => {
+  try {
+    console.log('⭐ Creating review:', reviewData);
+    const response = await api.post('/reviews', reviewData);
+    console.log('✅ Review created successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Create review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getTailorReviews = async (tailorId) => {
+  try {
+    console.log('📊 Fetching reviews for tailor:', tailorId);
+    const response = await api.get(`/reviews/tailor/${tailorId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get tailor reviews error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const checkReviewEligibility = async (orderId) => {
+  try {
+    console.log('🔍 Checking review eligibility for order:', orderId);
+    const response = await api.get(`/reviews/check-eligibility/${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Check review eligibility error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getMyReviews = async () => {
+  try {
+    const response = await api.get('/reviews/my-reviews');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get my reviews error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteReview = async (reviewId) => {
+  try {
+    console.log('🗑️ Deleting review:', reviewId);
+    const response = await api.delete(`/reviews/${reviewId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Delete review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export default api;
