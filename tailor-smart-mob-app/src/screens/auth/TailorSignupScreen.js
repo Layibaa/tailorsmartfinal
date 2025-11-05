@@ -80,14 +80,18 @@ const TailorSignupScreen = ({ navigation }) => {
       setError(result.error);
     }
   };
-
-  return (
+ 
+    return (
     <KeyboardAvoidingView 
       style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : null}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      <ScrollView contentContainerStyle={styles.scrollView}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollView}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Tailor Registration</Text>
           <Text style={styles.subtitle}>Join our platform to connect with customers</Text>

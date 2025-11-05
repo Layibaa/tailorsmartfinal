@@ -610,19 +610,7 @@ export const createReview = async (reviewData) => {
     throw error;
   }
 };
-
-// Update the existing getTailorReviews function:
-export const getTailorReviews = async (tailorId) => {
-  try {
-    console.log('📊 Fetching reviews for tailor:', tailorId);
-    const response = await api.get(`/reviews/tailor/${tailorId}`);
-    return response.data;
-  } catch (error) {
-    console.error('❌ Get tailor reviews error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
+ 
 // These should already exist, but here they are for reference:
 export const checkReviewEligibility = async (orderId) => {
   try {
@@ -634,7 +622,64 @@ export const checkReviewEligibility = async (orderId) => {
     throw error;
   }
 };
+ 
 
+// ADD THESE FUNCTIONS TO: tailor-smart-mob-app/src/services/api.js
+// Place these in the REVIEW APIs section (replace existing review functions)
+
+// ============================================
+// REVIEW APIs - GENERAL TAILOR REVIEWS
+// ============================================
+
+// Create a general review for a tailor (not tied to order)
+export const createGeneralReview = async (tailorId, reviewData) => {
+  try {
+    console.log('⭐ Creating general review for tailor:', tailorId, reviewData);
+    
+    // Validate rating
+    if (!reviewData.rating || reviewData.rating < 1 || reviewData.rating > 5) {
+      throw new Error('Rating must be between 1 and 5');
+    }
+    
+    // Validate comment
+    if (!reviewData.comment || reviewData.comment.trim().length < 10) {
+      throw new Error('Comment must be at least 10 characters');
+    }
+    
+    const response = await api.post(`/reviews/tailor/${tailorId}`, reviewData);
+    console.log('✅ General review created successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Create general review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Get all reviews for a tailor
+export const getTailorReviews = async (tailorId) => {
+  try {
+    console.log('📊 Fetching reviews for tailor:', tailorId);
+    const response = await api.get(`/reviews/tailor/${tailorId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get tailor reviews error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Check if customer can review this tailor (general review)
+export const checkTailorReviewEligibility = async (tailorId) => {
+  try {
+    console.log('🔍 Checking review eligibility for tailor:', tailorId);
+    const response = await api.get(`/reviews/check-eligibility/tailor/${tailorId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Check review eligibility error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Get customer's own reviews
 export const getMyReviews = async () => {
   try {
     const response = await api.get('/reviews/my-reviews');
@@ -645,6 +690,19 @@ export const getMyReviews = async () => {
   }
 };
 
+// Update existing review
+export const updateReview = async (reviewId, reviewData) => {
+  try {
+    console.log('📝 Updating review:', reviewId);
+    const response = await api.put(`/reviews/${reviewId}`, reviewData);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Update review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Delete review
 export const deleteReview = async (reviewId) => {
   try {
     console.log('🗑️ Deleting review:', reviewId);
@@ -655,4 +713,5 @@ export const deleteReview = async (reviewId) => {
     throw error;
   }
 };
+
 export default api;

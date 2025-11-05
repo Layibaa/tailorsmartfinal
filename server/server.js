@@ -19,6 +19,7 @@ const tailorRoutes = require('./routes/tailorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
 
 // Import middleware
 const errorHandlerMiddleware = require('./middleware/errorHandler');
@@ -50,17 +51,11 @@ app.use(express.json());
 // Rate limiting
 if (process.env.NODE_ENV === 'production') {
   const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+  });
+  app.use(limiter);
 }
-
-// Import review routes (with other imports)
-const reviewRoutes = require('./routes/reviewRoutes');
-
-// Register routes (with other routes)
-app.use('/api/v1/reviews', reviewRoutes);
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
@@ -69,8 +64,9 @@ app.use('/api/v1/tailors', tailorRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/messages', messageRoutes);
+app.use('/api/v1/reviews', reviewRoutes);
 
-// Error handling middleware
+// Error handling middleware (MUST BE AFTER ROUTES)
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
@@ -81,21 +77,15 @@ const connectedClients = new Map();
 wss.on('connection', (ws, req) => {
   console.log('New WebSocket connection');
 
-  // Handle messages from clients
   ws.on('message', (message) => {
     try {
       const parsedMessage = JSON.parse(message);
 
-      // Handle different message types
       if (parsedMessage.type === 'register') {
-        // Register user connection
         connectedClients.set(parsedMessage.userId, ws);
         console.log(`User ${parsedMessage.userId} registered`);
       } else if (parsedMessage.type === 'chat') {
-        // Handle chat message
         const receiverWs = connectedClients.get(parsedMessage.receiverId);
-
-        // If receiver is connected, send the message
         if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
           receiverWs.send(JSON.stringify({
             type: 'chat',
@@ -110,9 +100,7 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  // Handle connection close
   ws.on('close', () => {
-    // Remove user from connected clients
     for (const [userId, client] of connectedClients.entries()) {
       if (client === ws) {
         connectedClients.delete(userId);
@@ -127,13 +115,11 @@ wss.on('connection', (ws, req) => {
 io.on('connection', (socket) => {
   console.log('New socket.io connection:', socket.id);
 
-  // Join room for user-specific notifications
   socket.on('join', (userId) => {
     socket.join(userId);
     console.log(`Socket ${socket.id} joined room: ${userId}`);
   });
 
-  // Handle new message
   socket.on('message', async (data) => {
     try {
       console.log('Received message via socket:', data);
@@ -144,7 +130,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Create message in database
+      const Message = require('./models/Message');
       const message = await Message.create({
         sender: userId,
         receiver: data.receiverId,
@@ -152,7 +138,6 @@ io.on('connection', (socket) => {
         order: data.orderId || null
       });
 
-      // Emit to recipient's room
       io.to(data.receiverId).emit('new-message', {
         _id: message._id.toString(),
         sender: userId,
@@ -165,7 +150,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle order notifications
   socket.on('order-notification', (data) => {
     io.to(data.userId).emit('order-update', {
       orderId: data.orderId,
@@ -174,7 +158,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Socket disconnected:', socket.id);
   });
@@ -189,21 +172,22 @@ const start = async () => {
   try {
     let mongoUri = process.env.MONGO_URI;
 
-    // If no MongoDB URI is provided, use in-memory database
     if (!mongoUri) {
       console.log('No MongoDB URI found, using in-memory database');
+      const { MongoMemoryServer } = require('mongodb-memory-server');
       const mongod = await MongoMemoryServer.create();
       mongoUri = mongod.getUri();
     }
 
     await mongoose.connect(mongoUri);
-    console.log('Connected to MongoDB');
+    console.log('✅ Connected to MongoDB');
+    console.log('✅ Review routes registered at /api/v1/reviews');
 
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server is running on port ${PORT}`);
+      console.log(`🚀 Server is running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Error starting server:', error);
+    console.error('❌ Error starting server:', error);
   }
 };
 

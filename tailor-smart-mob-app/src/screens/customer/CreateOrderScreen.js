@@ -5,7 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -61,6 +63,7 @@ const CreateOrderScreen = ({ route, navigation }) => {
     notes: Yup.string()
       .max(500, 'Notes are too long (max 500 characters)')
   });
+
   const handleSubmit = (values) => {
     const orderData = {
       tailorId,
@@ -74,112 +77,123 @@ const CreateOrderScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Create New Order</Text>
-        <Text style={styles.headerSubtitle}>
-          For tailor: <Text style={styles.tailorName}>{tailorName}</Text>
-        </Text>
-      </View>
-
-      <Formik
-        initialValues={{
-          garmentType: '',
-          style: '',
-          notes: ''
-        }}
-        validationSchema={validationSchema}
-        onSubmit={handleSubmit}
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
-          <View style={styles.formContainer}>
-            <Text style={styles.sectionTitle}>Select Garment Type</Text>
-            <View style={styles.garmentTypesContainer}>
-              {garmentTypes.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.garmentTypeButton,
-                    values.garmentType === option.value && styles.selectedGarmentType
-                  ]}
-                  onPress={() => {
-                    setFieldValue('garmentType', option.value);
-                    setFieldValue('style', '');
-                  }}
-                >
-                  <Text
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Create New Order</Text>
+          <Text style={styles.headerSubtitle}>
+            For tailor: <Text style={styles.tailorName}>{tailorName}</Text>
+          </Text>
+        </View>
+
+        <Formik
+          initialValues={{
+            garmentType: '',
+            style: '',
+            notes: ''
+          }}
+          validationSchema={validationSchema}
+          onSubmit={handleSubmit}
+        >
+          {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
+            <View style={styles.formContainer}>
+              <Text style={styles.sectionTitle}>Select Garment Type</Text>
+              <View style={styles.garmentTypesContainer}>
+                {garmentTypes.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
                     style={[
-                      styles.garmentTypeText,
-                      values.garmentType === option.value && styles.selectedGarmentTypeText
+                      styles.garmentTypeButton,
+                      values.garmentType === option.value && styles.selectedGarmentType
                     ]}
+                    onPress={() => {
+                      setFieldValue('garmentType', option.value);
+                      setFieldValue('style', '');
+                    }}
                   >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {values.garmentType && (
-              <>
-                <Text style={styles.sectionTitle}>
-                  Select {values.garmentType === 'shalwar' ? 'Shalwar' : 'Kameez'} Style
-                </Text>
-                <View style={styles.garmentTypesContainer}>
-                  {(values.garmentType === 'shalwar' ? shalwarStyles : kameezStyles).map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
+                    <Text
                       style={[
-                        styles.garmentTypeButton,
-                        values.style === option.value && styles.selectedGarmentType
+                        styles.garmentTypeText,
+                        values.garmentType === option.value && styles.selectedGarmentTypeText
                       ]}
-                      onPress={() => setFieldValue('style', option.value)}
                     >
-                      <Text
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {values.garmentType && (
+                <>
+                  <Text style={styles.sectionTitle}>
+                    Select {values.garmentType === 'shalwar' ? 'Shalwar' : 'Kameez'} Style
+                  </Text>
+                  <View style={styles.garmentTypesContainer}>
+                    {(values.garmentType === 'shalwar' ? shalwarStyles : kameezStyles).map((option) => (
+                      <TouchableOpacity
+                        key={option.value}
                         style={[
-                          styles.garmentTypeText,
-                          values.style === option.value && styles.selectedGarmentTypeText
+                          styles.garmentTypeButton,
+                          values.style === option.value && styles.selectedGarmentType
                         ]}
+                        onPress={() => setFieldValue('style', option.value)}
                       >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
+                        <Text
+                          style={[
+                            styles.garmentTypeText,
+                            values.style === option.value && styles.selectedGarmentTypeText
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
 
-            <Text style={styles.sectionTitle}>Additional Notes</Text>
-            <Input
-              multiline
-              numberOfLines={4}
-              placeholder="Add any special instructions or details here"
-              value={values.notes}
-              onChangeText={handleChange('notes')}
-              onBlur={handleBlur('notes')}
-              error={touched.notes && errors.notes}
-              iconName="file-text"
-            />
+              <Text style={styles.sectionTitle}>Additional Notes</Text>
+              <Input
+                multiline
+                numberOfLines={4}
+                placeholder="Add any special instructions or details here"
+                value={values.notes}
+                onChangeText={handleChange('notes')}
+                onBlur={handleBlur('notes')}
+                error={touched.notes && errors.notes}
+                iconName="file-text"
+              />
 
-            <View style={styles.buttonsContainer}>
-              <Button
-                title="Next: Enter Measurements"
-                onPress={handleSubmit}
-                icon="arrow-right"
-                iconPosition="right"
-                loading={loading}
-              />
-              <Button
-                title="Cancel"
-                onPress={() => navigation.goBack()}
-                outline
-                buttonStyle={styles.cancelButton}
-                textStyle={styles.cancelButtonText}
-              />
+              <View style={styles.buttonsContainer}>
+                <Button
+                  title="Next: Enter Measurements"
+                  onPress={handleSubmit}
+                  icon="arrow-right"
+                  iconPosition="right"
+                  loading={loading}
+                />
+                <Button
+                  title="Cancel"
+                  onPress={() => navigation.goBack()}
+                  outline
+                  buttonStyle={styles.cancelButton}
+                  textStyle={styles.cancelButtonText}
+                />
+              </View>
             </View>
-          </View>
-        )}
-      </Formik>
-    </ScrollView>
+          )}
+        </Formik>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -189,7 +203,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white
   },
   contentContainer: {
-    padding: 16
+    padding: 16,
+    paddingBottom: 40
   },
   headerContainer: {
     marginBottom: 24

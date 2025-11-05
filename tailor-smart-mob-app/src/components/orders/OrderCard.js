@@ -77,7 +77,7 @@ const OrderCard = ({
         {order.price > 0 && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Price:</Text>
-            <Text style={styles.detailValue}>${order.price}</Text>
+            <Text style={styles.detailValue}> PKR {order.price}</Text>
           </View>
         )}
 

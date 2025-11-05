@@ -322,7 +322,7 @@ const TailorProfileScreen = ({ navigation }) => {
                 onBlur={handleBlur('averagePrice')}
                 keyboardType="numeric"
                 error={touched.averagePrice && errors.averagePrice}
-                iconName="dollar-sign"
+                iconName="PKR"
               />
 
               {isUpdating ? (

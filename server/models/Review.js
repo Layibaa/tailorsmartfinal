@@ -1,4 +1,4 @@
-// server/models/Review.js - REPLACE THE ENTIRE FILE
+// server/models/Review.js - REPLACE ENTIRE FILE
 const mongoose = require('mongoose');
 
 const ReviewSchema = new mongoose.Schema(
@@ -13,11 +13,11 @@ const ReviewSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Tailor ID is required']
     },
+    // order is now OPTIONAL - allows general reviews
     order: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Order',
-      required: [true, 'Order ID is required'],
-      unique: true // One review per order
+      default: null
     },
     rating: {
       type: Number,
@@ -27,11 +27,13 @@ const ReviewSchema = new mongoose.Schema(
     },
     comment: {
       type: String,
+      required: [true, 'Comment is required'],
+      minlength: [10, 'Comment must be at least 10 characters'],
       maxlength: [500, 'Comment cannot exceed 500 characters'],
       trim: true
     },
     images: [{
-      type: String, // Store image URLs or paths
+      type: String,
       validate: {
         validator: function(v) {
           return this.images.length <= 3;
@@ -49,8 +51,14 @@ const ReviewSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for better query performance
-ReviewSchema.index({ customer: 1, order: 1 }, { unique: true });
+// Compound index to prevent duplicate reviews per customer-tailor pair
+// One general review per customer per tailor (regardless of orders)
+ReviewSchema.index({ customer: 1, tailor: 1 }, { 
+  unique: true,
+  partialFilterExpression: { order: null } // Only for general reviews
+});
+
+// Index for tailor reviews lookup
 ReviewSchema.index({ tailor: 1, createdAt: -1 });
 ReviewSchema.index({ tailor: 1, rating: 1 });
 
