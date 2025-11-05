@@ -29,7 +29,7 @@ const TailorCard = ({ tailor, onPress, onMessagePress, onOrderPress }) => {
             </View>
             
             <View style={styles.infoRow}>
-              <Feather name="dollar-sign" size={16} color={colors.gray} style={styles.icon} />
+              <Feather name="PKR" size={16} color={colors.gray} style={styles.icon} />
               <Text style={styles.infoText}>
                 Avg. Price: ${tailor.tailorProfile.averagePrice || 'N/A'}
               </Text>

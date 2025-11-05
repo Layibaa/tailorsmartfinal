@@ -1,4 +1,4 @@
-// CREATE NEW FILE: tailor-smart-mob-app/src/screens/customer/WriteReviewScreen.js
+// tailor-smart-mob-app/src/screens/customer/WriteReviewScreen.js - REPLACE ENTIRE FILE
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,12 +14,12 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { createReview, checkReviewEligibility } from '../../services/api';
+import { createGeneralReview, checkTailorReviewEligibility } from '../../services/api';
 import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
 
 const WriteReviewScreen = ({ route, navigation }) => {
-  const { orderId, tailorName } = route.params;
+  const { tailorId, tailorName, onReviewSubmitted } = route.params;
   
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -47,18 +47,27 @@ const WriteReviewScreen = ({ route, navigation }) => {
   const checkEligibility = async () => {
     try {
       setIsLoading(true);
-      const response = await checkReviewEligibility(orderId);
+      const response = await checkTailorReviewEligibility(tailorId);
+      
+      console.log('Eligibility response:', response);
       
       if (!response.eligible) {
         setIsEligible(false);
-        setEligibilityReason(response.reason);
+        setEligibilityReason(response.reason || 'You cannot review this tailor');
       } else {
         setIsEligible(true);
       }
     } catch (error) {
       console.error('Error checking eligibility:', error);
-      Alert.alert('Error', 'Failed to verify review eligibility');
-      navigation.goBack();
+      
+      // If the error is "Already reviewed", show it properly
+      if (error.response?.data?.msg) {
+        setIsEligible(false);
+        setEligibilityReason(error.response.data.msg);
+      } else {
+        Alert.alert('Error', 'Failed to verify review eligibility');
+        navigation.goBack();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,6 +106,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async () => {
+    // Validation
     if (rating === 0) {
       Alert.alert('Rating Required', 'Please select a star rating');
       return;
@@ -110,33 +120,63 @@ const WriteReviewScreen = ({ route, navigation }) => {
     try {
       setIsSubmitting(true);
 
-      // For now, we'll store image URIs directly
-      // In production, you'd upload to a server/cloud storage first
       const reviewData = {
-        orderId,
         rating,
         comment: comment.trim(),
-        images: images // In production, these would be uploaded URLs
+        images: images // In production, upload to cloud storage first
       };
 
-      await createReview(reviewData);
+      console.log('Submitting review:', reviewData);
+      
+      const response = await createGeneralReview(tailorId, reviewData);
+      
+      console.log('Review submitted successfully:', response);
 
+      // Call the callback if provided
+      if (onReviewSubmitted) {
+        onReviewSubmitted();
+      }
+
+      // Show success and navigate back
       Alert.alert(
         'Success',
         'Your review has been submitted successfully!',
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack()
+            onPress: () => {
+              console.log('Navigating back after review submission');
+              navigation.goBack();
+            }
           }
-        ]
+        ],
+        { cancelable: false }
       );
     } catch (error) {
       console.error('Error submitting review:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.msg || 'Failed to submit review'
-      );
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      // Handle specific error cases
+      let errorMessage = 'Failed to submit review. Please try again.';
+      
+      if (error.response?.data?.msg) {
+        errorMessage = error.response.data.msg;
+        
+        // If duplicate review error, update eligibility
+        if (errorMessage.toLowerCase().includes('already reviewed')) {
+          setIsEligible(false);
+          setEligibilityReason(errorMessage);
+          return; // Don't show alert, just update UI
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -198,9 +238,10 @@ const WriteReviewScreen = ({ route, navigation }) => {
                 key={star}
                 onPress={() => handleStarPress(star)}
                 style={styles.starButton}
+                disabled={isSubmitting}
               >
                 <Feather
-                  name={star <= rating ? 'star' : 'star'}
+                  name="star"
                   size={40}
                   color={star <= rating ? '#FFD700' : colors.lightGray}
                   fill={star <= rating ? '#FFD700' : 'none'}
@@ -221,7 +262,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
 
         {/* Written Review */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tell us more (optional)</Text>
+          <Text style={styles.sectionTitle}>Tell us more</Text>
           <TextInput
             style={styles.commentInput}
             placeholder="Share your experience with this tailor..."
@@ -232,9 +273,10 @@ const WriteReviewScreen = ({ route, navigation }) => {
             value={comment}
             onChangeText={setComment}
             textAlignVertical="top"
+            editable={!isSubmitting}
           />
           <Text style={styles.characterCount}>
-            {comment.length}/500 characters
+            {comment.length}/500 characters (min 10)
           </Text>
         </View>
 
@@ -242,7 +284,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Add Photos (optional)</Text>
           <Text style={styles.sectionSubtitle}>
-            Upload up to 3 photos of your completed order
+            Upload up to 3 photos of completed work
           </Text>
           
           <View style={styles.imagesGrid}>
@@ -252,6 +294,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => removeImage(index)}
+                  disabled={isSubmitting}
                 >
                   <Feather name="x" size={16} color={colors.white} />
                 </TouchableOpacity>
@@ -262,6 +305,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
               <TouchableOpacity
                 style={styles.addImageButton}
                 onPress={pickImage}
+                disabled={isSubmitting}
               >
                 <Feather name="plus" size={32} color={colors.gray} />
                 <Text style={styles.addImageText}>Add Photo</Text>
@@ -275,10 +319,11 @@ const WriteReviewScreen = ({ route, navigation }) => {
           <Button
             title={isSubmitting ? 'Submitting...' : 'Submit Review'}
             onPress={handleSubmit}
-            disabled={isSubmitting || rating === 0}
+            loading={isSubmitting}
+            disabled={isSubmitting || rating === 0 || comment.trim().length < 10}
             buttonStyle={[
               styles.submitButton,
-              (isSubmitting || rating === 0) && styles.submitButtonDisabled
+              (isSubmitting || rating === 0 || comment.trim().length < 10) && styles.submitButtonDisabled
             ]}
           />
         </View>

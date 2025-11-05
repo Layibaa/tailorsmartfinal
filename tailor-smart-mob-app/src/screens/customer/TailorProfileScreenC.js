@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// tailor-smart-mob-app/src/screens/customer/TailorProfileScreenC.js - REPLACE ENTIRE FILE
+
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -10,6 +12,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { getTailorById } from '../../services/api';
+import { AuthContext } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors';
@@ -17,12 +20,22 @@ import TailorReviewsSection from '../../components/TailorReviewsSection';
 
 const TailorProfileScreen = ({ route, navigation }) => {
   const { tailorId } = route.params;
+  const { user } = useContext(AuthContext);
   const [tailor, setTailor] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     loadTailorProfile();
   }, [tailorId]);
+
+  // Listen for screen focus to refresh reviews
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setRefreshKey(prev => prev + 1);
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const loadTailorProfile = async () => {
     try {
@@ -53,6 +66,13 @@ const TailorProfileScreen = ({ route, navigation }) => {
 
   const handleOrderPress = () => {
     navigation.navigate('CreateOrder', {
+      tailorId: tailor._id,
+      tailorName: tailor.name
+    });
+  };
+
+  const handleWriteReview = () => {
+    navigation.navigate('WriteReview', {
       tailorId: tailor._id,
       tailorName: tailor.name
     });
@@ -156,7 +176,7 @@ const TailorProfileScreen = ({ route, navigation }) => {
 
             {tailor.tailorProfile.averagePrice && (
               <View style={styles.infoRow}>
-                <Feather name="dollar-sign" size={20} color={colors.gray} />
+                <Feather name="PKR" size={20} color={colors.gray} />
                 <Text style={styles.infoText}>
                   Average Price: Rs. {tailor.tailorProfile.averagePrice}
                 </Text>
@@ -192,7 +212,19 @@ const TailorProfileScreen = ({ route, navigation }) => {
 
         {/* Reviews Section */}
         <View style={styles.section}>
-          <TailorReviewsSection tailorId={tailorId} />
+          <View style={styles.reviewsHeader}>
+            <Text style={styles.sectionTitle}>Customer Reviews</Text>
+            {user && user.role === 'customer' && (
+              <TouchableOpacity 
+                style={styles.writeReviewButton}
+                onPress={handleWriteReview}
+              >
+                <Feather name="edit-3" size={16} color={colors.white} />
+                <Text style={styles.writeReviewText}>Write Review</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TailorReviewsSection tailorId={tailorId} key={refreshKey} />
         </View>
 
         {/* Action Buttons */}
@@ -296,6 +328,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.black,
     marginBottom: 16
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  writeReviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.black,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6
+  },
+  writeReviewText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600'
   },
   infoRow: {
     flexDirection: 'row',

@@ -333,7 +333,7 @@ export const admin = {
       console.error('API Admin: Tailor reassignment failed:', error);
       throw error;
     }
-  },a
+  },
 
   // System diagnostics
   getDiagnostic: async () => {

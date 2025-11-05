@@ -221,7 +221,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           order.customer._id,
           orderId,
           'accepted',
-          `Your order has been accepted. The price is PKR${values.price}`
+          `Your order has been accepted. The price is PKR {values.price}`
         );
       }
       
@@ -392,7 +392,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Confirm Order</Text>
           <Text style={styles.modalText}>
-            The tailor has accepted your order with a price of ${order?.price}. 
+            The tailor has accepted your order with a price of PKR {order?.price}. 
             Do you want to confirm this order?
           </Text>
           
@@ -476,7 +476,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const nextStatus = getNextStatus();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Order Header with Status */}
       <View style={styles.header}>
         <View>
@@ -502,7 +507,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         {order.price > 0 && (
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Price:</Text>
-            <Text style={styles.infoValue}>${order.price}</Text>
+            <Text style={styles.infoValue}>PKR {order.price}</Text>
           </View>
         )}
         

@@ -6,7 +6,10 @@ import {
   Modal,
   StyleSheet,
   TouchableOpacity,
-  Alert
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -82,7 +85,11 @@ const ProfileCompletionModal = ({ visible, onClose, onComplete, existingProfile 
       presentationStyle="formSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Complete Your Profile</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -90,113 +97,120 @@ const ProfileCompletionModal = ({ visible, onClose, onComplete, existingProfile 
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.subtitle}>
-          Please provide these details to enable AI-powered measurement predictions
-        </Text>
-
-        <Formik
-          initialValues={initialValues}
-          validationSchema={ProfileSchema}
-          onSubmit={handleSubmit}
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue }) => (
-            <View style={styles.form}>
-              <Input
-                label="Age"
-                placeholder="Enter your age"
-                value={values.age}
-                onChangeText={(text) => {
-                  const sanitized = text.replace(/[^0-9]/g, '');
-                  handleChange('age')(sanitized);
-                }}
-                onBlur={handleBlur('age')}
-                keyboardType="numeric"
-                error={touched.age && errors.age}
-                iconName="calendar"
-              />
+          <Text style={styles.subtitle}>
+            Please provide these details to enable AI-powered measurement predictions
+          </Text>
 
-              <View style={styles.genderContainer}>
-                <Text style={styles.genderLabel}>Gender</Text>
-                <View style={styles.genderButtons}>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderButton,
-                      values.gender === 'male' && styles.genderButtonActive
-                    ]}
-                    onPress={() => setFieldValue('gender', 'male')}
-                  >
-                    <Text style={[
-                      styles.genderButtonText,
-                      values.gender === 'male' && styles.genderButtonTextActive
-                    ]}>
-                      Male
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderButton,
-                      values.gender === 'female' && styles.genderButtonActive
-                    ]}
-                    onPress={() => setFieldValue('gender', 'female')}
-                  >
-                    <Text style={[
-                      styles.genderButtonText,
-                      values.gender === 'female' && styles.genderButtonTextActive
-                    ]}>
-                      Female
-                    </Text>
-                  </TouchableOpacity>
+          <Formik
+            initialValues={initialValues}
+            validationSchema={ProfileSchema}
+            onSubmit={handleSubmit}
+          >
+            {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue }) => (
+              <View style={styles.form}>
+                <Input
+                  label="Age"
+                  placeholder="Enter your age"
+                  value={values.age}
+                  onChangeText={(text) => {
+                    const sanitized = text.replace(/[^0-9]/g, '');
+                    handleChange('age')(sanitized);
+                  }}
+                  onBlur={handleBlur('age')}
+                  keyboardType="numeric"
+                  error={touched.age && errors.age}
+                  iconName="calendar"
+                />
+
+                <View style={styles.genderContainer}>
+                  <Text style={styles.genderLabel}>Gender</Text>
+                  <View style={styles.genderButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.genderButton,
+                        values.gender === 'male' && styles.genderButtonActive
+                      ]}
+                      onPress={() => setFieldValue('gender', 'male')}
+                    >
+                      <Text style={[
+                        styles.genderButtonText,
+                        values.gender === 'male' && styles.genderButtonTextActive
+                      ]}>
+                        Male
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.genderButton,
+                        values.gender === 'female' && styles.genderButtonActive
+                      ]}
+                      onPress={() => setFieldValue('gender', 'female')}
+                    >
+                      <Text style={[
+                        styles.genderButtonText,
+                        values.gender === 'female' && styles.genderButtonTextActive
+                      ]}>
+                        Female
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {touched.gender && errors.gender && (
+                    <Text style={styles.errorText}>{errors.gender}</Text>
+                  )}
                 </View>
-                {touched.gender && errors.gender && (
-                  <Text style={styles.errorText}>{errors.gender}</Text>
-                )}
-              </View>
 
-              <Input
-                label="Height (cm)"
-                placeholder="Enter your height in centimeters"
-                value={values.height}
-                onChangeText={(text) => {
-                  const sanitized = text.replace(/[^0-9.]/g, '');
-                  handleChange('height')(sanitized);
-                }}
-                onBlur={handleBlur('height')}
-                keyboardType="numeric"
-                error={touched.height && errors.height}
-                iconName="trending-up"
-              />
-
-              <Input
-                label="Weight (kg)"
-                placeholder="Enter your weight in kilograms"
-                value={values.weight}
-                onChangeText={(text) => {
-                  const sanitized = text.replace(/[^0-9.]/g, '');
-                  handleChange('weight')(sanitized);
-                }}
-                onBlur={handleBlur('weight')}
-                keyboardType="numeric"
-                error={touched.weight && errors.weight}
-                iconName="activity"
-              />
-
-              <View style={styles.buttonContainer}>
-                <Button
-                  title="Save Profile"
-                  onPress={handleSubmit}
-                  loading={loading}
+                <Input
+                  label="Height (cm)"
+                  placeholder="Enter your height in centimeters"
+                  value={values.height}
+                  onChangeText={(text) => {
+                    const sanitized = text.replace(/[^0-9.]/g, '');
+                    handleChange('height')(sanitized);
+                  }}
+                  onBlur={handleBlur('height')}
+                  keyboardType="numeric"
+                  error={touched.height && errors.height}
+                  iconName="trending-up"
                 />
-                <Button
-                  title="Skip for Now"
-                  onPress={onClose}
-                  outline
-                  buttonStyle={styles.skipButton}
+
+                <Input
+                  label="Weight (kg)"
+                  placeholder="Enter your weight in kilograms"
+                  value={values.weight}
+                  onChangeText={(text) => {
+                    const sanitized = text.replace(/[^0-9.]/g, '');
+                    handleChange('weight')(sanitized);
+                  }}
+                  onBlur={handleBlur('weight')}
+                  keyboardType="numeric"
+                  error={touched.weight && errors.weight}
+                  iconName="activity"
                 />
+
+                <View style={styles.buttonContainer}>
+                  <Button
+                    title="Save Profile"
+                    onPress={handleSubmit}
+                    loading={loading}
+                  />
+                  <Button
+                    title="Skip for Now"
+                    onPress={onClose}
+                    outline
+                    buttonStyle={styles.skipButton}
+                  />
+                </View>
               </View>
-            </View>
-          )}
-        </Formik>
-      </View>
+            )}
+          </Formik>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -204,14 +218,17 @@ const ProfileCompletionModal = ({ visible, onClose, onComplete, existingProfile 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
-    padding: 20
+    backgroundColor: colors.white
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
   },
   title: {
     fontSize: 24,
@@ -220,6 +237,13 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 8
+  },
+  scrollView: {
+    flex: 1
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40
   },
   subtitle: {
     fontSize: 16,
@@ -271,7 +295,7 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   buttonContainer: {
-    marginTop: 'auto',
+    marginTop: 20,
     paddingBottom: 20
   },
   skipButton: {

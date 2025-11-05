@@ -1,4 +1,4 @@
-// tailor-smart-mob-app/src/screens/customer/ProfileScreen.js
+// PROPERLY FIXED: CustomerProfileScreen.js
 import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
@@ -8,7 +8,7 @@ import {
   Alert,
   TouchableOpacity,
   Modal,
-  KeyboardAvoidingView,
+  SafeAreaView,
   Platform
 } from 'react-native';
 import { Formik } from 'formik';
@@ -76,8 +76,8 @@ const CustomerProfileScreen = ({ navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [passwordStep, setPasswordStep] = useState(1); // 1: send OTP, 2: change password
-  const [deleteStep, setDeleteStep] = useState(1); // 1: send OTP, 2: confirm delete
+  const [passwordStep, setPasswordStep] = useState(1);
+  const [deleteStep, setDeleteStep] = useState(1);
   const [locationOptions, setLocationOptions] = useState({
     cities: [],
     islamabadRegions: []
@@ -187,22 +187,26 @@ const CustomerProfileScreen = ({ navigation }) => {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : null}
-    >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Feather name="arrow-left" size={24} color={colors.black} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <View style={styles.placeholder} />
-        </View>
+    <SafeAreaView style={styles.container}>
+      {/* Fixed Header */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={24} color={colors.black} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Profile</Text>
+        <View style={styles.placeholder} />
+      </View>
 
+      {/* Scrollable Content */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Formik
           initialValues={{
             name: profile?.name || '',
@@ -362,27 +366,27 @@ const CustomerProfileScreen = ({ navigation }) => {
               ) : (
                 <Button title="Update Profile" onPress={handleSubmit} />
               )}
+
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={styles.changePasswordButton}
+                  onPress={() => setShowPasswordModal(true)}
+                >
+                  <Feather name="lock" size={20} color={colors.white} />
+                  <Text style={styles.changePasswordText}>Change Password</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => setShowDeleteModal(true)}
+                >
+                  <Feather name="trash-2" size={20} color={colors.white} />
+                  <Text style={styles.deleteButtonText}>Delete Account</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </Formik>
-
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.changePasswordButton}
-            onPress={() => setShowPasswordModal(true)}
-          >
-            <Feather name="lock" size={20} color={colors.white} />
-            <Text style={styles.changePasswordText}>Change Password</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => setShowDeleteModal(true)}
-          >
-            <Feather name="trash-2" size={20} color={colors.white} />
-            <Text style={styles.deleteButtonText}>Delete Account</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       {/* Password Change Modal */}
@@ -394,7 +398,7 @@ const CustomerProfileScreen = ({ navigation }) => {
           setPasswordStep(1);
         }}
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Change Password</Text>
             <TouchableOpacity
@@ -407,69 +411,71 @@ const CustomerProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {passwordStep === 1 ? (
-            <View style={styles.modalContent}>
-              <Text style={styles.modalText}>
-                We'll send an OTP to your email address to verify the password change.
-              </Text>
-              <Button title="Send OTP" onPress={handleSendPasswordOtp} />
-            </View>
-          ) : (
-            <Formik
-              initialValues={{
-                newPassword: '',
-                confirmPassword: '',
-                otp: ''
-              }}
-              validationSchema={PasswordChangeSchema}
-              onSubmit={handleChangePassword}
-            >
-              {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalText}>
-                    Enter the OTP sent to your email and your new password.
-                  </Text>
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent}>
+            {passwordStep === 1 ? (
+              <View>
+                <Text style={styles.modalText}>
+                  We'll send an OTP to your email address to verify the password change.
+                </Text>
+                <Button title="Send OTP" onPress={handleSendPasswordOtp} />
+              </View>
+            ) : (
+              <Formik
+                initialValues={{
+                  newPassword: '',
+                  confirmPassword: '',
+                  otp: ''
+                }}
+                validationSchema={PasswordChangeSchema}
+                onSubmit={handleChangePassword}
+              >
+                {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                  <View>
+                    <Text style={styles.modalText}>
+                      Enter the OTP sent to your email and your new password.
+                    </Text>
 
-                  <Input
-                    label="OTP"
-                    placeholder="Enter 6-digit OTP"
-                    value={values.otp}
-                    onChangeText={handleChange('otp')}
-                    onBlur={handleBlur('otp')}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    error={touched.otp && errors.otp}
-                    iconName="shield"
-                  />
+                    <Input
+                      label="OTP"
+                      placeholder="Enter 6-digit OTP"
+                      value={values.otp}
+                      onChangeText={handleChange('otp')}
+                      onBlur={handleBlur('otp')}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      error={touched.otp && errors.otp}
+                      iconName="shield"
+                    />
 
-                  <Input
-                    label="New Password"
-                    placeholder="Enter new password"
-                    value={values.newPassword}
-                    onChangeText={handleChange('newPassword')}
-                    onBlur={handleBlur('newPassword')}
-                    secureTextEntry
-                    error={touched.newPassword && errors.newPassword}
-                    iconName="lock"
-                  />
+                    <Input
+                      label="New Password"
+                      placeholder="Enter new password"
+                      value={values.newPassword}
+                      onChangeText={handleChange('newPassword')}
+                      onBlur={handleBlur('newPassword')}
+                      secureTextEntry
+                      error={touched.newPassword && errors.newPassword}
+                      iconName="lock"
+                    />
 
-                  <Input
-                    label="Confirm Password"
-                    placeholder="Confirm new password"
-                    value={values.confirmPassword}
-                    onChangeText={handleChange('confirmPassword')}
-                    onBlur={handleBlur('confirmPassword')}
-                    secureTextEntry
-                    error={touched.confirmPassword && errors.confirmPassword}
-                    iconName="lock"
-                  />
+                    <Input
+                      label="Confirm Password"
+                      placeholder="Confirm new password"
+                      value={values.confirmPassword}
+                      onChangeText={handleChange('confirmPassword')}
+                      onBlur={handleBlur('confirmPassword')}
+                      secureTextEntry
+                      error={touched.confirmPassword && errors.confirmPassword}
+                      iconName="lock"
+                    />
 
-                  <Button title="Change Password" onPress={handleSubmit} />
-                </View>
-              )}
-            </Formik>
-          )}
-        </View>
+                    <Button title="Change Password" onPress={handleSubmit} />
+                  </View>
+                )}
+              </Formik>
+            )}
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
 
       {/* Delete Account Modal */}
@@ -481,7 +487,7 @@ const CustomerProfileScreen = ({ navigation }) => {
           setDeleteStep(1);
         }}
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Delete Account</Text>
             <TouchableOpacity
@@ -494,76 +500,78 @@ const CustomerProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {deleteStep === 1 ? (
-            <View style={styles.modalContent}>
-              <View style={styles.warningContainer}>
-                <Feather name="alert-triangle" size={48} color={colors.error} />
-                <Text style={styles.warningTitle}>Are you sure?</Text>
-                <Text style={styles.warningText}>
-                  This action cannot be undone. Your account and all associated data will be permanently deleted.
-                </Text>
-              </View>
-              <Button 
-                title="Send Verification OTP" 
-                onPress={handleSendDeleteOtp}
-                buttonStyle={styles.deleteButton}
-              />
-              <Button 
-                title="Cancel" 
-                onPress={() => setShowDeleteModal(false)}
-                buttonStyle={styles.cancelButton}
-                textStyle={styles.cancelButtonText}
-              />
-            </View>
-          ) : (
-            <Formik
-              initialValues={{ otp: '' }}
-              validationSchema={OtpSchema}
-              onSubmit={handleDeleteAccount}
-            >
-              {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-                <View style={styles.modalContent}>
-                  <View style={styles.warningContainer}>
-                    <Feather name="alert-triangle" size={48} color={colors.error} />
-                    <Text style={styles.warningTitle}>Final Confirmation</Text>
-                    <Text style={styles.warningText}>
-                      Enter the OTP sent to your email to permanently delete your account.
-                    </Text>
-                  </View>
-
-                  <Input
-                    label="OTP"
-                    placeholder="Enter 6-digit OTP"
-                    value={values.otp}
-                    onChangeText={handleChange('otp')}
-                    onBlur={handleBlur('otp')}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    error={touched.otp && errors.otp}
-                    iconName="shield"
-                  />
-
-                  <Button 
-                    title="Delete My Account" 
-                    onPress={handleSubmit}
-                    buttonStyle={styles.deleteButton}
-                  />
-                  <Button 
-                    title="Cancel" 
-                    onPress={() => {
-                      setShowDeleteModal(false);
-                      setDeleteStep(1);
-                    }}
-                    buttonStyle={styles.cancelButton}
-                    textStyle={styles.cancelButtonText}
-                  />
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent}>
+            {deleteStep === 1 ? (
+              <View>
+                <View style={styles.warningContainer}>
+                  <Feather name="alert-triangle" size={48} color={colors.error} />
+                  <Text style={styles.warningTitle}>Are you sure?</Text>
+                  <Text style={styles.warningText}>
+                    This action cannot be undone. Your account and all associated data will be permanently deleted.
+                  </Text>
                 </View>
-              )}
-            </Formik>
-          )}
-        </View>
+                <Button 
+                  title="Send Verification OTP" 
+                  onPress={handleSendDeleteOtp}
+                  buttonStyle={styles.deleteButton}
+                />
+                <Button 
+                  title="Cancel" 
+                  onPress={() => setShowDeleteModal(false)}
+                  buttonStyle={styles.cancelButton}
+                  textStyle={styles.cancelButtonText}
+                />
+              </View>
+            ) : (
+              <Formik
+                initialValues={{ otp: '' }}
+                validationSchema={OtpSchema}
+                onSubmit={handleDeleteAccount}
+              >
+                {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                  <View>
+                    <View style={styles.warningContainer}>
+                      <Feather name="alert-triangle" size={48} color={colors.error} />
+                      <Text style={styles.warningTitle}>Final Confirmation</Text>
+                      <Text style={styles.warningText}>
+                        Enter the OTP sent to your email to permanently delete your account.
+                      </Text>
+                    </View>
+
+                    <Input
+                      label="OTP"
+                      placeholder="Enter 6-digit OTP"
+                      value={values.otp}
+                      onChangeText={handleChange('otp')}
+                      onBlur={handleBlur('otp')}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      error={touched.otp && errors.otp}
+                      iconName="shield"
+                    />
+
+                    <Button 
+                      title="Delete My Account" 
+                      onPress={handleSubmit}
+                      buttonStyle={styles.deleteButton}
+                    />
+                    <Button 
+                      title="Cancel" 
+                      onPress={() => {
+                        setShowDeleteModal(false);
+                        setDeleteStep(1);
+                      }}
+                      buttonStyle={styles.cancelButton}
+                      textStyle={styles.cancelButtonText}
+                    />
+                  </View>
+                )}
+              </Formik>
+            )}
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
-    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -572,17 +580,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white
   },
-  scrollView: {
-    flex: 1
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: colors.white
+    paddingVertical: 16,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
   },
   backButton: {
     padding: 8
@@ -595,8 +601,15 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40
   },
+  scrollView: {
+    flex: 1
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 100
+  },
   formContainer: {
-    paddingHorizontal: 16
+    width: '100%'
   },
   sectionTitle: {
     fontSize: 18,
@@ -629,8 +642,8 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   actionButtons: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    marginTop: 24,
+    marginBottom: 40,
     gap: 12
   },
   changePasswordButton: {
@@ -670,8 +683,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.lightGray
   },
@@ -680,8 +692,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.black
   },
+  modalScroll: {
+    flex: 1
+  },
   modalContent: {
-    flex: 1,
     padding: 16
   },
   modalText: {
