@@ -1,6 +1,6 @@
-// admin-web/src/components/Dashboard.js - Fixed version with proper data handling
+// admin-web/src/components/Dashboard.js - Fixed version
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { admin } from '../services/api';
 
 const KPICard = ({ title, value, icon, color = 'bg-blue-500', change, loading = false }) => (
@@ -14,9 +14,9 @@ const KPICard = ({ title, value, icon, color = 'bg-blue-500', change, loading = 
         {loading ? (
           <div className="h-8 bg-gray-200 animate-pulse rounded mt-1"></div>
         ) : (
-          <p className="text-2xl font-bold text-gray-900">{value || 0}</p>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
         )}
-        {change && !loading && (
+        {change !== undefined && !loading && (
           <p className={`text-xs ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {change >= 0 ? '+' : ''}{change} this week
           </p>
@@ -39,12 +39,35 @@ const Dashboard = () => {
     try {
       console.log('Dashboard: Loading stats...');
       const response = await admin.getDashboard();
-      console.log('Dashboard: Received response:', response.data);
+      console.log('Dashboard: Raw response:', response);
       
-      if (response.data && response.data.success) {
-        setStats(response.data.stats);
+      if (response.data && response.data.success && response.data.stats) {
+        const receivedStats = response.data.stats;
+        console.log('Dashboard: Received stats:', receivedStats);
+        
+        // Validate and set stats with fallbacks
+        setStats({
+          customerCount: receivedStats.customerCount || 0,
+          tailorCount: receivedStats.tailorCount || 0,
+          orderCount: receivedStats.orderCount || 0,
+          orderStatusStats: receivedStats.orderStatusStats || {
+            pending: 0,
+            accepted: 0,
+            rejected: 0,
+            confirmed: 0,
+            making: 0,
+            payment_done: 0,
+            completed: 0
+          },
+          weeklyOrders: receivedStats.weeklyOrders || 0,
+          weeklyUsers: receivedStats.weeklyUsers || 0,
+          totalRevenue: receivedStats.totalRevenue || 0,
+          avgOrderValue: receivedStats.avgOrderValue || 0,
+          completedOrders: receivedStats.completedOrders || 0
+        });
+        
         setLastUpdated(new Date());
-        console.log('Dashboard: Stats loaded successfully:', response.data.stats);
+        console.log('Dashboard: Stats loaded successfully');
       } else {
         throw new Error('Invalid response format');
       }
@@ -53,7 +76,7 @@ const Dashboard = () => {
       const errorMessage = error.response?.data?.msg || error.message || 'Failed to load dashboard data';
       setError(errorMessage);
       
-      // Set default/empty stats to prevent UI errors
+      // Set empty stats on error
       setStats({
         customerCount: 0,
         tailorCount: 0,
@@ -61,11 +84,11 @@ const Dashboard = () => {
         orderStatusStats: {
           pending: 0,
           accepted: 0,
+          rejected: 0,
           confirmed: 0,
           making: 0,
           payment_done: 0,
-          completed: 0,
-          rejected: 0
+          completed: 0
         },
         weeklyOrders: 0,
         weeklyUsers: 0,
@@ -85,14 +108,16 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Prepare chart data with null checks
-  const orderStatusData = stats?.orderStatusStats ? Object.entries(stats.orderStatusStats)
-    .filter(([status, count]) => count > 0)
-    .map(([status, count]) => ({
-      name: status.replace('_', ' ').toUpperCase(),
-      value: count,
-      color: getStatusColor(status)
-    })) : [];
+  // Prepare chart data with proper validation
+  const orderStatusData = stats?.orderStatusStats 
+    ? Object.entries(stats.orderStatusStats)
+        .filter(([status, count]) => count > 0)
+        .map(([status, count]) => ({
+          name: status.replace(/_/g, ' ').toUpperCase(),
+          value: count,
+          color: getStatusColor(status)
+        }))
+    : [];
 
   const userRoleData = [
     { 
@@ -105,7 +130,7 @@ const Dashboard = () => {
       value: stats?.tailorCount || 0, 
       color: '#f59e0b' 
     }
-  ];
+  ].filter(item => item.value > 0);
 
   function getStatusColor(status) {
     const colors = {
@@ -119,6 +144,11 @@ const Dashboard = () => {
     };
     return colors[status] || '#6b7280';
   }
+
+  // Calculate completion rate
+  const completionRate = stats?.orderCount > 0 
+    ? Math.round((stats.completedOrders / stats.orderCount) * 100) 
+    : 0;
 
   return (
     <div className="p-6">
@@ -136,7 +166,7 @@ const Dashboard = () => {
           <button
             onClick={loadStats}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
@@ -153,12 +183,8 @@ const Dashboard = () => {
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">
-                Dashboard Error
-              </h3>
-              <div className="mt-2 text-sm text-red-700">
-                {error}
-              </div>
+              <h3 className="text-sm font-medium text-red-800">Dashboard Error</h3>
+              <div className="mt-2 text-sm text-red-700">{error}</div>
             </div>
           </div>
         </div>
@@ -206,7 +232,7 @@ const Dashboard = () => {
 
         <KPICard
           title="Total Revenue"
-          value={stats?.totalRevenue ? `$${stats.totalRevenue}` : '$0'}
+          value={stats?.totalRevenue ? `PKR ${stats.totalRevenue.toLocaleString()}` : 'PKR 0'}
           icon={
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
@@ -260,7 +286,7 @@ const Dashboard = () => {
             <div className="h-64 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
             </div>
-          ) : (
+          ) : userRoleData.length > 0 ? (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={userRoleData}>
@@ -270,6 +296,10 @@ const Dashboard = () => {
                   <Bar dataKey="value" fill="#3b82f6" />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No user data available
             </div>
           )}
         </div>
@@ -288,7 +318,7 @@ const Dashboard = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-semibold">
-                {stats?.orderCount ? Math.round((stats.completedOrders / stats.orderCount) * 100) : 0}%
+                {completionRate}%
               </p>
               <p className="text-sm text-gray-500">Success Rate</p>
             </div>
@@ -298,7 +328,7 @@ const Dashboard = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold mb-2">Average Order Value</h3>
           <p className="text-2xl font-bold text-blue-600">
-            ${stats?.avgOrderValue || 0}
+            PKR {stats?.avgOrderValue?.toLocaleString() || 0}
           </p>
           <p className="text-sm text-gray-500">Per completed order</p>
         </div>
@@ -320,7 +350,10 @@ const Dashboard = () => {
 
       {/* Status info */}
       <div className="mt-6 text-sm text-gray-500 text-center">
-        {loading ? 'Loading...' : `Data refreshes automatically every 30 seconds • ${userRoleData.reduce((sum, item) => sum + item.value, 0)} total users`}
+        {loading 
+          ? 'Loading...' 
+          : `Data refreshes automatically every 30 seconds • ${(stats?.customerCount || 0) + (stats?.tailorCount || 0)} total users • ${stats?.orderCount || 0} total orders`
+        }
       </div>
     </div>
   );
