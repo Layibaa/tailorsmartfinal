@@ -1,4 +1,4 @@
-// admin-web/src/components/OrderManagement.js - Order management for admin panel
+// admin-web/src/components/OrderManagement.js - Enhanced Order Management Component
 import React, { useState, useEffect } from 'react';
 import { admin } from '../services/api';
 
@@ -9,6 +9,8 @@ const OrderManagement = () => {
   const [updating, setUpdating] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   const [pagination, setPagination] = useState({
     current: 1,
     pages: 1,
@@ -58,8 +60,7 @@ const OrderManagement = () => {
     const order = orders.find(o => o._id === orderId);
     if (!order) return;
 
-    // Confirm action
-    if (!window.confirm(`Are you sure you want to change order #${order.orderNumber || orderId.slice(-6)} status to ${newStatus}?`)) {
+    if (!window.confirm(`Are you sure you want to change order #${generateOrderNumber(order)} status to ${newStatus}?`)) {
       return;
     }
 
@@ -69,7 +70,6 @@ const OrderManagement = () => {
       console.log('OrderManagement: Updating order status:', orderId, newStatus);
       await admin.updateOrderStatus(orderId, newStatus);
       
-      // Update order in local state
       setOrders(prev => prev.map(order => 
         order._id === orderId ? { ...order, status: newStatus } : order
       ));
@@ -83,32 +83,11 @@ const OrderManagement = () => {
     }
   };
 
-  const handleTailorReassign = async (orderId, newTailorId) => {
-    if (!newTailorId) return;
-
-    setUpdating(prev => ({ ...prev, [orderId]: true }));
-    
-    try {
-      console.log('OrderManagement: Reassigning tailor:', orderId, newTailorId);
-      await admin.reassignTailor(orderId, newTailorId);
-      
-      // Reload orders to get updated data
-      await loadOrders(false);
-      
-      console.log('OrderManagement: Tailor reassigned successfully');
-    } catch (error) {
-      console.error('OrderManagement: Error reassigning tailor:', error);
-      alert(`Failed to reassign tailor: ${error.message}`);
-    } finally {
-      setUpdating(prev => ({ ...prev, [orderId]: false }));
-    }
-  };
-
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ 
       ...prev, 
       [key]: value,
-      page: 1 // Reset to first page when filters change
+      page: 1
     }));
   };
 
@@ -129,31 +108,34 @@ const OrderManagement = () => {
     }
   };
 
+  const viewImage = (imageUrl, title) => {
+    setSelectedImage({ url: imageUrl, title });
+    setShowImageModal(true);
+  };
+
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'accepted': return 'bg-blue-100 text-blue-800';
-      case 'confirmed': return 'bg-indigo-100 text-indigo-800';
-      case 'making': return 'bg-purple-100 text-purple-800';
-      case 'payment_done': return 'bg-pink-100 text-pink-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    const colors = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      accepted: 'bg-blue-100 text-blue-800',
+      confirmed: 'bg-indigo-100 text-indigo-800',
+      making: 'bg-purple-100 text-purple-800',
+      payment_done: 'bg-pink-100 text-pink-800',
+      completed: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
   const getStatusOptions = (currentStatus) => {
     const allStatuses = ['pending', 'accepted', 'confirmed', 'making', 'payment_done', 'completed', 'rejected'];
-    
-    // Define valid transitions
     const validTransitions = {
       pending: ['accepted', 'rejected'],
       accepted: ['confirmed', 'rejected'],
       confirmed: ['making'],
       making: ['payment_done'],
       payment_done: ['completed'],
-      completed: [], // No transitions from completed
-      rejected: ['pending'] // Allow re-opening rejected orders
+      completed: [],
+      rejected: ['pending']
     };
     
     return allStatuses.filter(status => 
@@ -177,7 +159,6 @@ const OrderManagement = () => {
 
   const generateOrderNumber = (order) => {
     if (order.orderNumber) return order.orderNumber;
-    // Generate a readable order number from ID and creation date
     const date = new Date(order.createdAt);
     const year = date.getFullYear().toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -379,6 +360,11 @@ const OrderManagement = () => {
                         <div className="text-xs text-gray-500">
                           {order._id.slice(-8)}
                         </div>
+                        {order.isLocked && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            🔒 Locked
+                          </span>
+                        )}
                       </div>
                     </td>
                     
@@ -417,6 +403,11 @@ const OrderManagement = () => {
                             {order.shalwarStyle} style
                           </div>
                         )}
+                        {(order.referenceImage || order.customerSketch) && (
+                          <div className="text-xs text-indigo-600 mt-1">
+                            📷 Has images
+                          </div>
+                        )}
                       </div>
                     </td>
                     
@@ -427,7 +418,7 @@ const OrderManagement = () => {
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.price ? `$${order.price}` : 'Not set'}
+                      {order.price ? `PKR ${order.price}` : 'Not set'}
                     </td>
                     
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -567,10 +558,11 @@ const OrderManagement = () => {
                       {selectedOrder.status.replace('_', ' ')}
                     </span>
                   </div>
+                  <div><strong>Locked:</strong> {selectedOrder.isLocked ? '🔒 Yes' : '🔓 No'}</div>
                   <div><strong>Garment:</strong> {selectedOrder.garmentType}</div>
                   {selectedOrder.kameezStyle && <div><strong>Style:</strong> {selectedOrder.kameezStyle}</div>}
                   {selectedOrder.shalwarStyle && <div><strong>Style:</strong> {selectedOrder.shalwarStyle}</div>}
-                  <div><strong>Price:</strong> {selectedOrder.price ? `$${selectedOrder.price}` : 'Not set'}</div>
+                  <div><strong>Price:</strong> {selectedOrder.price ? `PKR ${selectedOrder.price}` : 'Not set'}</div>
                   <div><strong>Created:</strong> {formatDate(selectedOrder.createdAt)}</div>
                   <div><strong>Updated:</strong> {formatDate(selectedOrder.updatedAt)}</div>
                 </div>
@@ -595,6 +587,37 @@ const OrderManagement = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Images Section */}
+              {(selectedOrder.referenceImage || selectedOrder.customerSketch) && (
+                <div className="col-span-2">
+                  <h4 className="font-medium text-gray-900 mb-2">Design References</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedOrder.referenceImage && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Reference Image</p>
+                        <img 
+                          src={selectedOrder.referenceImage.url} 
+                          alt="Reference" 
+                          className="w-full h-48 object-cover rounded cursor-pointer hover:opacity-80"
+                          onClick={() => viewImage(selectedOrder.referenceImage.url, 'Reference Image')}
+                        />
+                      </div>
+                    )}
+                    {selectedOrder.customerSketch && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Customer Sketch</p>
+                        <img 
+                          src={selectedOrder.customerSketch.url} 
+                          alt="Sketch" 
+                          className="w-full h-48 object-cover rounded cursor-pointer hover:opacity-80"
+                          onClick={() => viewImage(selectedOrder.customerSketch.url, 'Customer Sketch')}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               
               {selectedOrder.measurements && Object.keys(selectedOrder.measurements).length > 0 && (
                 <div>
@@ -628,6 +651,30 @@ const OrderManagement = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer Modal */}
+      {showImageModal && selectedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative max-w-4xl max-h-screen p-4">
+            <button
+              onClick={() => setShowImageModal(false)}
+              className="absolute top-4 right-4 text-white hover:text-gray-300"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="bg-white rounded-lg p-4">
+              <h3 className="text-lg font-medium mb-4">{selectedImage.title}</h3>
+              <img 
+                src={selectedImage.url} 
+                alt={selectedImage.title}
+                className="max-w-full max-h-[80vh] object-contain mx-auto"
+              />
             </div>
           </div>
         </div>

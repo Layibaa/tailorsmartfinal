@@ -1,9 +1,10 @@
-// admin-web/src/App.js - Complete updated version with navigation
+// admin-web/src/App.js - Updated with Order Management
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
+import OrderManagement from './components/OrderManagement';
 import Login from './components/Login';
 
 // Protected Route component
@@ -27,12 +28,16 @@ const ProtectedRoute = ({ children }) => {
 // Navigation component
 const Navigation = () => {
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState(location.pathname === '/users' ? 'users' : 'dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (location.pathname === '/users') return 'users';
+    if (location.pathname === '/orders') return 'orders';
+    return 'dashboard';
+  });
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', path: '/' },
     { id: 'users', label: 'User Management', path: '/users' },
-    { id: 'orders', label: 'Orders', path: '/orders', disabled: true },
+    { id: 'orders', label: 'Orders', path: '/orders' },
     { id: 'settings', label: 'Settings', path: '/settings', disabled: true }
   ];
 
@@ -181,28 +186,18 @@ const App = () => {
               } 
             />
 
-            {/* Placeholder routes for future features */}
             <Route 
               path="/orders" 
               element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <div className="p-6">
-                      <div className="text-center">
-                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">Order Management</h3>
-                        <p className="mt-1 text-sm text-gray-500">
-                          Order management functionality coming soon.
-                        </p>
-                      </div>
-                    </div>
+                    <OrderManagement />
                   </AppLayout>
                 </ProtectedRoute>
               } 
             />
 
+            {/* Placeholder route for settings */}
             <Route 
               path="/settings" 
               element={

@@ -28,7 +28,7 @@ const getDashboard = async (req, res) => {
       User.countDocuments({ role: 'tailor' }),
       Order.countDocuments(),
       
-      // Order status breakdown
+      // Order status breakdown - FIXED
       Order.aggregate([
         {
           $group: {
@@ -52,7 +52,7 @@ const getDashboard = async (req, res) => {
       // Completed orders count
       Order.countDocuments({ status: 'completed' }),
       
-      // Revenue statistics
+      // Revenue statistics - FIXED to handle missing prices
       Order.aggregate([
         {
           $match: { 
@@ -71,24 +71,28 @@ const getDashboard = async (req, res) => {
       ])
     ]);
 
-    // Format order status stats
-    const orderStatusStats = {};
-    const statusList = ['pending', 'accepted', 'rejected', 'confirmed', 'making', 'payment_done', 'completed'];
+    // Format order status stats - FIXED initialization
+    const orderStatusStats = {
+      pending: 0,
+      accepted: 0,
+      rejected: 0,
+      confirmed: 0,
+      making: 0,
+      payment_done: 0,
+      completed: 0
+    };
     
-    // Initialize all statuses with 0
-    statusList.forEach(status => {
-      orderStatusStats[status] = 0;
-    });
-    
-    // Fill in actual counts
+    // Fill in actual counts from database
     ordersByStatus.forEach(item => {
-      if (item._id && statusList.includes(item._id)) {
+      if (item._id && orderStatusStats.hasOwnProperty(item._id)) {
         orderStatusStats[item._id] = item.count || 0;
       }
     });
 
-    // Format revenue stats
-    const revenue = revenueStats[0] || { totalRevenue: 0, avgOrderValue: 0, count: 0 };
+    // Format revenue stats - FIXED to handle empty results
+    const revenue = revenueStats && revenueStats.length > 0 
+      ? revenueStats[0] 
+      : { totalRevenue: 0, avgOrderValue: 0, count: 0 };
 
     const stats = {
       customerCount: customerCount || 0,
@@ -102,13 +106,14 @@ const getDashboard = async (req, res) => {
       avgOrderValue: Math.round(revenue.avgOrderValue || 0)
     };
 
-    console.log('AdminController: Dashboard stats compiled:', {
-      customerCount: stats.customerCount,
-      tailorCount: stats.tailorCount,
-      orderCount: stats.orderCount,
-      totalRevenue: stats.totalRevenue,
-      completedOrders: stats.completedOrders
-    });
+    console.log('AdminController: Dashboard stats compiled successfully:');
+    console.log('- Customers:', stats.customerCount);
+    console.log('- Tailors:', stats.tailorCount);
+    console.log('- Total Orders:', stats.orderCount);
+    console.log('- Order Status Breakdown:', orderStatusStats);
+    console.log('- Completed Orders:', stats.completedOrders);
+    console.log('- Total Revenue:', stats.totalRevenue);
+    console.log('- Avg Order Value:', stats.avgOrderValue);
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -955,6 +960,7 @@ const getOrder = async (req, res) => {
 };
 
 module.exports = {
+  getDashboard,
   getDashboardStats,
   getMetrics,
   getAllUsers,
@@ -965,7 +971,6 @@ module.exports = {
   getCustomer,
   getTailor,
   getOrder,
-  getDashboard,
   getUsers,
   getUser, 
   createUser,
