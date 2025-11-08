@@ -1,7 +1,28 @@
-// admin-web/src/components/Analytics.js - Performance Metrics & Reports
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { admin } from '../services/api';
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+// Create axios instance with auth
+const api = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json' }
+});
+
+// Add token to requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 const Analytics = () => {
   const [metrics, setMetrics] = useState(null);
@@ -16,7 +37,9 @@ const Analytics = () => {
     
     try {
       console.log('Analytics: Loading metrics for range:', timeRange);
-      const response = await admin.getMetrics({ timeRange });
+      const response = await api.get('/admin/analytics/metrics', {
+        params: { timeRange }
+      });
       
       if (response.data && response.data.success) {
         setMetrics(response.data.metrics);
@@ -26,15 +49,15 @@ const Analytics = () => {
       }
     } catch (error) {
       console.error('Analytics: Error loading metrics:', error);
-      setError(error.message || 'Failed to load metrics');
+      setError(error.response?.data?.msg || error.message || 'Failed to load metrics');
       
       // Set empty metrics on error
       setMetrics({
-        averageCompletionTime: 0,
+        performanceMetrics: {},
+        orderTrends: [],
         peakUsageTimes: [],
         regionalActivity: [],
-        orderTrends: [],
-        performanceMetrics: {}
+        completionTimeDistribution: []
       });
     } finally {
       setLoading(false);
@@ -49,7 +72,10 @@ const Analytics = () => {
     setExportLoading(true);
     
     try {
-      const response = await admin.exportReport({ timeRange, format });
+      const response = await api.get('/admin/analytics/export', {
+        params: { timeRange, format },
+        responseType: format === 'csv' ? 'text' : 'json'
+      });
       
       // Create blob and download
       const blob = new Blob([response.data], { 
@@ -67,13 +93,14 @@ const Analytics = () => {
       console.log('Analytics: Report exported successfully');
     } catch (error) {
       console.error('Analytics: Export failed:', error);
-      alert('Failed to export report: ' + error.message);
+      alert('Failed to export report: ' + (error.response?.data?.msg || error.message));
     } finally {
       setExportLoading(false);
     }
   };
 
   const formatTime = (hours) => {
+    if (!hours) return '0 minutes';
     if (hours < 1) return `${Math.round(hours * 60)} minutes`;
     if (hours < 24) return `${hours.toFixed(1)} hours`;
     return `${(hours / 24).toFixed(1)} days`;
@@ -82,19 +109,19 @@ const Analytics = () => {
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-8">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
-            <p className="text-gray-600">Performance metrics and insights</p>
+            <p className="text-gray-600 mt-1">Performance metrics and insights</p>
           </div>
           
           <div className="flex space-x-4">
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
             >
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
@@ -107,14 +134,14 @@ const Analytics = () => {
               <button
                 onClick={() => exportReport('csv')}
                 disabled={exportLoading || loading}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Export CSV
               </button>
               <button
                 onClick={() => exportReport('json')}
                 disabled={exportLoading || loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Export JSON
               </button>
@@ -341,8 +368,10 @@ const Analytics = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       PKR {metrics?.performanceMetrics?.avgOrderValue?.toLocaleString() || 0}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                      ↑ {metrics?.performanceMetrics?.avgOrderValueTrend || 0}%
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={metrics?.performanceMetrics?.avgOrderValueTrend >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {metrics?.performanceMetrics?.avgOrderValueTrend >= 0 ? '↑' : '↓'} {Math.abs(metrics?.performanceMetrics?.avgOrderValueTrend || 0).toFixed(1)}%
+                      </span>
                     </td>
                   </tr>
                   <tr>
@@ -352,8 +381,10 @@ const Analytics = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {metrics?.performanceMetrics?.satisfactionRate?.toFixed(1) || 0}%
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                      ↑ {metrics?.performanceMetrics?.satisfactionTrend || 0}%
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={metrics?.performanceMetrics?.satisfactionTrend >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {metrics?.performanceMetrics?.satisfactionTrend >= 0 ? '↑' : '↓'} {Math.abs(metrics?.performanceMetrics?.satisfactionTrend || 0).toFixed(1)}%
+                      </span>
                     </td>
                   </tr>
                   <tr>
@@ -363,8 +394,10 @@ const Analytics = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatTime(metrics?.performanceMetrics?.avgResponseTime || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                      ↓ {metrics?.performanceMetrics?.responseTrend || 0}%
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={metrics?.performanceMetrics?.responseTrend <= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {metrics?.performanceMetrics?.responseTrend <= 0 ? '↓' : '↑'} {Math.abs(metrics?.performanceMetrics?.responseTrend || 0).toFixed(1)}%
+                      </span>
                     </td>
                   </tr>
                   <tr>
