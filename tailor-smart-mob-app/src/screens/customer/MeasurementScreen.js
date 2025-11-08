@@ -1,4 +1,4 @@
-// ✅ FIXED: MeasurementScreen.js with CORRECT navigation route
+// ✅ FIXED: MeasurementScreen.js - ONLY IMAGE UPLOAD FIX
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -53,36 +53,43 @@ const MeasurementScreen = ({ route, navigation }) => {
     }
   };
 
+  // ✅ ONLY FIXED THIS FUNCTION
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.7,
+        quality: 0.6, // Slightly reduced quality
         base64: true
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
+        
+        // Check file size
         const sizeInMB = (asset.base64.length * 3) / (4 * 1024 * 1024);
+        console.log('Image size:', sizeInMB.toFixed(2), 'MB');
         
         if (sizeInMB > 5) {
           Alert.alert('File Too Large', 'Please select an image smaller than 5MB');
           return;
         }
 
+        // Ensure proper base64 format
         const base64Image = `data:image/jpeg;base64,${asset.base64}`;
+        
         setReferenceImage({
           uri: asset.uri,
           base64: base64Image
         });
         
+        console.log('Reference image set successfully');
         Alert.alert('Success', 'Reference image added successfully!');
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
 
@@ -185,7 +192,6 @@ const MeasurementScreen = ({ route, navigation }) => {
       
       console.log("Order created successfully:", response);
       
-      // Emit event for real-time updates
       EventRegister.emit('newOrderCreated', response.order);
   
       Alert.alert(
@@ -196,7 +202,6 @@ const MeasurementScreen = ({ route, navigation }) => {
             text: 'OK', 
             onPress: () => {
               console.log("Navigating to Orders screen");
-              // ✅ FIXED: Navigate to the correct route name 'Orders' in CustomerTabs
               navigation.navigate('CustomerTabs', {
                 screen: 'Orders'
               });

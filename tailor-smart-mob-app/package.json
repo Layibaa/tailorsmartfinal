@@ -29,6 +29,7 @@
     "expo-dev-client": "~5.0.20",
     "expo-dev-launcher": "^6.0.15",
     "expo-dev-menu": "^7.0.14",
+    "expo-file-system": "^19.0.17",
     "expo-font": "~12.0.10",
     "expo-image-picker": "~15.0.7",
     "expo-notifications": "~0.29.7",
