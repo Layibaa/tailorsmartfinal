@@ -1,4 +1,4 @@
-// ✅ FIXED: MeasurementScreen.js - ONLY IMAGE UPLOAD FIX
+// ✅ FIXED: MeasurementScreen.js - IMAGE UPLOAD FIX
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -53,42 +53,62 @@ const MeasurementScreen = ({ route, navigation }) => {
     }
   };
 
-  // ✅ ONLY FIXED THIS FUNCTION
+  // ✅ COMPLETELY FIXED IMAGE PICKER
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.6, // Slightly reduced quality
+        quality: 0.5, // Reduced quality to prevent size issues
         base64: true
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         
-        // Check file size
-        const sizeInMB = (asset.base64.length * 3) / (4 * 1024 * 1024);
-        console.log('Image size:', sizeInMB.toFixed(2), 'MB');
+        // Check if base64 exists
+        if (!asset.base64) {
+          Alert.alert('Error', 'Failed to process image. Please try again.');
+          return;
+        }
+
+        // Check file size (approximate)
+        const sizeInMB = (asset.base64.length * 0.75) / (1024 * 1024);
+        console.log('📊 Image size:', sizeInMB.toFixed(2), 'MB');
         
         if (sizeInMB > 5) {
           Alert.alert('File Too Large', 'Please select an image smaller than 5MB');
           return;
         }
 
-        // Ensure proper base64 format
-        const base64Image = `data:image/jpeg;base64,${asset.base64}`;
+        // ✅ FIX: Properly format base64 string
+        // Remove any existing data:image prefix to avoid duplication
+        let base64Data = asset.base64;
+        if (base64Data.startsWith('data:')) {
+          // Extract just the base64 part after the comma
+          base64Data = base64Data.split(',')[1] || base64Data;
+        }
+
+        // Now create proper format
+        const mimeType = asset.uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        const base64Image = `data:${mimeType};base64,${base64Data}`;
         
+        console.log('✅ Image formatted:', {
+          mimeType,
+          prefix: base64Image.substring(0, 50),
+          size: base64Image.length
+        });
+
         setReferenceImage({
           uri: asset.uri,
           base64: base64Image
         });
         
-        console.log('Reference image set successfully');
         Alert.alert('Success', 'Reference image added successfully!');
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      console.error('❌ Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
@@ -98,6 +118,7 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   const handleCanvasSave = (signature) => {
+    console.log('✅ Canvas signature saved:', signature.substring(0, 50));
     setCustomerSketch(signature);
     setIsCanvasVisible(false);
     Alert.alert('Success', 'Your sketch has been saved!');
@@ -146,14 +167,15 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async (values) => {
-    console.log("handleSubmit called with values:", values);
+    console.log("📝 handleSubmit called");
     
+    // Validate measurements
     const missingMeasurements = requiredMeasurements.filter(
       key => !values[key] || values[key] === ''
     );
     
     if (missingMeasurements.length > 0) {
-      console.log("Missing required measurements:", missingMeasurements);
+      console.log("⚠️ Missing required measurements:", missingMeasurements);
       Alert.alert(
         "Missing Measurements",
         `Please enter values for: ${missingMeasurements.map(m => measurementLabels[m] || m).join(', ')}`
@@ -163,6 +185,7 @@ const MeasurementScreen = ({ route, navigation }) => {
     
     setLoading(true);
     
+    // Process measurements
     const measurements = {};
     requiredMeasurements.forEach(key => {
       if (values[key]) {
@@ -170,27 +193,41 @@ const MeasurementScreen = ({ route, navigation }) => {
       }
     });
     
-    console.log("Processed measurements:", measurements);
+    console.log("📏 Processed measurements:", measurements);
 
     try {
+      // ✅ FIX: Create order data with proper image handling
       const orderData = {
         tailorId,
         garmentType,
         measurements,
-        notes: notes || '',
-        ...(referenceImage?.base64 && { referenceImage: referenceImage.base64 }),
-        ...(customerSketch && { customerSketch: customerSketch })
+        notes: notes || ''
       };
+
+      // Only add images if they exist
+      if (referenceImage?.base64) {
+        console.log('📸 Adding reference image');
+        orderData.referenceImage = referenceImage.base64;
+      }
       
-      console.log("Sending order data:", {
-        ...orderData,
-        referenceImage: referenceImage ? 'HAS_IMAGE' : null,
-        customerSketch: customerSketch ? 'HAS_SKETCH' : null
+      if (customerSketch) {
+        console.log('✏️ Adding customer sketch');
+        orderData.customerSketch = customerSketch;
+      }
+      
+      console.log("📤 Sending order data:", {
+        tailorId: orderData.tailorId,
+        garmentType: orderData.garmentType,
+        measurementCount: Object.keys(orderData.measurements).length,
+        hasReferenceImage: !!orderData.referenceImage,
+        hasCustomerSketch: !!orderData.customerSketch,
+        referenceImagePrefix: orderData.referenceImage?.substring(0, 30),
+        customerSketchPrefix: orderData.customerSketch?.substring(0, 30)
       });
       
       const response = await createOrder(orderData);
       
-      console.log("Order created successfully:", response);
+      console.log("✅ Order created successfully:", response);
       
       EventRegister.emit('newOrderCreated', response.order);
   
@@ -201,7 +238,6 @@ const MeasurementScreen = ({ route, navigation }) => {
           { 
             text: 'OK', 
             onPress: () => {
-              console.log("Navigating to Orders screen");
               navigation.navigate('CustomerTabs', {
                 screen: 'Orders'
               });
@@ -211,17 +247,18 @@ const MeasurementScreen = ({ route, navigation }) => {
       );
 
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('❌ Error creating order:', error);
       console.error('Error details:', {
         response: error.response?.data,
         status: error.response?.status,
         message: error.message
       });
       
-      Alert.alert(
-        'Error',
-        error.response?.data?.msg || error.message || 'Failed to create order. Please try again.'
-      );
+      const errorMessage = error.response?.data?.msg || 
+                          error.message || 
+                          'Failed to create order. Please try again.';
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
