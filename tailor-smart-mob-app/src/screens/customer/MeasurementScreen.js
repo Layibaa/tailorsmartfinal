@@ -1,4 +1,4 @@
-// ✅ UPDATED: MeasurementScreen.js with web-compatible canvas
+// ✅ FIXED: MeasurementScreen.js with CORRECT navigation route
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -25,7 +25,7 @@ import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
 import { createOrder } from '../../services/api';
 import { EventRegister } from 'react-native-event-listeners';
-import DrawingCanvas from '../../components/ui/DrawingCanvas'; // NEW IMPORT
+import DrawingCanvas from '../../components/ui/DrawingCanvas';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -185,8 +185,9 @@ const MeasurementScreen = ({ route, navigation }) => {
       
       console.log("Order created successfully:", response);
       
+      // Emit event for real-time updates
       EventRegister.emit('newOrderCreated', response.order);
-      
+  
       Alert.alert(
         'Success',
         'Your order has been sent to the tailor for review.',
@@ -194,14 +195,16 @@ const MeasurementScreen = ({ route, navigation }) => {
           { 
             text: 'OK', 
             onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'CustomerTabs', params: { screen: 'Orders' } }],
+              console.log("Navigating to Orders screen");
+              // ✅ FIXED: Navigate to the correct route name 'Orders' in CustomerTabs
+              navigation.navigate('CustomerTabs', {
+                screen: 'Orders'
               });
             }
           }
         ]
       );
+
     } catch (error) {
       console.error('Error creating order:', error);
       console.error('Error details:', {
@@ -361,7 +364,7 @@ const MeasurementScreen = ({ route, navigation }) => {
         }}
       </Formik>
 
-      {/* Canvas Modal - UPDATED */}
+      {/* Canvas Modal */}
       <Modal
         visible={isCanvasVisible}
         animationType="slide"
