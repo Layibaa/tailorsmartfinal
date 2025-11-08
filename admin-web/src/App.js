@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
 import OrderManagement from './components/OrderManagement';
 import Login from './components/Login';
+import Analytics from './components/Analytics';
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -38,6 +39,7 @@ const Navigation = () => {
     { id: 'dashboard', label: 'Dashboard', path: '/' },
     { id: 'users', label: 'User Management', path: '/users' },
     { id: 'orders', label: 'Orders', path: '/orders' },
+      { id: 'analytics', label: 'Analytics', path: '/analytics' }, // NEWt
     { id: 'settings', label: 'Settings', path: '/settings', disabled: true }
   ];
 
@@ -196,7 +198,16 @@ const App = () => {
                 </ProtectedRoute>
               } 
             />
-
+            <Route 
+  path="/analytics" 
+  element={
+    <ProtectedRoute>
+      <AppLayout>
+        <Analytics />
+      </AppLayout>
+    </ProtectedRoute>
+  } 
+/>
             {/* Placeholder route for settings */}
             <Route 
               path="/settings" 

@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth, requireAdmin, requireSuperAdmin } = require('../middleware/auth');
+const analyticsController = require('../controllers/analyticsController');
 
 const { 
   getDashboardStats,
@@ -27,6 +28,10 @@ const {
 // All admin routes require authentication
 router.use(auth);
 router.use(requireAdmin); 
+
+// Add these routes
+router.get('/analytics/metrics', requireAdmin, analyticsController.getMetrics);
+router.get('/analytics/export', requireAdmin, analyticsController.exportReport);
 
 // Dashboard endpoints
 router.get('/dashboard', requireAdmin, getDashboardStats);
