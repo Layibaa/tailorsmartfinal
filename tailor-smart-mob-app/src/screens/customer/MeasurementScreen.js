@@ -1,4 +1,4 @@
-// ✅ FIXED: MeasurementScreen.js with proper scrolling
+// ✅ UPDATED: MeasurementScreen.js with web-compatible canvas
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -8,7 +8,6 @@ import {
   Alert,
   TouchableOpacity,
   Image,
-  Switch,
   Modal,
   Dimensions,
   Platform
@@ -16,7 +15,6 @@ import {
 import { Formik } from 'formik';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import SignatureCanvas from 'react-native-signature-canvas';
 import { 
   MeasurementsSchema, 
   getRequiredMeasurementsForGarment,
@@ -25,9 +23,9 @@ import {
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
-import globalStyles from '../../styles/globalStyles';
-import api, { API_URL, createOrder } from '../../services/api';
-import { EventRegister } from 'react-native-event-listeners'; 
+import { createOrder } from '../../services/api';
+import { EventRegister } from 'react-native-event-listeners';
+import DrawingCanvas from '../../components/ui/DrawingCanvas'; // NEW IMPORT
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -41,8 +39,6 @@ const MeasurementScreen = ({ route, navigation }) => {
   const [referenceImage, setReferenceImage] = useState(null);
   const [customerSketch, setCustomerSketch] = useState(null);
   const [isCanvasVisible, setIsCanvasVisible] = useState(false);
-  const signatureRef = useRef(null);
- 
 
   useEffect(() => {
     const measurements = getRequiredMeasurementsForGarment(garmentType);
@@ -238,7 +234,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         </Text>
       </View>
 
-       
       {/* Design Reference Section */}
       <View style={styles.designReferenceContainer}>
         <View style={styles.sectionHeader}>
@@ -366,43 +361,16 @@ const MeasurementScreen = ({ route, navigation }) => {
         }}
       </Formik>
 
-      {/* Canvas Modal */}
+      {/* Canvas Modal - UPDATED */}
       <Modal
         visible={isCanvasVisible}
         animationType="slide"
         onRequestClose={() => setIsCanvasVisible(false)}
       >
-        <View style={styles.canvasModal}>
-          <View style={styles.canvasHeader}>
-            <Text style={styles.canvasTitle}>Draw Your Design</Text>
-            <TouchableOpacity onPress={() => setIsCanvasVisible(false)}>
-              <Feather name="x" size={24} color={colors.black} />
-            </TouchableOpacity>
-          </View>
-          
-          <SignatureCanvas
-            ref={signatureRef}
-            onOK={handleCanvasSave}
-            descriptionText="Draw your design sketch here"
-            clearText="Clear"
-            confirmText="Save"
-            webStyle={`
-              .m-signature-pad {
-                box-shadow: none;
-                border: 1px solid #e8e8e8;
-                background-color: white;
-              }
-              .m-signature-pad--body {
-                border: none;
-              }
-              .m-signature-pad--footer {
-                display: flex;
-                justify-content: space-between;
-                padding: 10px;
-              }
-            `}
-          />
-        </View>
+        <DrawingCanvas 
+          onSave={handleCanvasSave}
+          onClose={() => setIsCanvasVisible(false)}
+        />
       </Modal>
     </ScrollView>
   );
@@ -431,19 +399,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.gray,
     textTransform: 'capitalize'
-  },
-  
-  warningContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '20',
-    borderRadius: 6,
-    padding: 8
-  },
-  warningText: {
-    fontSize: 12,
-    color: colors.warning,
-    marginLeft: 6
   },
   designReferenceContainer: {
     backgroundColor: colors.white,
@@ -523,24 +478,6 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  canvasModal: {
-    flex: 1,
-    backgroundColor: colors.white
-  },
-  canvasHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 50,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.lightGray
-  },
-  canvasTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.black
   },
   measurementGuideContainer: {
     backgroundColor: colors.lightGray,
