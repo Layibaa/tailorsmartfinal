@@ -714,4 +714,42 @@ export const deleteReview = async (reviewId) => {
   }
 };
 
+// Add these functions at the bottom before export default api
+
+// ============================================
+// ADMIN BROADCAST APIs
+// ============================================
+
+export const getUserAdminMessages = async () => {
+  try {
+    console.log('📨 Fetching admin messages');
+    const response = await api.get('/admin-messages/my-messages');
+    return response.data;
+  } catch (error) {
+    console.error('Get admin messages error:', error);
+    throw error;
+  }
+};
+
+export const getUnreadAdminMessagesCount = async () => {
+  try {
+    const response = await api.get('/admin-messages/my-messages/unread-count');
+    return response.data;
+  } catch (error) {
+    console.error('Get unread admin messages count error:', error);
+    throw error;
+  }
+};
+
+export const markMessageAsRead = async (messageId) => {
+  try {
+    console.log('✅ Marking message as read:', messageId);
+    const response = await api.patch(`/admin-messages/my-messages/${messageId}/read`);
+    return response.data;
+  } catch (error) {
+    console.error('Mark message as read error:', error);
+    throw error;
+  }
+};
+
 export default api;

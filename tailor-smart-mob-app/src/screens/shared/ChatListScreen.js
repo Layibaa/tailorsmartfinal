@@ -1,3 +1,4 @@
+// tailor-smart-mob-app/src/screens/shared/ChatListScreen.js
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -8,7 +9,7 @@ import {
   RefreshControl
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { getAllConversations } from '../../services/api';
+import { getAllConversations, getUnreadAdminMessagesCount } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors';
@@ -17,12 +18,19 @@ const ChatListScreen = ({ navigation }) => {
   const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const { user } = useContext(AuthContext);
 
   const loadConversations = async () => {
     try {
-      const response = await getAllConversations();
-      setConversations(response.conversations || []);
+      // Load both conversations and admin message count in parallel
+      const [conversationsRes, unreadRes] = await Promise.all([
+        getAllConversations(),
+        getUnreadAdminMessagesCount()
+      ]);
+      
+      setConversations(conversationsRes.conversations || []);
+      setAdminUnreadCount(unreadRes.data?.unreadCount || 0);
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
@@ -45,6 +53,10 @@ const ChatListScreen = ({ navigation }) => {
       userId: conversation._id,
       name: conversation.userInfo?.name || 'Chat'
     });
+  };
+
+  const handleAdminMessagesPress = () => {
+    navigation.navigate('AdminMessages');
   };
 
   if (isLoading) {
@@ -95,8 +107,28 @@ const ChatListScreen = ({ navigation }) => {
         )}
       />
 
-      {/* Refresh Button */}
-      <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
+      {/* Admin Messages Button - Fixed Position */}
+      <TouchableOpacity
+        style={styles.adminMessageButton}
+        onPress={handleAdminMessagesPress}
+        activeOpacity={0.8}
+      >
+        <View style={styles.adminButtonContent}>
+          <Feather name="shield" size={24} color={colors.white} />
+          {adminUnreadCount > 0 && (
+            <View style={styles.adminBadge}>
+              <Text style={styles.adminBadgeText}>{adminUnreadCount}</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {/* Regular Refresh Button */}
+      <TouchableOpacity 
+        style={styles.refreshButton} 
+        onPress={onRefresh}
+        activeOpacity={0.8}
+      >
         <Feather name="refresh-cw" size={24} color={colors.white} />
       </TouchableOpacity>
     </View>
@@ -166,15 +198,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold'
   },
+  
+  // Admin Messages Button - Purple with Shield Icon
+  adminMessageButton: {
+    position: 'absolute',
+    bottom: 80,
+    right: 20,
+    backgroundColor: '#8b5cf6',
+    borderRadius: 50,
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8
+  },
+  adminButtonContent: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  adminBadge: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    backgroundColor: '#ef4444',
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: colors.white
+  },
+  adminBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: 'bold'
+  },
+  
+  // Regular Refresh Button - Black
   refreshButton: {
     position: 'absolute',
     bottom: 20,
     right: 20,
     backgroundColor: colors.black,
     borderRadius: 50,
-    padding: 12,
+    width: 56,
+    height: 56,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8
   }
 });
 

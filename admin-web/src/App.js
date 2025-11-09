@@ -7,7 +7,7 @@ import UserManagement from './components/UserManagement';
 import OrderManagement from './components/OrderManagement';
 import Login from './components/Login';
 import Analytics from './components/Analytics';
-
+import AdminBroadcast from './components/AdminBroadcast'; // NEW
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -40,6 +40,7 @@ const Navigation = () => {
     { id: 'users', label: 'User Management', path: '/users' },
     { id: 'orders', label: 'Orders', path: '/orders' },
       { id: 'analytics', label: 'Analytics', path: '/analytics' }, // NEWt
+        { id: 'broadcast', label: 'Broadcast', path: '/broadcast' }, // ADD THIS
     { id: 'settings', label: 'Settings', path: '/settings', disabled: true }
   ];
 
@@ -204,6 +205,16 @@ const App = () => {
     <ProtectedRoute>
       <AppLayout>
         <Analytics />
+      </AppLayout>
+    </ProtectedRoute>
+  } 
+/>
+<Route 
+  path="/broadcast" 
+  element={
+    <ProtectedRoute>
+      <AppLayout>
+        <AdminBroadcast/>
       </AppLayout>
     </ProtectedRoute>
   } 
