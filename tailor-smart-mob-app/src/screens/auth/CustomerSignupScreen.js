@@ -93,7 +93,11 @@ const CustomerSignupScreen = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : null}
       keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
     >
-      <ScrollView contentContainerStyle={styles.scrollView}>
+      <ScrollView 
+    style={styles.scrollView}
+    contentContainerStyle={styles.contentContainer}
+    showsVerticalScrollIndicator={true}
+  >
         <Text style={styles.title}>Customer Registration</Text>
         <Text style={styles.subtitle}>Join our tailoring app to get custom garments</Text>
         
@@ -294,6 +298,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white
+  },
+  contentContainer: {
+    paddingBottom: 40,
+    flexGrow: 1  // Use flexGrow instead if needed
   },
   scrollView: {
     padding: 20

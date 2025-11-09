@@ -202,11 +202,14 @@ const CustomerProfileScreen = ({ navigation }) => {
 
       {/* Scrollable Content */}
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+  style={styles.scrollView}
+  contentContainerStyle={styles.scrollContent}
+  showsVerticalScrollIndicator={true}      // ✅ show scrollbar
+  persistentScrollbar={true}               // ✅ keeps it visible while scrolling
+  nestedScrollEnabled={true}               // ✅ helps inside modals/nested views
+  keyboardShouldPersistTaps="handled"
+>
+
         <Formik
           initialValues={{
             name: profile?.name || '',
@@ -601,13 +604,15 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40
   },
-  scrollView: {
-    flex: 1
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100
-  },
+ scrollView: {
+  backgroundColor: colors.white,   // ❌ remove flex: 1
+},
+
+scrollContent: {
+  flexGrow: 1,                     // ✅ makes scrolling possible
+  padding: 16,
+  paddingBottom: 120,              // ✅ space for bottom content
+}, 
   formContainer: {
     width: '100%'
   },
