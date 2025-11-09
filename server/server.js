@@ -20,6 +20,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const adminBroadcastRoutes = require('./routes/adminBroadcastRoutes');
 
 // Import middleware
 const errorHandlerMiddleware = require('./middleware/errorHandler');
@@ -68,6 +69,8 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/messages', messageRoutes);
 app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/v1/admin-messages', adminBroadcastRoutes);
+
 
 // Error handling middleware (MUST BE AFTER ROUTES)
 app.use(notFoundMiddleware);

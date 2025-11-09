@@ -16,6 +16,7 @@ import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 
 // Admin screens
 import AdminDashboard from '../screens/admin/AdminDashboard';
+import AdminMessagesScreen from '../screens/shared/AdminMessagesScreen';
 
 // Customer screens
 import CustomerDashboard from '../screens/customer/CustomerDashboard';
@@ -312,6 +313,13 @@ const CustomerStackNavigator = () => (
         title: route.params?.name || 'Chat' 
       })} 
     />
+    <CustomerStack.Screen 
+  name="AdminMessages" 
+  component={AdminMessagesScreen} 
+  options={{ 
+    headerShown: false
+  }} 
+/>
   </CustomerStack.Navigator>
 );
 // Tailor stack navigator (including tab navigator)
@@ -346,6 +354,13 @@ const TailorStackNavigator = () => (
         title: route.params?.name || 'Chat' 
       })} 
     />
+    <TailorStack.Screen 
+  name="AdminMessages" 
+  component={AdminMessagesScreen} 
+  options={{ 
+    headerShown: false
+  }} 
+/>
   </TailorStack.Navigator>
 );
 
