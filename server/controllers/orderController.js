@@ -4,19 +4,18 @@ const Message = require('../models/Message');
 const { StatusCodes } = require('http-status-codes');
 const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
 const { uploadImage, deleteImage } = require('../config/cloudinary');
+const { predictDeliveryTime, updatePrediction } = require('../services/deliveryPredictionService');
 
-// ✅ FIXED: Validate and process image data
+// Process image upload helper
 const processImageUpload = async (imageData, type) => {
   if (!imageData) return null;
   
   try {
-    // Validate base64 format
     if (!imageData.startsWith('data:image/')) {
       console.error('❌ Invalid image format:', imageData.substring(0, 50));
       throw new Error('Invalid image format. Must be base64 encoded image.');
     }
     
-    // Check size (approximate, base64 is ~33% larger than original)
     const sizeInBytes = (imageData.length * 3) / 4;
     const maxSize = 5 * 1024 * 1024; // 5MB
     
@@ -26,7 +25,6 @@ const processImageUpload = async (imageData, type) => {
       throw new Error('Image size exceeds 5MB limit');
     }
     
-    // Upload to Cloudinary
     console.log(`☁️ Uploading ${type} to Cloudinary...`);
     const uploadResult = await uploadImage(imageData, `tailor-orders/${type}`);
     console.log(`✅ ${type} uploaded successfully:`, uploadResult.publicId);
@@ -42,7 +40,7 @@ const processImageUpload = async (imageData, type) => {
   }
 };
 
-// ✅ FIXED: CREATE ORDER
+// ✅ CREATE ORDER with Delivery Prediction
 const createOrder = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
@@ -70,9 +68,7 @@ const createOrder = async (req, res) => {
       garmentType,
       measurements,
       hasReferenceImage: !!referenceImage,
-      hasCustomerSketch: !!customerSketch,
-      referenceImagePrefix: referenceImage?.substring(0, 30),
-      customerSketchPrefix: customerSketch?.substring(0, 30)
+      hasCustomerSketch: !!customerSketch
     });
 
     // Validate tailor
@@ -83,7 +79,7 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // ✅ FIXED: Process image uploads with better error handling
+    // Process image uploads
     let referenceImageData = null;
     let customerSketchData = null;
 
@@ -104,7 +100,16 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // Create order
+    // ✨ NEW: Predict delivery time
+    console.log('🔮 Calculating delivery prediction...');
+    const prediction = await predictDeliveryTime({
+      garmentType,
+      measurements,
+      referenceImage: referenceImageData,
+      customerSketch: customerSketchData
+    }, tailorId);
+
+    // Create order with prediction
     console.log('💾 Creating order in database...');
     const order = await Order.create({
       customer: userId,
@@ -115,13 +120,21 @@ const createOrder = async (req, res) => {
       status: 'pending',
       isLocked: false,
       referenceImage: referenceImageData,
-      customerSketch: customerSketchData
+      customerSketch: customerSketchData,
+      estimatedCompletionDate: prediction.estimatedCompletionDate,
+      predictionConfidence: prediction.predictionConfidence,
+      complexityScore: prediction.complexityScore,
+      predictionFactors: prediction.predictionFactors
     });
 
     console.log('✅ Order created:', order._id);
+    console.log('📅 Estimated completion:', prediction.estimatedCompletionDate);
 
-    // Create notification message
-    const messageContent = `New order request for ${garmentType}${referenceImageData || customerSketchData ? ' (includes design reference)' : ''}`;
+    // Create notification message with delivery estimate
+    const estimatedDays = Math.round(
+      (prediction.estimatedCompletionDate - new Date()) / (1000 * 60 * 60 * 24)
+    );
+    const messageContent = `New order request for ${garmentType}. Estimated completion: ${estimatedDays} days${referenceImageData || customerSketchData ? ' (includes design reference)' : ''}`;
     
     await Message.create({
       sender: userId,
@@ -135,7 +148,15 @@ const createOrder = async (req, res) => {
     // Populate order data for response
     await order.populate('customer tailor');
 
-    res.status(StatusCodes.CREATED).json({ success: true, order });
+    res.status(StatusCodes.CREATED).json({ 
+      success: true, 
+      order,
+      prediction: {
+        estimatedDays,
+        confidence: prediction.predictionConfidence,
+        factors: prediction.predictionFactors
+      }
+    });
   } catch (error) {
     console.error('❌ Create order error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
@@ -145,7 +166,7 @@ const createOrder = async (req, res) => {
   }
 };
 
-// ---------------- GET ORDER DETAILS ----------------
+// GET ORDER DETAILS
 const getOrderDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -182,7 +203,7 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
-// ---------------- LOCK/UNLOCK ORDER ----------------
+// LOCK/UNLOCK ORDER
 const lockOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -264,7 +285,7 @@ const lockOrder = async (req, res) => {
   }
 };  
 
-// ---------------- UPDATE ORDER DETAILS ----------------
+// UPDATE ORDER DETAILS
 const updateOrderDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -328,7 +349,7 @@ const updateOrderDetails = async (req, res) => {
   }
 };
 
-// ---------------- UPDATE ORDER STATUS ----------------
+// ✅ UPDATE ORDER STATUS with Prediction Update
 const updateOrderStatus = async (req, res) => {
   try {
     const { userId, role } = req.user;
@@ -378,6 +399,12 @@ const updateOrderStatus = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('customer tailor');
 
+    // ✨ NEW: Update prediction when status changes to confirmed or making
+    if (['confirmed', 'making'].includes(status)) {
+      console.log('🔮 Updating delivery prediction...');
+      await updatePrediction(orderId);
+    }
+
     const notificationMessages = {
       accepted: `Your order has been accepted. The price is PKR ${price}`,
       rejected: 'Your order has been rejected by the tailor',
@@ -409,7 +436,7 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// ---------------- CONFIRM ORDER ----------------
+// CONFIRM ORDER
 const confirmOrder = async (req, res) => {
   try {
     const { userId, role } = req.user;
@@ -440,6 +467,10 @@ const confirmOrder = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('customer tailor');
 
+    // ✨ NEW: Generate initial prediction when order is confirmed
+    console.log('🔮 Generating initial delivery prediction...');
+    await updatePrediction(orderId);
+
     await Message.create({
       sender: userId,
       receiver: order.tailor,
@@ -460,7 +491,7 @@ const confirmOrder = async (req, res) => {
   }
 };
 
-// ---------------- DELETE ORDER ----------------
+// DELETE ORDER
 const deleteOrder = async (req, res) => {
   try {
     const { userId, role } = req.user;
@@ -482,7 +513,7 @@ const deleteOrder = async (req, res) => {
       });
     }
 
-    // Delete images from Cloudinary before deleting order
+    // Delete images from Cloudinary
     try {
       if (order.referenceImage?.publicId) {
         console.log('🗑️ Deleting reference image:', order.referenceImage.publicId);
@@ -494,7 +525,6 @@ const deleteOrder = async (req, res) => {
       }
     } catch (imageError) {
       console.error('❌ Error deleting images:', imageError);
-      // Continue with order deletion even if image deletion fails
     }
 
     await Order.findByIdAndDelete(orderId);

@@ -752,4 +752,112 @@ export const markMessageAsRead = async (messageId) => {
   }
 };
 
+// ADD THESE METHODS TO: tailor-smart-mob-app/src/services/api.js
+// Place them in a new section called "DELIVERY PREDICTION APIs"
+
+// ============================================
+// DELIVERY PREDICTION APIs
+// ============================================
+
+/**
+ * Get delivery time prediction for a potential order
+ */
+export const getDeliveryPrediction = async (orderData) => {
+  try {
+    console.log('🔮 Getting delivery prediction for:', orderData);
+    
+    if (!orderData.tailorId) {
+      throw new Error('Tailor ID is required for prediction');
+    }
+    
+    const response = await api.post('/delivery/predict', {
+      tailorId: orderData.tailorId,
+      garmentType: orderData.garmentType,
+      measurements: orderData.measurements,
+      referenceImage: orderData.referenceImage ? true : false,
+      customerSketch: orderData.customerSketch ? true : false
+    });
+    
+    console.log('✅ Delivery prediction received');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get delivery prediction error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get tailor's delivery performance statistics
+ */
+export const getTailorDeliveryStats = async (tailorId) => {
+  try {
+    console.log('📊 Fetching delivery stats for tailor:', tailorId);
+    const response = await api.get(`/delivery/tailor-stats/${tailorId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get tailor delivery stats error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get own delivery statistics (for tailors)
+ */
+export const getMyDeliveryStats = async () => {
+  try {
+    console.log('📊 Fetching my delivery stats');
+    const response = await api.get('/delivery/my-stats');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get my delivery stats error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Calculate order complexity score (client-side preview)
+ */
+export const calculateOrderComplexity = (orderData) => {
+  let complexity = 5; // Base complexity
+  
+  // Garment type complexity
+  const garmentComplexity = {
+    'shalwar': 3,
+    'kameez': 4
+  };
+  complexity += garmentComplexity[orderData.garmentType] || 3;
+  
+  // Style complexity
+  const styleComplexity = {
+    'simple': 0,
+    'patiala': 2,
+    'gharara': 3,
+    'capri': 1,
+    'anarkali': 3,
+    'angrakka': 2,
+    'a-line': 2,
+    'other': 2
+  };
+  
+  if (orderData.shalwarStyle) {
+    complexity += styleComplexity[orderData.shalwarStyle] || 1;
+  }
+  if (orderData.kameezStyle) {
+    complexity += styleComplexity[orderData.kameezStyle] || 1;
+  }
+  
+  // Reference image/sketch adds complexity
+  if (orderData.referenceImage || orderData.customerSketch) {
+    complexity += 1;
+  }
+  
+  // Normalize to 1-10 scale
+  return Math.min(10, Math.max(1, complexity));
+};
+
+// Example usage in your existing createOrder function:
+// Before calling createOrder API, you can call:
+// const prediction = await getDeliveryPrediction(orderData);
+// Then show it to the user before they confirm the order
+
 export default api;

@@ -62,10 +62,9 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       maxlength: 500
     },
-    // ✨ NEW: Image/Sketch fields
     referenceImage: {
       url: { type: String },
-      publicId: { type: String }, // For Cloudinary deletion
+      publicId: { type: String },
       uploadedAt: { type: Date }
     },
     customerSketch: {
@@ -73,7 +72,6 @@ const OrderSchema = new mongoose.Schema(
       publicId: { type: String },
       uploadedAt: { type: Date }
     },
-    // ✨ END NEW
     timeline: [
       {
         status: {
@@ -87,6 +85,37 @@ const OrderSchema = new mongoose.Schema(
         notes: String
       }
     ],
+    
+    // ✨ NEW: Delivery Time Prediction Fields
+    estimatedCompletionDate: {
+      type: Date
+    },
+    predictionConfidence: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium'
+    },
+    actualCompletionDate: {
+      type: Date
+    },
+    predictionAccuracy: {
+      type: Number, // Percentage (0-100)
+      min: 0,
+      max: 100
+    },
+    complexityScore: {
+      type: Number,
+      min: 1,
+      max: 10,
+      default: 5
+    },
+    predictionFactors: {
+      tailorWorkload: Number,
+      avgCompletionTime: Number,
+      complexityAdjustment: Number,
+      historicalAccuracy: Number
+    },
+    
     expectedCompletionDate: Date,
     paymentStatus: {
       type: String,
@@ -104,7 +133,7 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Pre-save middleware to update timeline
+// Pre-save middleware to update timeline and calculate prediction accuracy
 OrderSchema.pre('save', function(next) {
   if (this.isNew || this.isModified('status')) {
     this.timeline.push({
@@ -112,6 +141,21 @@ OrderSchema.pre('save', function(next) {
       date: new Date(),
       notes: `Order ${this.isNew ? 'created' : 'updated'} with status: ${this.status}`
     });
+    
+    // ✨ NEW: Calculate accuracy when order is completed
+    if (this.status === 'completed' && !this.actualCompletionDate) {
+      this.actualCompletionDate = new Date();
+      
+      if (this.estimatedCompletionDate) {
+        const estimatedTime = this.estimatedCompletionDate.getTime();
+        const actualTime = this.actualCompletionDate.getTime();
+        const difference = Math.abs(actualTime - estimatedTime);
+        const daysDifference = difference / (1000 * 60 * 60 * 24);
+        
+        // Calculate accuracy (100% if within 1 day, decreasing by 10% per day difference)
+        this.predictionAccuracy = Math.max(0, 100 - (daysDifference * 10));
+      }
+    }
   }
   next();
 });
@@ -121,5 +165,7 @@ OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ tailor: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ isLocked: 1 });
+OrderSchema.index({ tailor: 1, status: 1 });
+OrderSchema.index({ estimatedCompletionDate: 1 });
 
 module.exports = mongoose.model('Order', OrderSchema);

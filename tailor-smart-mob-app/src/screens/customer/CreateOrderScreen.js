@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+// tailor-smart-mob-app/src/screens/customer/CreateOrderScreen.js
+// UPDATED VERSION WITH DELIVERY PREDICTION
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,200 +9,307 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform
+  ActivityIndicator
 } from 'react-native';
-import { Formik } from 'formik';
-import * as Yup from 'yup';
 import { Feather } from '@expo/vector-icons';
-import Input from '../../components/ui/Input';
+import * as ImagePicker from 'expo-image-picker';
+import { createOrder, getDeliveryPrediction } from '../../services/api';
 import Button from '../../components/ui/Button';
+import DeliveryPrediction from '../../components/orders/DeliveryPrediction';
 import colors from '../../styles/colors';
 
 const CreateOrderScreen = ({ route, navigation }) => {
-  const { tailorId, tailorName } = route.params;
-  const [loading, setLoading] = useState(false);
+  const { tailorId, tailorName, measurements: savedMeasurements } = route.params;
+  
+  const [garmentType, setGarmentType] = useState('');
+  const [measurements, setMeasurements] = useState(savedMeasurements || {});
+  const [notes, setNotes] = useState('');
+  const [referenceImage, setReferenceImage] = useState(null);
+  const [customerSketch, setCustomerSketch] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // ✨ NEW: Prediction states
+  const [prediction, setPrediction] = useState(null);
+  const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
+  const [showPrediction, setShowPrediction] = useState(false);
 
-  const garmentTypes = [
-    { value: 'shalwar', label: 'Shalwar' },
-    { value: 'kameez', label: 'Kameez' },
-  ];
+  // ✨ NEW: Load prediction when key details are available
+  useEffect(() => {
+    if (garmentType && Object.keys(measurements).length > 0) {
+      loadPrediction();
+    }
+  }, [garmentType, measurements, referenceImage, customerSketch]);
 
-  const shalwarStyles = [
-    { value: 'simple', label: 'Simple' },
-    { value: 'patiala', label: 'Patiala' },
-    { value: 'gharara', label: 'Gharara' },
-    { value: 'capri', label: 'Capri' },
-    { value: 'other', label: 'Other' },
-  ];
+  // ✨ NEW: Load delivery prediction
+  const loadPrediction = async () => {
+    try {
+      setIsLoadingPrediction(true);
+      
+      const predictionData = await getDeliveryPrediction({
+        tailorId,
+        garmentType,
+        measurements,
+        referenceImage: referenceImage ? true : false,
+        customerSketch: customerSketch ? true : false
+      });
+      
+      setPrediction(predictionData.prediction);
+      setShowPrediction(true);
+    } catch (error) {
+      console.error('Error loading prediction:', error);
+      // Don't show error to user, just hide prediction
+      setShowPrediction(false);
+    } finally {
+      setIsLoadingPrediction(false);
+    }
+  };
 
-  const kameezStyles = [
-    { value: 'simple', label: 'Simple' },
-    { value: 'anarkali', label: 'Anarkali' },
-    { value: 'angrakka', label: 'Angrakka' },
-    { value: 'a-line', label: 'A-Line' },
-    { value: 'other', label: 'Other' },
-  ];
+  const handleImagePick = async (type) => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library');
+        return;
+      }
 
-  const validationSchema = Yup.object({
-    garmentType: Yup.string()
-      .oneOf(['shalwar', 'kameez'], 'Please select a garment type')
-      .required('Garment type is required'),
-    style: Yup.string()
-      .when('garmentType', {
-        is: 'shalwar',
-        then: () => Yup.string()
-          .oneOf(['simple', 'patiala', 'gharara', 'capri', 'other'])
-          .required('Shalwar style is required'),
-        otherwise: () => Yup.string()
-          .when('garmentType', {
-            is: 'kameez',
-            then: () => Yup.string()
-              .oneOf(['simple', 'anarkali', 'angrakka', 'a-line', 'other'])
-              .required('Kameez style is required'),
-            otherwise: () => Yup.string()
-          })
-      }),
-    notes: Yup.string()
-      .max(500, 'Notes are too long (max 500 characters)')
-  });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true
+      });
 
-  const handleSubmit = (values) => {
-    const orderData = {
-      tailorId,
-      tailorName,
-      garmentType: values.garmentType,
-      [values.garmentType === 'shalwar' ? 'shalwarStyle' : 'kameezStyle']: values.style,
-      notes: values.notes || ''
-    };
+      if (!result.canceled && result.assets[0]) {
+        const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        
+        if (type === 'reference') {
+          setReferenceImage(base64Image);
+        } else {
+          setCustomerSketch(base64Image);
+        }
+        
+        // Reload prediction with new image
+        setTimeout(loadPrediction, 500);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
 
-    navigation.navigate('Measurements', orderData);
+  const handleSubmit = async () => {
+    // Validation
+    if (!garmentType) {
+      Alert.alert('Required', 'Please select a garment type');
+      return;
+    }
+
+    if (Object.keys(measurements).length === 0) {
+      Alert.alert('Required', 'Please add measurements');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const orderData = {
+        tailorId,
+        garmentType,
+        measurements,
+        notes,
+        referenceImage,
+        customerSketch
+      };
+
+      const response = await createOrder(orderData);
+
+      if (response.success) {
+        Alert.alert(
+          'Success', 
+          `Order created successfully!\n\nEstimated delivery: ${prediction?.estimatedDays || 7} days`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.navigate('CustomerTabs', {
+                  screen: 'Orders',
+                  params: { 
+                    newOrderAdded: true,
+                    newOrderData: response.order 
+                  }
+                });
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Create order error:', error);
+      Alert.alert('Error', error.response?.data?.msg || 'Failed to create order');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <View style={{ flex: 1 }}>
-   <KeyboardAvoidingView 
-  style={styles.container}
-  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-  keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
->
-  <ScrollView
-  style={styles.scrollView}
-  contentContainerStyle={styles.contentContainer}
-  keyboardShouldPersistTaps="handled"
-  showsVerticalScrollIndicator={true} // ✅ show scrollbar
-  persistentScrollbar={true} // ✅ keeps it visible while scrolling
-  nestedScrollEnabled={true} // ✅ improves nested scrolling in some Android cases
->
+    <ScrollView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Create Order</Text>
+        <Text style={styles.headerSubtitle}>For: {tailorName}</Text>
+      </View>
 
-    <View style={styles.headerContainer}>
-      <Text style={styles.headerTitle}>Create New Order</Text>
-      <Text style={styles.headerSubtitle}>
-        For tailor: <Text style={styles.tailorName}>{tailorName}</Text>
-      </Text>
-    </View>
+      {/* Garment Type Selection */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Garment Type *</Text>
+        <View style={styles.typeButtons}>
+          <TouchableOpacity
+            style={[
+              styles.typeButton,
+              garmentType === 'shalwar' && styles.typeButtonActive
+            ]}
+            onPress={() => setGarmentType('shalwar')}
+          >
+            <Feather 
+              name="user" 
+              size={24} 
+              color={garmentType === 'shalwar' ? colors.white : colors.black} 
+            />
+            <Text style={[
+              styles.typeButtonText,
+              garmentType === 'shalwar' && styles.typeButtonTextActive
+            ]}>
+              Shalwar
+            </Text>
+          </TouchableOpacity>
 
-    <Formik
-      initialValues={{
-        garmentType: '',
-        style: '',
-        notes: ''
-      }}
-      validationSchema={validationSchema}
-      onSubmit={handleSubmit}
-    >
-      {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
-        <View style={styles.formContainer}>
-          <Text style={styles.sectionTitle}>Select Garment Type</Text>
-          <View style={styles.garmentTypesContainer}>
-            {garmentTypes.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.garmentTypeButton,
-                  values.garmentType === option.value && styles.selectedGarmentType
-                ]}
-                onPress={() => {
-                  setFieldValue('garmentType', option.value);
-                  setFieldValue('style', '');
-                }}
-              >
-                <Text
-                  style={[
-                    styles.garmentTypeText,
-                    values.garmentType === option.value && styles.selectedGarmentTypeText
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.typeButton,
+              garmentType === 'kameez' && styles.typeButtonActive
+            ]}
+            onPress={() => setGarmentType('kameez')}
+          >
+            <Feather 
+              name="user" 
+              size={24} 
+              color={garmentType === 'kameez' ? colors.white : colors.black} 
+            />
+            <Text style={[
+              styles.typeButtonText,
+              garmentType === 'kameez' && styles.typeButtonTextActive
+            ]}>
+              Kameez
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Measurements */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Measurements *</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Measurements', {
+              onSave: (newMeasurements) => {
+                setMeasurements(newMeasurements);
+              }
+            })}
+          >
+            <Text style={styles.editButton}>
+              {Object.keys(measurements).length > 0 ? 'Edit' : 'Add'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {Object.keys(measurements).length > 0 ? (
+          <View style={styles.measurementsList}>
+            {Object.entries(measurements).map(([key, value]) => (
+              <View key={key} style={styles.measurementItem}>
+                <Text style={styles.measurementLabel}>{key}:</Text>
+                <Text style={styles.measurementValue}>{value} cm</Text>
+              </View>
             ))}
           </View>
+        ) : (
+          <Text style={styles.emptyText}>No measurements added</Text>
+        )}
+      </View>
 
-          {values.garmentType && (
-            <>
-              <Text style={styles.sectionTitle}>
-                Select {values.garmentType === 'shalwar' ? 'Shalwar' : 'Kameez'} Style
-              </Text>
-              <View style={styles.garmentTypesContainer}>
-                {(values.garmentType === 'shalwar' ? shalwarStyles : kameezStyles).map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.garmentTypeButton,
-                      values.style === option.value && styles.selectedGarmentType
-                    ]}
-                    onPress={() => setFieldValue('style', option.value)}
-                  >
-                    <Text
-                      style={[
-                        styles.garmentTypeText,
-                        values.style === option.value && styles.selectedGarmentTypeText
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
+      {/* Reference Images */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Design Reference (Optional)</Text>
+        
+        <TouchableOpacity
+          style={styles.imageButton}
+          onPress={() => handleImagePick('reference')}
+        >
+          <Feather name="image" size={20} color={colors.black} />
+          <Text style={styles.imageButtonText}>
+            {referenceImage ? 'Change Reference Image' : 'Add Reference Image'}
+          </Text>
+        </TouchableOpacity>
 
-          <Text style={styles.sectionTitle}>Additional Notes</Text>
-          <Input
-            multiline
-            numberOfLines={4}
-            placeholder="Add any special instructions or details here"
-            value={values.notes}
-            onChangeText={handleChange('notes')}
-            onBlur={handleBlur('notes')}
-            error={touched.notes && errors.notes}
-            iconName="file-text"
-          />
+        <TouchableOpacity
+          style={styles.imageButton}
+          onPress={() => handleImagePick('sketch')}
+        >
+          <Feather name="edit-3" size={20} color={colors.black} />
+          <Text style={styles.imageButtonText}>
+            {customerSketch ? 'Change Sketch' : 'Add Your Sketch'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-          <View style={styles.buttonsContainer}>
-            <Button
-              title="Next: Enter Measurements"
-              onPress={handleSubmit}
-              icon="arrow-right"
-              iconPosition="right"
-              loading={loading}
-            />
-            <Button
-              title="Cancel"
-              onPress={() => navigation.goBack()}
-              outline
-              buttonStyle={styles.cancelButton}
-              textStyle={styles.cancelButtonText}
-            />
-          </View>
+      {/* ✨ NEW: Delivery Prediction */}
+      {isLoadingPrediction && (
+        <View style={styles.predictionLoading}>
+          <ActivityIndicator size="small" color={colors.black} />
+          <Text style={styles.predictionLoadingText}>
+            Calculating delivery estimate...
+          </Text>
         </View>
       )}
-    </Formik>
-  </ScrollView>
-</KeyboardAvoidingView>
-</View>
 
+      {showPrediction && prediction && !isLoadingPrediction && (
+        <View style={styles.section}>
+          <DeliveryPrediction
+            estimatedDate={prediction.estimatedDate}
+            estimatedDays={prediction.estimatedDays}
+            confidence={prediction.confidence}
+            complexityScore={prediction.complexityScore}
+            showDetails={true}
+            factors={prediction.factors}
+          />
+        </View>
+      )}
+
+      {/* Notes */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Additional Notes (Optional)</Text>
+        <TextInput
+          style={styles.notesInput}
+          placeholder="Any special requirements or notes..."
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          numberOfLines={4}
+        />
+      </View>
+
+      {/* Submit Button */}
+      <View style={styles.submitSection}>
+        <Button
+          title={isSubmitting ? 'Creating Order...' : 'Create Order'}
+          onPress={handleSubmit}
+          loading={isSubmitting}
+          disabled={isSubmitting || !garmentType || Object.keys(measurements).length === 0}
+          icon="check"
+        />
+      </View>
+    </ScrollView>
   );
 };
 
@@ -207,78 +317,134 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white
-  }, 
-scrollView: {
-  backgroundColor: colors.white,
-},
-
-contentContainer: {
-  flexGrow: 1,          // ✅ ensures content takes available space
-  paddingHorizontal: 16,
-  paddingTop: 16,
-  paddingBottom: 120,   // ✅ space for buttons + keyboard
-},
-
-  headerContainer: {
-    marginBottom: 24
+  },
+  header: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.black,
-    marginBottom: 8
+    marginBottom: 4
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.gray
   },
-  tailorName: {
-    fontWeight: '600',
-    color: colors.black
+  section: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
   },
-  formContainer: {
-    marginBottom: 24
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.black,
-    marginBottom: 12,
-    marginTop: 16
+    marginBottom: 12
   },
-  garmentTypesContainer: {
+  editButton: {
+    color: colors.black,
+    fontWeight: '600',
+    fontSize: 14
+  },
+  typeButtons: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16
+    gap: 12
   },
-  garmentTypeButton: {
-    borderWidth: 1,
+  typeButton: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 2,
     borderColor: colors.lightGray,
-    borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 10,
-    marginBottom: 10
+    backgroundColor: colors.white
   },
-  selectedGarmentType: {
+  typeButtonActive: {
     backgroundColor: colors.black,
     borderColor: colors.black
   },
-  garmentTypeText: {
-    color: colors.black,
-    fontWeight: '500'
+  typeButtonText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.black
   },
-  selectedGarmentTypeText: {
+  typeButtonTextActive: {
     color: colors.white
   },
-  buttonsContainer: {
-    marginTop: 24
+  measurementsList: {
+    backgroundColor: colors.lightGray,
+    borderRadius: 8,
+    padding: 12
   },
-  cancelButton: {
-    marginTop: 12
+  measurementItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8
   },
-  cancelButtonText: {
+  measurementLabel: {
+    fontSize: 14,
+    color: colors.darkGray,
+    textTransform: 'capitalize'
+  },
+  measurementValue: {
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.black
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.gray,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 16
+  },
+  imageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    marginBottom: 12
+  },
+  imageButtonText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: colors.black
+  },
+  predictionLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20
+  },
+  predictionLoadingText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: colors.gray
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: 'top'
+  },
+  submitSection: {
+    padding: 16,
+    paddingBottom: 32
   }
 });
 
