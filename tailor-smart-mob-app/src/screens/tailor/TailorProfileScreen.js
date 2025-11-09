@@ -15,9 +15,9 @@ import * as Yup from 'yup';
 import { Feather } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { AuthContext } from '../../context/AuthContext';
-import { 
-  getTailorProfile, 
-  updateTailorProfile, 
+import {
+  getTailorProfile,
+  updateTailorProfile,
   sendTailorPasswordChangeOtp,
   updateTailorPassword,
   sendTailorDeleteAccountOtp,
@@ -27,11 +27,10 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import colors from '../../styles/colors'; 
-import { CommonActions } from '@react-navigation/native';
+import colors from '../../styles/colors';
 import TailorReviewsSection from '../../components/TailorReviewsSection';
 
-// Validation schemas
+// Validation Schemas
 const ProfileSchema = Yup.object().shape({
   name: Yup.string().min(2, 'Name must be at least 2 characters').required('Name is required'),
   email: Yup.string().email('Invalid email').required('Email is required'),
@@ -65,8 +64,8 @@ const TailorProfileScreen = ({ navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [passwordStep, setPasswordStep] = useState(1); // 1: send OTP, 2: change password
-  const [deleteStep, setDeleteStep] = useState(1); // 1: send OTP, 2: confirm delete
+  const [passwordStep, setPasswordStep] = useState(1);
+  const [deleteStep, setDeleteStep] = useState(1);
   const [locationOptions, setLocationOptions] = useState({
     cities: [],
     islamabadRegions: []
@@ -111,7 +110,6 @@ const TailorProfileScreen = ({ navigation }) => {
         shopLocation: values.shopLocation,
         averagePrice: parseFloat(values.averagePrice)
       };
-
       const response = await updateTailorProfile(updateData);
       setProfile(response.tailor);
       Alert.alert('Success', 'Profile updated successfully');
@@ -156,7 +154,6 @@ const TailorProfileScreen = ({ navigation }) => {
     }
   };
 
-
   const handleDeleteAccount = async (values) => {
     try {
       await deleteTailorAccount({ otp: values.otp });
@@ -176,7 +173,7 @@ const TailorProfileScreen = ({ navigation }) => {
   if (!profile) {
     return (
       <View style={styles.errorContainer}>
-        <Feather name="alert-circle" size={48} color={colors.error || '#dc3545'} />
+        <Feather name="alert-circle" size={48} color={colors.error} />
         <Text style={styles.errorText}>Failed to load profile</Text>
         <Button title="Retry" onPress={loadProfile} />
       </View>
@@ -184,22 +181,26 @@ const TailorProfileScreen = ({ navigation }) => {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : null}
-    >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+  style={{ flex: 1, backgroundColor: colors.white }}
+  behavior={Platform.OS === "ios" ? "padding" : "height"}
+>
+  <ScrollView
+    contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+    showsVerticalScrollIndicator={true}
+    persistentScrollbar={true}
+    keyboardShouldPersistTaps="handled"
+  >
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Feather name="arrow-left" size={24} color={colors.black} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Profile</Text>
           <View style={styles.placeholder} />
         </View>
 
+        {/* --- Profile Form --- */}
         <Formik
           initialValues={{
             name: profile.name || '',
@@ -217,7 +218,7 @@ const TailorProfileScreen = ({ navigation }) => {
           {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue }) => (
             <View style={styles.formContainer}>
               <Text style={styles.sectionTitle}>Personal Information</Text>
-              
+
               <Input
                 label="Full Name"
                 placeholder="Enter your full name"
@@ -241,7 +242,7 @@ const TailorProfileScreen = ({ navigation }) => {
               />
 
               <Text style={styles.sectionTitle}>Location</Text>
-              
+
               <View style={styles.pickerContainer}>
                 <Text style={styles.label}>City</Text>
                 <View style={styles.pickerWrapper}>
@@ -288,7 +289,7 @@ const TailorProfileScreen = ({ navigation }) => {
               )}
 
               <Text style={styles.sectionTitle}>Shop Information</Text>
-              
+
               <Input
                 label="Shop Name"
                 placeholder="Enter your shop name"
@@ -298,7 +299,7 @@ const TailorProfileScreen = ({ navigation }) => {
                 error={touched.shopName && errors.shopName}
                 iconName="shopping-bag"
               />
-              
+
               <Input
                 label="Shop Address"
                 placeholder="Enter your shop address"
@@ -310,7 +311,7 @@ const TailorProfileScreen = ({ navigation }) => {
                 multiline
                 numberOfLines={3}
               />
-              
+
               <Input
                 label="Average Price (PKR)"
                 placeholder="Enter average price"
@@ -322,40 +323,30 @@ const TailorProfileScreen = ({ navigation }) => {
                 onBlur={handleBlur('averagePrice')}
                 keyboardType="numeric"
                 error={touched.averagePrice && errors.averagePrice}
-                iconName="PKR"
+                iconName="tag"
               />
 
-              {isUpdating ? (
-                <LoadingSpinner />
-              ) : (
-                <Button title="Update Profile" onPress={handleSubmit} />
-              )}
+              {isUpdating ? <LoadingSpinner /> : <Button title="Update Profile" onPress={handleSubmit} />}
             </View>
           )}
         </Formik>
 
-<TailorReviewsSection tailorId={user.id} />
+        <TailorReviewsSection tailorId={user.id} />
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.changePasswordButton}
-            onPress={() => setShowPasswordModal(true)}
-          >
+          <TouchableOpacity style={styles.changePasswordButton} onPress={() => setShowPasswordModal(true)}>
             <Feather name="lock" size={20} color={colors.white} />
             <Text style={styles.changePasswordText}>Change Password</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => setShowDeleteModal(true)}
-          >
+          <TouchableOpacity style={styles.deleteButton} onPress={() => setShowDeleteModal(true)}>
             <Feather name="trash-2" size={20} color={colors.white} />
             <Text style={styles.deleteButtonText}>Delete Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Password Change Modal */}
+      {/* --- Password Modal --- */}
       <Modal
         visible={showPasswordModal}
         animationType="slide"
@@ -364,85 +355,93 @@ const TailorProfileScreen = ({ navigation }) => {
           setPasswordStep(1);
         }}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Change Password</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setShowPasswordModal(false);
-                setPasswordStep(1);
-              }}
-            >
-              <Feather name="x" size={24} color={colors.black} />
-            </TouchableOpacity>
-          </View>
-
-          {passwordStep === 1 ? (
-            <View style={styles.modalContent}>
-              <Text style={styles.modalText}>
-                We'll send an OTP to your email address to verify the password change.
-              </Text>
-              <Button title="Send OTP" onPress={handleSendPasswordOtp} />
+        <ScrollView
+          style={styles.modalScroll}
+          contentContainerStyle={styles.modalContentContainer}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Change Password</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowPasswordModal(false);
+                  setPasswordStep(1);
+                }}
+              >
+                <Feather name="x" size={24} color={colors.black} />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <Formik
-              initialValues={{
-                newPassword: '',
-                confirmPassword: '',
-                otp: ''
-              }}
-              validationSchema={PasswordSchema}
-              onSubmit={handleUpdatePassword}
-            >
-              {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalText}>
-                    Enter the OTP sent to your email and your new password.
-                  </Text>
 
-                  <Input
-                    label="OTP"
-                    placeholder="Enter 6-digit OTP"
-                    value={values.otp}
-                    onChangeText={handleChange('otp')}
-                    onBlur={handleBlur('otp')}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    error={touched.otp && errors.otp}
-                    iconName="shield"
-                  />
+            {passwordStep === 1 ? (
+              <View style={styles.modalContent}>
+                <Text style={styles.modalText}>
+                  We'll send an OTP to your email address to verify the password change.
+                </Text>
+                <Button title="Send OTP" onPress={handleSendPasswordOtp} />
+              </View>
+            ) : (
+              <Formik
+                initialValues={{
+                  newPassword: '',
+                  confirmPassword: '',
+                  otp: ''
+                }}
+                validationSchema={PasswordSchema}
+                onSubmit={handleUpdatePassword}
+              >
+                {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalText}>
+                      Enter the OTP sent to your email and your new password.
+                    </Text>
 
-                  <Input
-                    label="New Password"
-                    placeholder="Enter new password"
-                    value={values.newPassword}
-                    onChangeText={handleChange('newPassword')}
-                    onBlur={handleBlur('newPassword')}
-                    secureTextEntry
-                    error={touched.newPassword && errors.newPassword}
-                    iconName="lock"
-                  />
+                    <Input
+                      label="OTP"
+                      placeholder="Enter 6-digit OTP"
+                      value={values.otp}
+                      onChangeText={handleChange('otp')}
+                      onBlur={handleBlur('otp')}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      error={touched.otp && errors.otp}
+                      iconName="shield"
+                    />
 
-                  <Input
-                    label="Confirm Password"
-                    placeholder="Confirm new password"
-                    value={values.confirmPassword}
-                    onChangeText={handleChange('confirmPassword')}
-                    onBlur={handleBlur('confirmPassword')}
-                    secureTextEntry
-                    error={touched.confirmPassword && errors.confirmPassword}
-                    iconName="lock"
-                  />
+                    <Input
+                      label="New Password"
+                      placeholder="Enter new password"
+                      value={values.newPassword}
+                      onChangeText={handleChange('newPassword')}
+                      onBlur={handleBlur('newPassword')}
+                      secureTextEntry
+                      error={touched.newPassword && errors.newPassword}
+                      iconName="lock"
+                    />
 
-                  <Button title="Change Password" onPress={handleSubmit} />
-                </View>
-              )}
-            </Formik>
-          )}
-        </View>
+                    <Input
+                      label="Confirm Password"
+                      placeholder="Confirm new password"
+                      value={values.confirmPassword}
+                      onChangeText={handleChange('confirmPassword')}
+                      onBlur={handleBlur('confirmPassword')}
+                      secureTextEntry
+                      error={touched.confirmPassword && errors.confirmPassword}
+                      iconName="lock"
+                    />
+
+                    <Button title="Change Password" onPress={handleSubmit} />
+                  </View>
+                )}
+              </Formik>
+            )}
+          </View>
+        </ScrollView>
       </Modal>
 
-      {/* Delete Account Modal */}
+      {/* --- Delete Modal --- */}
       <Modal
         visible={showDeleteModal}
         animationType="slide"
@@ -451,100 +450,107 @@ const TailorProfileScreen = ({ navigation }) => {
           setDeleteStep(1);
         }}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Delete Account</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setShowDeleteModal(false);
-                setDeleteStep(1);
-              }}
-            >
-              <Feather name="x" size={24} color={colors.black} />
-            </TouchableOpacity>
-          </View>
-
-          {deleteStep === 1 ? (
-            <View style={styles.modalContent}>
-              <View style={styles.warningContainer}>
-                <Feather name="alert-triangle" size={48} color={colors.error} />
-                <Text style={styles.warningTitle}>Are you sure?</Text>
-                <Text style={styles.warningText}>
-                  This action cannot be undone. All your data including orders, messages, and profile information will be permanently deleted.
-                </Text>
-              </View>
-              <Button 
-                title="Send Verification OTP" 
-                onPress={handleSendDeleteOtp}
-                buttonStyle={styles.deleteButton}
-              />
-              <Button 
-                title="Cancel" 
-                onPress={() => setShowDeleteModal(false)}
-                buttonStyle={styles.cancelButton}
-                textStyle={styles.cancelButtonText}
-              />
+        <ScrollView
+          style={styles.modalScroll}
+          contentContainerStyle={styles.modalContentContainer}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDeleteModal(false);
+                  setDeleteStep(1);
+                }}
+              >
+                <Feather name="x" size={24} color={colors.black} />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <Formik
-              initialValues={{ otp: '' }}
-              validationSchema={OtpSchema}
-              onSubmit={handleDeleteAccount}
-            >
-              {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-                <View style={styles.modalContent}>
-                  <View style={styles.warningContainer}>
-                    <Feather name="alert-triangle" size={48} color={colors.error} />
-                    <Text style={styles.warningTitle}>Final Confirmation</Text>
-                    <Text style={styles.warningText}>
-                      Enter the OTP sent to your email to permanently delete your account.
-                    </Text>
-                  </View>
 
-                  <Input
-                    label="OTP"
-                    placeholder="Enter 6-digit OTP"
-                    value={values.otp}
-                    onChangeText={handleChange('otp')}
-                    onBlur={handleBlur('otp')}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    error={touched.otp && errors.otp}
-                    iconName="shield"
-                  />
-
-                  <Button 
-                    title="Delete My Account" 
-                    onPress={handleSubmit}
-                    buttonStyle={styles.deleteButton}
-                  />
-                  <Button 
-                    title="Cancel" 
-                    onPress={() => {
-                      setShowDeleteModal(false);
-                      setDeleteStep(1);
-                    }}
-                    buttonStyle={styles.cancelButton}
-                    textStyle={styles.cancelButtonText}
-                  />
+            {deleteStep === 1 ? (
+              <View style={styles.modalContent}>
+                <View style={styles.warningContainer}>
+                  <Feather name="alert-triangle" size={48} color={colors.error} />
+                  <Text style={styles.warningTitle}>Are you sure?</Text>
+                  <Text style={styles.warningText}>
+                    This action cannot be undone. All your data including orders, messages, and profile information will be permanently deleted.
+                  </Text>
                 </View>
-              )}
-            </Formik>
-          )}
-        </View>
+                <Button title="Send Verification OTP" onPress={handleSendDeleteOtp} buttonStyle={styles.deleteButton} />
+                <Button
+                  title="Cancel"
+                  onPress={() => setShowDeleteModal(false)}
+                  buttonStyle={styles.cancelButton}
+                  textStyle={styles.cancelButtonText}
+                />
+              </View>
+            ) : (
+              <Formik
+                initialValues={{ otp: '' }}
+                validationSchema={OtpSchema}
+                onSubmit={handleDeleteAccount}
+              >
+                {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                  <View style={styles.modalContent}>
+                    <View style={styles.warningContainer}>
+                      <Feather name="alert-triangle" size={48} color={colors.error} />
+                      <Text style={styles.warningTitle}>Final Confirmation</Text>
+                      <Text style={styles.warningText}>
+                        Enter the OTP sent to your email to permanently delete your account.
+                      </Text>
+                    </View>
+
+                    <Input
+                      label="OTP"
+                      placeholder="Enter 6-digit OTP"
+                      value={values.otp}
+                      onChangeText={handleChange('otp')}
+                      onBlur={handleBlur('otp')}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      error={touched.otp && errors.otp}
+                      iconName="shield"
+                    />
+
+                    <Button title="Delete My Account" onPress={handleSubmit} buttonStyle={styles.deleteButton} />
+                    <Button
+                      title="Cancel"
+                      onPress={() => {
+                        setShowDeleteModal(false);
+                        setDeleteStep(1);
+                      }}
+                      buttonStyle={styles.cancelButton}
+                      textStyle={styles.cancelButtonText}
+                    />
+                  </View>
+                )}
+              </Formik>
+            )}
+          </View>
+        </ScrollView>
       </Modal>
     </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: colors.white
-  },
+      flex: 1,
+      backgroundColor: colors.white
+    },
   scrollView: {
-    flex: 1
+    backgroundColor: colors.white,   // ❌ remove flex: 1
   },
+  
+  scrollContent: {
+    flexGrow: 1,                     // ✅ makes scrolling possible
+    padding: 16,
+    paddingBottom: 120,              // ✅ space for bottom content
+  }, 
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -637,16 +643,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20
   },
-  errorText: {
-    fontSize: 18,
-    color: colors.error || '#dc3545',
-    marginVertical: 20,
-    textAlign: 'center'
-  },
   modalContainer: {
     flex: 1,
     backgroundColor: colors.white
   },
+ modalScroll: {
+  // remove flex:1
+},
+  modalContentContainer: {
+  flexGrow: 1,
+  paddingBottom: 40
+},
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -663,9 +670,8 @@ const styles = StyleSheet.create({
     color: colors.black
   },
   modalContent: {
-    flex: 1,
-    padding: 16
-  },
+  padding: 16, // remove flex:1
+},
   modalText: {
     fontSize: 16,
     color: colors.gray,

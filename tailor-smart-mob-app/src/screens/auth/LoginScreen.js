@@ -159,6 +159,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20
   },
+  contentContainer: {
+    paddingBottom: 40,
+    flexGrow: 1  // Use flexGrow instead if needed
+  },
   logoContainer: {
     alignItems: 'center',
     marginTop: 20,

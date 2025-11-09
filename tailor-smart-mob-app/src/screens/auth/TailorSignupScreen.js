@@ -232,6 +232,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white
   },
+  contentContainer: {
+    paddingBottom: 40,
+    flexGrow: 1  // Use flexGrow instead if needed
+  },
   scrollView: {
     padding: 20
   },
