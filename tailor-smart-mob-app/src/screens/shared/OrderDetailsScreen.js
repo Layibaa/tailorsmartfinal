@@ -1,4 +1,4 @@
-// OrderDetailsScreen.js - Complete version with Review functionality
+// Enhanced OrderDetailsScreen.js - Full collaborative editing support
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -8,12 +8,13 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  TextInput,
-  Image
+  Image,
+  TextInput
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { 
   getCustomerOrderDetails, 
   getTailorOrderDetails,
@@ -21,8 +22,8 @@ import {
   confirmOrder,
   deleteOrder,
   sendMessage,
-  checkReviewEligibility,
-  createReview
+  updateOrder,
+  lockOrder
 } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { NotificationContext } from '../../context/NotificationContext';
@@ -30,16 +31,11 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import colors from '../../styles/colors';
-import globalStyles from '../../styles/globalStyles';
 import { measurementLabels } from '../../utils/validation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { API_URL } from '../../services/api';
-import ReviewModal from '../../components/ui/ReviewModal';
 import LockStatusBanner from '../../components/orders/LockStatusBanner';
 import MeasurementEditor from '../../components/orders/MeasurementEditor';
 import ChangeHistory from '../../components/orders/ChangeHistory';
-import { lockOrder, updateOrder } from '../../services/api';
+import DrawingCanvas from '../../components/ui/DrawingCanvas';
 
 const priceSchema = Yup.object().shape({
   price: Yup.number()
@@ -56,41 +52,27 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isPriceModalVisible, setIsPriceModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
   
-  // Image modal states
+  // Editing states
+  const [isEditingMeasurements, setIsEditingMeasurements] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editedNotes, setEditedNotes] = useState('');
+  const [isEditingImages, setIsEditingImages] = useState(false);
+  
+  // Image states
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isCanvasVisible, setIsCanvasVisible] = useState(false);
+  const [tempReferenceImage, setTempReferenceImage] = useState(null);
+  const [tempCustomerSketch, setTempCustomerSketch] = useState(null);
   
-  // Review states
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewEligibility, setReviewEligibility] = useState(null);
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [canReview, setCanReview] = useState(false);
-  const [hasReviewed, setHasReviewed] = useState(false);
-  
-const [isEditingMeasurements, setIsEditingMeasurements] = useState(false);
-const [changeHistory, setChangeHistory] = useState([]);
+  const [changeHistory, setChangeHistory] = useState([]);
 
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
 
-  const handleDeleteOrder = async () => {
-    console.log('Delete function triggered');
-    try {
-      setIsUpdating(true);
-      const response = await deleteOrder(orderId);
-      console.log('Order deleted successfully:', response);
-      
-      navigation.navigate('CustomerTabs', { screen: 'Orders' });
-    } catch (error) {
-      console.error('Delete failed:', error.response?.data || error.message);
-      Alert.alert(
-        'Error',
-        error.response?.data?.msg || 'Could not delete the order.'
-      );
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  useEffect(() => {
+    loadOrderDetails();
+  }, [orderId]);
 
   const loadOrderDetails = async () => {
     try {
@@ -101,6 +83,7 @@ const [changeHistory, setChangeHistory] = useState([]);
         response = await getTailorOrderDetails(orderId);
       }
       setOrder(response.order);
+      setEditedNotes(response.order.notes || '');
       
       if (actionRequired) {
         if (user.role === 'tailor' && response.order.status === 'pending') {
@@ -121,186 +104,253 @@ const [changeHistory, setChangeHistory] = useState([]);
     }
   };
 
-  // Check review eligibility when order is loaded
-  useEffect(() => {
-    if (order && order.status === 'completed' && user?.role === 'customer') {
-      checkIfCanReview();
-    }
-  }, [order]);
-
-  useEffect(() => {
-    loadOrderDetails();
-  }, [orderId]);
-
-  // Check if user can review this order
-  const checkIfCanReview = async () => {
-    try {
-      const response = await checkReviewEligibility(orderId);
-      setReviewEligibility(response);
-      setCanReview(response.eligible);
-      setHasReviewed(!response.eligible && response.reason === 'Already reviewed');
-      
-      // Auto-show review modal if eligible
-      if (response.eligible) {
-        setTimeout(() => setShowReviewModal(true), 500);
-      }
-    } catch (error) {
-      console.error('Error checking review eligibility:', error);
-    }
+  // Can edit if: not locked AND (pending OR accepted OR confirmed)
+  const canEdit = () => {
+    if (!order) return false;
+    return !order.isLocked && ['pending', 'accepted', 'confirmed'].includes(order.status);
   };
 
-  // Handle review submission
-  const handleReviewSubmit = async (reviewData) => {
+  // Customer can lock if: status is accepted or confirmed AND not already locked
+  const canLock = () => {
+    if (!order || user.role !== 'customer') return false;
+    return !order.isLocked && ['accepted', 'confirmed'].includes(order.status);
+  };
+
+  // Customer can unlock if: locked AND (accepted or confirmed)
+  const canUnlock = () => {
+    if (!order || user.role !== 'customer') return false;
+    return order.isLocked && ['accepted', 'confirmed'].includes(order.status);
+  };
+
+  // Handle lock/unlock
+  const handleToggleLock = async () => {
     try {
-      setIsSubmittingReview(true);
-      await createReview(reviewData);
+      const newLockState = !order.isLocked;
       
       Alert.alert(
-        'Thank You!',
-        'Your review has been submitted successfully.',
+        newLockState ? 'Lock Design?' : 'Unlock Design?',
+        newLockState 
+          ? 'Once locked, no further changes can be made by either party. The tailor can then start production.'
+          : 'Unlocking will allow both parties to edit measurements, notes, and design references again.',
         [
+          { text: 'Cancel', style: 'cancel' },
           {
-            text: 'OK',
-            onPress: () => {
-              setShowReviewModal(false);
-              checkIfCanReview();
+            text: newLockState ? 'Lock' : 'Unlock',
+            onPress: async () => {
+              try {
+                setIsUpdating(true);
+                await lockOrder(orderId, newLockState);
+                
+                // Add to change history
+                setChangeHistory(prev => [{
+                  userName: user.name,
+                  action: newLockState ? 'locked the design' : 'unlocked the design',
+                  timestamp: new Date().toISOString()
+                }, ...prev]);
+                
+                // Send notification to other party
+                const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
+                await sendMessage({
+                  receiverId,
+                  content: newLockState 
+                    ? `Design has been locked. Production can begin.`
+                    : `Design has been unlocked. Changes can now be made.`,
+                  orderId: order._id
+                });
+                
+                Alert.alert(
+                  'Success',
+                  newLockState 
+                    ? 'Design locked! The tailor can now start production.'
+                    : 'Design unlocked! You can now make changes.'
+                );
+                
+                loadOrderDetails();
+              } catch (error) {
+                Alert.alert('Error', error.response?.data?.msg || 'Failed to update lock status');
+              } finally {
+                setIsUpdating(false);
+              }
             }
           }
         ]
       );
     } catch (error) {
-      Alert.alert(
-        'Error',
-        error.response?.data?.msg || 'Failed to submit review. Please try again.'
-      );
+      console.error('Toggle lock error:', error);
+    }
+  };
+
+  // Handle measurement updates
+  const handleSaveMeasurements = async (newMeasurements) => {
+    try {
+      setIsUpdating(true);
+      
+      await updateOrder(orderId, {
+        measurements: newMeasurements
+      });
+      
+      // Add to change history
+      setChangeHistory(prev => [{
+        userName: user.name,
+        action: 'updated measurements',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
+      
+      // Notify other party
+      const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
+      await sendMessage({
+        receiverId,
+        content: `${user.name} has updated the measurements. Please review.`,
+        orderId: order._id
+      });
+      
+      setIsEditingMeasurements(false);
+      Alert.alert('Success', 'Measurements updated successfully');
+      loadOrderDetails();
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to update measurements');
     } finally {
-      setIsSubmittingReview(false);
+      setIsUpdating(false);
     }
   };
 
-const handleToggleLock = async () => {
-  try {
-    const newLockState = !order.isLocked;
-    
-    Alert.alert(
-      newLockState ? 'Lock Design?' : 'Unlock Design?',
-      newLockState 
-        ? 'Once locked, no changes can be made until you unlock it again.'
-        : 'Unlocking will allow both parties to edit measurements again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: newLockState ? 'Lock' : 'Unlock',
-          onPress: async () => {
-            try {
-              setIsUpdating(true);
-              const response = await lockOrder(orderId, newLockState);
-              
-              // Add to change history
-              setChangeHistory(prev => [{
-                userName: user.name,
-                action: newLockState ? 'locked the design' : 'unlocked the design',
-                timestamp: new Date().toISOString()
-              }, ...prev]);
-              
-              // Send notification to other party
-              if (newLockState && order.tailor) {
-                await sendMessage({
-                  receiverId: order.tailor._id,
-                  content: `Design has been locked. No further changes can be made.`,
-                  orderId: order._id
-                });
-              }
-              
-              Alert.alert(
-                'Success',
-                `Design ${newLockState ? 'locked' : 'unlocked'} successfully`
-              );
-              
-              loadOrderDetails();
-            } catch (error) {
-              Alert.alert('Error', error.response?.data?.msg || 'Failed to update lock status');
-            } finally {
-              setIsUpdating(false);
-            }
-          }
+  // Handle notes update
+  const handleSaveNotes = async () => {
+    if (editedNotes === order.notes) {
+      setIsEditingNotes(false);
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      
+      await updateOrder(orderId, {
+        notes: editedNotes
+      });
+      
+      setChangeHistory(prev => [{
+        userName: user.name,
+        action: 'updated notes',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
+      
+      const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
+      await sendMessage({
+        receiverId,
+        content: `${user.name} has updated the order notes.`,
+        orderId: order._id
+      });
+      
+      setIsEditingNotes(false);
+      Alert.alert('Success', 'Notes updated successfully');
+      loadOrderDetails();
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to update notes');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Handle image picker
+  const pickImage = async (type) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.5,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        if (!asset.base64) {
+          Alert.alert('Error', 'Failed to process image. Please try again.');
+          return;
         }
-      ]
-    );
-  } catch (error) {
-    console.error('Toggle lock error:', error);
-  }
-};
 
-// ADD THIS FUNCTION to handle measurement updates
-const handleSaveMeasurements = async (newMeasurements) => {
-  try {
-    setIsUpdating(true);
-    
-    await updateOrder(orderId, {
-      measurements: newMeasurements
-    });
-    
-    // Add to change history
-    setChangeHistory(prev => [{
-      userName: user.name,
-      action: 'updated measurements',
-      timestamp: new Date().toISOString()
-    }, ...prev]);
-    
-    // Notify other party
-    const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
-    await sendMessage({
-      receiverId,
-      content: `${user.name} has updated the measurements. Please review.`,
-      orderId: order._id
-    });
-    
-    setIsEditingMeasurements(false);
-    Alert.alert('Success', 'Measurements updated successfully');
-    loadOrderDetails();
-  } catch (error) {
-    Alert.alert('Error', error.message || 'Failed to update measurements');
-  } finally {
-    setIsUpdating(false);
-  }
-};
+        const sizeInMB = (asset.base64.length * 0.75) / (1024 * 1024);
+        if (sizeInMB > 5) {
+          Alert.alert('File Too Large', 'Please select an image smaller than 5MB');
+          return;
+        }
 
-  // Open review modal
-  const openReviewModal = () => {
-    if (reviewEligibility?.eligible) {
-      setShowReviewModal(true);
-    } else if (reviewEligibility?.reason === 'Already reviewed') {
-      Alert.alert('Already Reviewed', 'You have already reviewed this order.');
+        let base64Data = asset.base64;
+        if (base64Data.startsWith('data:')) {
+          base64Data = base64Data.split(',')[1] || base64Data;
+        }
+
+        const mimeType = asset.uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        const base64Image = `data:${mimeType};base64,${base64Data}`;
+        
+        if (type === 'reference') {
+          setTempReferenceImage({
+            uri: asset.uri,
+            base64: base64Image
+          });
+        } else {
+          setTempCustomerSketch({
+            uri: asset.uri,
+            base64: base64Image
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
 
-  // Handle Image Preview
-  const openImageModal = (imageUrl, title) => {
-    setSelectedImage({ url: imageUrl, title });
-    setIsImageModalVisible(true);
+  // Handle canvas sketch
+  const handleCanvasSave = (signature) => {
+    setTempCustomerSketch({
+      uri: signature,
+      base64: signature
+    });
+    setIsCanvasVisible(false);
   };
 
-  const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
-  const getStatusLabel = (status) => {
-    const statusMap = {
-      pending: 'Pending Approval',
-      accepted: 'Accepted (Waiting for Confirmation)',
-      rejected: 'Rejected',
-      confirmed: 'Confirmed',
-      making: 'In Production',
-      payment_done: 'Payment Received',
-      completed: 'Completed'
-    };
-    return statusMap[status] || status;
-  };
-
-  const getStatusColor = (status) => {
-    return colors[status] || colors.gray;
+  // Save image changes
+  const handleSaveImages = async () => {
+    try {
+      setIsUpdating(true);
+      
+      const updateData = {};
+      
+      if (tempReferenceImage) {
+        updateData.referenceImage = tempReferenceImage.base64;
+      }
+      
+      if (tempCustomerSketch) {
+        updateData.customerSketch = tempCustomerSketch.base64;
+      }
+      
+      await updateOrder(orderId, updateData);
+      
+      setChangeHistory(prev => [{
+        userName: user.name,
+        action: 'updated design references',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
+      
+      const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
+      await sendMessage({
+        receiverId,
+        content: `${user.name} has updated the design references.`,
+        orderId: order._id
+      });
+      
+      setIsEditingImages(false);
+      setTempReferenceImage(null);
+      setTempCustomerSketch(null);
+      Alert.alert('Success', 'Design references updated successfully');
+      loadOrderDetails();
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to update images');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleAcceptOrder = async (values) => {
@@ -316,56 +366,18 @@ const handleSaveMeasurements = async (newMeasurements) => {
           order.customer._id,
           orderId,
           'accepted',
-          `Your order has been accepted. The price is PKR {values.price}`
+          `Your order has been accepted. The price is PKR ${values.price}`
         );
       }
       
-      Alert.alert('Success', 'Order accepted with price');
+      Alert.alert('Success', 'Order accepted. Customer can now review and confirm.');
       loadOrderDetails();
     } catch (error) {
       Alert.alert('Error', error.response?.data?.msg || 'Failed to accept order');
-      console.error('Error accepting order:', error);
     } finally {
       setIsUpdating(false);
       setIsPriceModalVisible(false);
     }
-  };
-
-  const handleRejectOrder = async () => {
-    Alert.alert(
-      'Reject Order',
-      'Are you sure you want to reject this order?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reject', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsUpdating(true);
-              await updateOrderStatus(orderId, { status: 'rejected' });
-              
-              if (order.customer) {
-                sendOrderNotification(
-                  order.customer._id,
-                  orderId,
-                  'rejected',
-                  'Your order has been rejected by the tailor'
-                );
-              }
-              
-              Alert.alert('Success', 'Order rejected');
-              loadOrderDetails();
-            } catch (error) {
-              Alert.alert('Error', error.response?.data?.msg || 'Failed to reject order');
-              console.error('Error rejecting order:', error);
-            } finally {
-              setIsUpdating(false);
-            }
-          }
-        }
-      ]
-    );
   };
 
   const handleConfirmOrder = async () => {
@@ -378,176 +390,21 @@ const handleSaveMeasurements = async (newMeasurements) => {
           order.tailor._id,
           orderId,
           'confirmed',
-          'Order confirmed. You can start working on it.'
+          'Order confirmed. You can now collaborate on the final design.'
         );
       }
       
-      Alert.alert('Success', 'Order confirmed');
+      Alert.alert(
+        'Order Confirmed', 
+        'You can now work with the tailor to finalize measurements and design. Lock the design when you\'re ready for production.'
+      );
       setIsStatusModalVisible(false);
       loadOrderDetails();
     } catch (error) {
       Alert.alert('Error', error.response?.data?.msg || 'Failed to confirm order');
-      console.error('Error confirming order:', error);
     } finally {
       setIsUpdating(false);
     }
-  };
-
-  const handleUpdateStatus = async (newStatus) => {
-    try {
-      setIsUpdating(true);
-      await updateOrderStatus(orderId, { status: newStatus });
-      
-      if (order.customer) {
-        const statusMessages = {
-          making: 'Your order is now being made',
-          payment_done: 'Payment received for your order',
-          completed: 'Your order has been completed and is ready for pickup'
-        };
-        
-        sendOrderNotification(
-          order.customer._id,
-          orderId,
-          newStatus,
-          statusMessages[newStatus] || `Order status updated to ${newStatus}`
-        );
-      }
-      
-      Alert.alert('Success', 'Order status updated');
-      loadOrderDetails();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to update order status');
-      console.error('Error updating order status:', error);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const renderPriceModal = () => (
-    <Modal
-      visible={isPriceModalVisible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setIsPriceModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Set Price for Order</Text>
-          
-          <Formik
-            initialValues={{ price: '' }}
-            validationSchema={priceSchema}
-            onSubmit={handleAcceptOrder}
-          >
-            {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-              <View style={styles.modalForm}>
-                <Input
-                  label="Enter Price (PKR)"
-                  placeholder="e.g. 150"
-                  value={values.price}
-                  onChangeText={(text) => {
-                    const numericValue = text.replace(/[^0-9.]/g, '');
-                    handleChange('price')(numericValue);
-                  }}
-                  onBlur={handleBlur('price')}
-                  keyboardType="numeric"
-                  error={touched.price && errors.price}
-                  iconName=""
-                />
-                
-                <View style={styles.modalButtonsContainer}>
-                  <Button
-                    title="Accept Order"
-                    onPress={handleSubmit}
-                    loading={isUpdating}
-                  />
-                  <Button
-                    title="Cancel"
-                    onPress={() => setIsPriceModalVisible(false)}
-                    outline
-                    buttonStyle={styles.cancelButton}
-                  />
-                </View>
-              </View>
-            )}
-          </Formik>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const renderStatusModal = () => (
-    <Modal
-      visible={isStatusModalVisible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setIsStatusModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Confirm Order</Text>
-          <Text style={styles.modalText}>
-            The tailor has accepted your order with a price of PKR {order?.price}. 
-            Do you want to confirm this order?
-          </Text>
-          
-          <View style={styles.modalButtonsContainer}>
-            <Button
-              title="Confirm Order"
-              onPress={handleConfirmOrder}
-              loading={isUpdating}
-            />
-            <Button
-              title="Cancel"
-              onPress={() => setIsStatusModalVisible(false)}
-              outline
-              buttonStyle={styles.cancelButton}
-            />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const renderImageModal = () => (
-    <Modal
-      visible={isImageModalVisible}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setIsImageModalVisible(false)}
-    >
-      <View style={styles.imageModalOverlay}>
-        <TouchableOpacity 
-          style={styles.imageModalClose}
-          onPress={() => setIsImageModalVisible(false)}
-        >
-          <Feather name="x" size={32} color={colors.white} />
-        </TouchableOpacity>
-        
-        {selectedImage && (
-          <>
-            <Text style={styles.imageModalTitle}>{selectedImage.title}</Text>
-            <Image 
-              source={{ uri: selectedImage.url }}
-              style={styles.imageModalContent}
-              resizeMode="contain"
-            />
-          </>
-        )}
-      </View>
-    </Modal>
-  );
-
-  const getNextStatus = () => {
-    if (!order) return null;
-    
-    const statusFlow = {
-      confirmed: 'making',
-      making: 'payment_done',
-      payment_done: 'completed'
-    };
-    
-    return statusFlow[order.status] || null;
   };
 
   if (isLoading) {
@@ -556,53 +413,68 @@ const handleSaveMeasurements = async (newMeasurements) => {
 
   if (!order) {
     return (
-      <View style={globalStyles.emptyStateContainer}>
+      <View style={styles.emptyContainer}>
         <Feather name="alert-circle" size={50} color={colors.error} />
-        <Text style={globalStyles.emptyStateText}>Order not found</Text>
-        <Button 
-          title="Go Back" 
-          onPress={() => navigation.goBack()} 
-          buttonStyle={styles.goBackButton}
-        />
+        <Text style={styles.emptyText}>Order not found</Text>
+        <Button title="Go Back" onPress={() => navigation.goBack()} />
       </View>
     );
   }
 
-  const nextStatus = getNextStatus();
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const getStatusLabel = (status) => {
+    const statusMap = {
+      pending: 'Pending Approval',
+      accepted: 'Accepted - Review Details',
+      confirmed: 'Confirmed - Finalizing Design',
+      making: 'In Production',
+      payment_done: 'Payment Received',
+      completed: 'Completed'
+    };
+    return statusMap[status] || status;
+  };
 
   return (
-    <ScrollView 
-      style={styles.container} 
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Order Header with Status */}
+    <ScrollView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.orderIdText}>Order #{orderId.substring(0, 8)}</Text>
-          <Text style={styles.orderDateText}>
-            Placed on {formatDate(order.createdAt)}
-          </Text>
+          <Text style={styles.orderDateText}>Placed on {formatDate(order.createdAt)}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>
+        <View style={[styles.statusBadge, { backgroundColor: colors[order.status] || colors.gray }]}>
           <Text style={styles.statusText}>{getStatusLabel(order.status)}</Text>
         </View>
       </View>
 
+      {/* Lock Status Banner */}
       <LockStatusBanner
-  isLocked={order.isLocked}
-  onToggleLock={handleToggleLock}
-  canToggleLock={
-    user.role === 'customer' && 
-    ['pending', 'accepted'].includes(order.status)
-  }
-  userRole={user.role}
-  orderStatus={order.status}
-/>
+        isLocked={order.isLocked}
+        onToggleLock={handleToggleLock}
+        canToggleLock={canLock() || canUnlock()}
+        userRole={user.role}
+        orderStatus={order.status}
+      />
 
-      {/* Order Info Section */}
-      <View style={styles.infoSection}>
+      {/* Collaborative Editing Notice */}
+      {canEdit() && (
+        <View style={styles.editNotice}>
+          <Feather name="edit-3" size={20} color={colors.primary} />
+          <Text style={styles.editNoticeText}>
+            Both parties can edit order details. Lock when finalized.
+          </Text>
+        </View>
+      )}
+
+      {/* Order Info */}
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Information</Text>
         
         <View style={styles.infoRow}>
@@ -630,227 +502,298 @@ const handleSaveMeasurements = async (newMeasurements) => {
             <Text style={styles.infoValue}>{order.customer.name}</Text>
           </View>
         )}
+      </View>
+
+      {/* Notes Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Order Notes</Text>
+          {canEdit() && !isEditingNotes && (
+            <TouchableOpacity onPress={() => setIsEditingNotes(true)} style={styles.editButton}>
+              <Feather name="edit-3" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
         
-        {order.notes && (
-          <View style={styles.notesContainer}>
-            <Text style={styles.infoLabel}>Notes:</Text>
-            <Text style={styles.notesText}>{order.notes}</Text>
+        {isEditingNotes ? (
+          <View>
+            <TextInput
+              style={styles.notesInput}
+              value={editedNotes}
+              onChangeText={setEditedNotes}
+              multiline
+              numberOfLines={4}
+              placeholder="Add any special instructions..."
+            />
+            <View style={styles.buttonRow}>
+              <Button title="Save" onPress={handleSaveNotes} buttonStyle={styles.smallButton} />
+              <Button 
+                title="Cancel" 
+                onPress={() => {
+                  setEditedNotes(order.notes || '');
+                  setIsEditingNotes(false);
+                }} 
+                outline 
+                buttonStyle={styles.smallButton}
+              />
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.notesText}>{order.notes || 'No notes provided'}</Text>
+        )}
+      </View>
+
+      {/* Design References Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Design Reference</Text>
+          {canEdit() && !isEditingImages && (
+            <TouchableOpacity onPress={() => setIsEditingImages(true)} style={styles.editButton}>
+              <Feather name="edit-3" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {isEditingImages ? (
+          <View>
+            <Text style={styles.imageEditTitle}>Reference Image</Text>
+            {tempReferenceImage || order.referenceImage?.url ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: tempReferenceImage?.uri || order.referenceImage.url }} 
+                  style={styles.imagePreview}
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={() => setTempReferenceImage(null)}
+                >
+                  <Feather name="x" size={20} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('reference')}>
+                <Feather name="upload" size={20} color={colors.primary} />
+                <Text style={styles.uploadButtonText}>Upload Image</Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={[styles.imageEditTitle, { marginTop: 16 }]}>Customer Sketch</Text>
+            {tempCustomerSketch || order.customerSketch?.url ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: tempCustomerSketch?.uri || order.customerSketch.url }} 
+                  style={styles.imagePreview}
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={() => setTempCustomerSketch(null)}
+                >
+                  <Feather name="x" size={20} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.uploadButton} onPress={() => setIsCanvasVisible(true)}>
+                <Feather name="edit-3" size={20} color={colors.primary} />
+                <Text style={styles.uploadButtonText}>Draw Sketch</Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.buttonRow}>
+              <Button title="Save Changes" onPress={handleSaveImages} buttonStyle={styles.smallButton} />
+              <Button 
+                title="Cancel" 
+                onPress={() => {
+                  setTempReferenceImage(null);
+                  setTempCustomerSketch(null);
+                  setIsEditingImages(false);
+                }} 
+                outline 
+                buttonStyle={styles.smallButton}
+              />
+            </View>
+          </View>
+        ) : (
+          <View>
+            {order.referenceImage?.url && (
+              <TouchableOpacity onPress={() => {
+                setSelectedImage({ url: order.referenceImage.url, title: 'Reference Image' });
+                setIsImageModalVisible(true);
+              }}>
+                <Image source={{ uri: order.referenceImage.url }} style={styles.imagePreview} />
+              </TouchableOpacity>
+            )}
+            {order.customerSketch?.url && (
+              <TouchableOpacity onPress={() => {
+                setSelectedImage({ url: order.customerSketch.url, title: 'Customer Sketch' });
+                setIsImageModalVisible(true);
+              }}>
+                <Image source={{ uri: order.customerSketch.url }} style={styles.imagePreview} />
+              </TouchableOpacity>
+            )}
+            {!order.referenceImage?.url && !order.customerSketch?.url && (
+              <Text style={styles.noDataText}>No design references provided</Text>
+            )}
           </View>
         )}
       </View>
 
-      {/* Design Reference Section */}
-      {(order.referenceImage?.url || order.customerSketch?.url) && (
-        <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Design Reference</Text>
-          
-          {order.referenceImage?.url && (
-            <View style={styles.designReferenceItem}>
-              <View style={styles.designReferenceHeader}>
-                <Feather name="image" size={18} color={colors.black} />
-                <Text style={styles.designReferenceLabel}>Reference Image</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.designImageContainer}
-                onPress={() => openImageModal(order.referenceImage.url, 'Reference Image')}
-              >
-                <Image 
-                  source={{ uri: order.referenceImage.url }}
-                  style={styles.designImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.imageOverlay}>
-                  <Feather name="maximize-2" size={24} color={colors.white} />
-                  <Text style={styles.imageOverlayText}>Tap to view full size</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {order.customerSketch?.url && (
-            <View style={styles.designReferenceItem}>
-              <View style={styles.designReferenceHeader}>
-                <Feather name="edit-3" size={18} color={colors.black} />
-                <Text style={styles.designReferenceLabel}>Customer Sketch</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.designImageContainer}
-                onPress={() => openImageModal(order.customerSketch.url, 'Customer Sketch')}
-              >
-                <Image 
-                  source={{ uri: order.customerSketch.url }}
-                  style={styles.designImage}
-                  resizeMode="contain"
-                />
-                <View style={styles.imageOverlay}>
-                  <Feather name="maximize-2" size={24} color={colors.white} />
-                  <Text style={styles.imageOverlayText}>Tap to view full size</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
-
       {/* Measurements Section */}
-      <View style={styles.infoSection}>
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>Measurements</Text>
-    {!isEditingMeasurements && !order.isLocked && ['pending', 'accepted'].includes(order.status) && (
-      <TouchableOpacity
-        onPress={() => setIsEditingMeasurements(true)}
-        style={styles.editButton}
-      >
-        <Feather name="edit-3" size={18} color={colors.primary} />
-        <Text style={styles.editButtonText}>Edit</Text>
-      </TouchableOpacity>
-    )}
-  </View>
-
-  {isEditingMeasurements ? (
-    <MeasurementEditor
-      measurements={order.measurements}
-      onSave={handleSaveMeasurements}
-      onCancel={() => setIsEditingMeasurements(false)}
-      garmentType={order.garmentType}
-      userRole={user.role}
-    />
-  ) : (
-    <>
-      {order.measurements && Object.keys(order.measurements).length > 0 ? (
-        <View style={styles.measurementsGrid}>
-          {Object.entries(order.measurements).map(([key, value]) => (
-            <View style={styles.measurementCard} key={key}>
-              <Text style={styles.measurementLabel}>
-                {measurementLabels[key] || key}
-              </Text>
-              <Text style={styles.measurementValue}>
-                {value} <Text style={styles.unitText}>cm</Text>
-              </Text>
-            </View>
-          ))}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Measurements</Text>
+          {canEdit() && !isEditingMeasurements && (
+            <TouchableOpacity onPress={() => setIsEditingMeasurements(true)} style={styles.editButton}>
+              <Feather name="edit-3" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
-      ) : (
-        <Text style={styles.noDataText}>No measurement data available</Text>
-      )}
-    </>
-  )}
 
-  {/* Add Change History */}
-  <ChangeHistory changes={changeHistory} />
-</View>
-
-      {/* Actions Section */}
-      <View style={styles.actionsSection}>
-        {/* Tailor Actions */}
-        {user.role === 'tailor' && (
-          <>
-            {order.status === 'pending' && (
-              <View style={styles.actionButtonsContainer}>
-                <Button
-                  title="Accept Order"
-                  onPress={() => setIsPriceModalVisible(true)}
-                  buttonStyle={styles.acceptButton}
-                  icon="check"
-                />
-                <Button
-                  title="Reject Order"
-                  onPress={handleRejectOrder}
-                  buttonStyle={styles.rejectButton}
-                  danger
-                  icon="x"
-                />
+        {isEditingMeasurements ? (
+          <MeasurementEditor
+            measurements={order.measurements}
+            onSave={handleSaveMeasurements}
+            onCancel={() => setIsEditingMeasurements(false)}
+            garmentType={order.garmentType}
+            userRole={user.role}
+          />
+        ) : (
+          <View style={styles.measurementsGrid}>
+            {Object.entries(order.measurements).map(([key, value]) => (
+              <View style={styles.measurementCard} key={key}>
+                <Text style={styles.measurementLabel}>{measurementLabels[key] || key}</Text>
+                <Text style={styles.measurementValue}>
+                  {value} <Text style={styles.unitText}>cm</Text>
+                </Text>
               </View>
-            )}
-            
-            {nextStatus && (
-              <Button
-                title={`Update Status to ${getStatusLabel(nextStatus)}`}
-                onPress={() => handleUpdateStatus(nextStatus)}
-                icon="arrow-right"
-                iconPosition="right"
-              />
-            )}
-          </>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Change History */}
+      <ChangeHistory changes={changeHistory} />
+
+      {/* Actions */}
+      <View style={styles.actionsSection}>
+        {user.role === 'tailor' && order.status === 'pending' && (
+          <View style={styles.buttonRow}>
+            <Button
+              title="Accept Order"
+              onPress={() => setIsPriceModalVisible(true)}
+              buttonStyle={styles.actionButton}
+            />
+            <Button
+              title="Reject"
+              onPress={() => {/* reject logic */}}
+              danger
+              buttonStyle={styles.actionButton}
+            />
+          </View>
         )}
         
-        {/* Customer Actions */}
-        {user.role === 'customer' && (
-          <>
-            {order.status === 'accepted' && (
-              <Button
-                title="Confirm Order"
-                onPress={() => setIsStatusModalVisible(true)}
-                icon="check"
-              />
-            )}
-            {(order.status === 'pending' || order.status === 'accepted' || order.status === 'rejected') && (
-              <Button
-                title="Delete Order"
-                onPress={handleDeleteOrder}
-                danger
-                icon="trash-2"
-                buttonStyle={{ marginTop: 12 }}
-              />
-            )}
-          </>
+        {user.role === 'customer' && order.status === 'accepted' && (
+          <Button
+            title="Confirm & Start Collaboration"
+            onPress={() => setIsStatusModalVisible(true)}
+          />
         )}
 
-        {/* Message Action for both roles */}
+        {order.isLocked && user.role === 'tailor' && ['confirmed'].includes(order.status) && (
+          <Button
+            title="Start Production"
+            onPress={() => updateOrderStatus(orderId, { status: 'making' }).then(loadOrderDetails)}
+          />
+        )}
+
         <Button
           title={`Message ${user.role === 'customer' ? 'Tailor' : 'Customer'}`}
           onPress={() => navigation.navigate('Chat', {
             userId: user.role === 'customer' ? order.tailor._id : order.customer._id,
-            name: user.role === 'customer' ? order.tailor.name : order.customer.name,
-            orderId: order._id
+            name: user.role === 'customer' ? order.tailor.name : order.customer.name
           })}
           outline
-          icon="message-square"
-          buttonStyle={styles.messageButton}
+          buttonStyle={{ marginTop: 12 }}
         />
       </View>
 
-      {/* Review Section - Only for completed orders by customers */}
-      {user?.role === 'customer' && order?.status === 'completed' && (
-        <View style={styles.reviewSection}>
-          {canReview && (
+      {/* Modals */}
+      <Modal visible={isPriceModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Set Price for Order</Text>
+            <Formik
+              initialValues={{ price: '' }}
+              validationSchema={priceSchema}
+              onSubmit={handleAcceptOrder}
+            >
+              {({ handleChange, handleSubmit, values, errors, touched }) => (
+                <View>
+                  <Input
+                    label="Enter Price (PKR)"
+                    value={values.price}
+                    onChangeText={handleChange('price')}
+                    keyboardType="numeric"
+                    error={touched.price && errors.price}
+                  />
+                  <Button title="Accept Order" onPress={handleSubmit} />
+                  <Button 
+                    title="Cancel" 
+                    onPress={() => setIsPriceModalVisible(false)} 
+                    outline 
+                    buttonStyle={{ marginTop: 12 }}
+                  />
+                </View>
+              )}
+            </Formik>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={isStatusModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Confirm Order</Text>
+            <Text style={styles.modalText}>
+              Price: PKR {order?.price}. After confirmation, you can work with the tailor to finalize the design.
+            </Text>
+            <Button title="Confirm Order" onPress={handleConfirmOrder} />
+            <Button 
+              title="Cancel" 
+              onPress={() => setIsStatusModalVisible(false)} 
+              outline 
+              buttonStyle={{ marginTop: 12 }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={isImageModalVisible} transparent animationType="fade">
+        <View style={styles.imageModalOverlay}>
+          <TouchableOpacity 
+            style={styles.imageModalClose}
+            onPress={() => setIsImageModalVisible(false)}
+          >
+            <Feather name="x" size={32} color={colors.white} />
+          </TouchableOpacity>
+          {selectedImage && (
             <>
-              <Text style={styles.reviewPrompt}>
-                How was your experience with this tailor?
-              </Text>
-              <Button
-                title="Write a Review"
-                onPress={openReviewModal}
-                icon="star"
-                buttonStyle={styles.reviewButton}
+              <Text style={styles.imageModalTitle}>{selectedImage.title}</Text>
+              <Image 
+                source={{ uri: selectedImage.url }}
+                style={styles.imageModalContent}
+                resizeMode="contain"
               />
             </>
           )}
-          {hasReviewed && (
-            <View style={styles.reviewedBadge}>
-              <Feather name="check-circle" size={20} color={colors.success} />
-              <Text style={styles.reviewedText}>You've reviewed this order</Text>
-            </View>
-          )}
         </View>
-      )}
+      </Modal>
 
-      {/* Modals */}
-      {renderPriceModal()}
-      {renderStatusModal()}
-      {renderImageModal()}
-
-      {/* Review Modal */}
-      <ReviewModal
-        visible={showReviewModal}
-        onClose={() => setShowReviewModal(false)}
-        onSubmit={handleReviewSubmit}
-        orderDetails={{
-          orderId: order?._id,
-          garmentType: order?.garmentType
-        }}
-        isLoading={isSubmittingReview}
-      />
+      <Modal visible={isCanvasVisible} animationType="slide">
+        <DrawingCanvas 
+          onSave={handleCanvasSave}
+          onClose={() => setIsCanvasVisible(false)}
+        />
+      </Modal>
     </ScrollView>
   );
 };
@@ -860,63 +803,73 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white
   },
-  contentContainer: {
-    padding: 16
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
   },
   orderIdText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.black,
-    marginBottom: 4
+    fontWeight: 'bold'
   },
   orderDateText: {
     fontSize: 14,
-    color: colors.gray
+    color: colors.gray,
+    marginTop: 4
   },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: colors.gray
+    borderRadius: 16
   },
   statusText: {
     color: colors.white,
     fontWeight: '600',
     fontSize: 12
   },
-  infoSection: {
-    backgroundColor: colors.white,
+  editNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    padding: 12,
+    margin: 16,
     borderRadius: 8,
+    gap: 8
+  },
+  editNoticeText: {
+    flex: 1,
+    color: colors.primary,
+    fontWeight: '500'
+  },
+  section: {
     padding: 16,
-    marginBottom: 16,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightGray
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: colors.black,
-    marginBottom: 16
+    fontWeight: '600'
+  },
+  editButton: {
+    padding: 8
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12
+    marginBottom: 8
   },
   infoLabel: {
-    fontSize: 14,
-    color: colors.gray,
-    flex: 1
+    color: colors.gray
   },
+  
   infoValue: {
     fontSize: 14,
     color: colors.black,
