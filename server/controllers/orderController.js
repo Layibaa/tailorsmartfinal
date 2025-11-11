@@ -4,6 +4,10 @@ const Message = require('../models/Message');
 const { StatusCodes } = require('http-status-codes');
 const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
 const { uploadImage, deleteImage } = require('../config/cloudinary');
+const { 
+  calculateDeliveryTime, 
+  formatDeliveryMessage 
+} = require('../utils/deliveryTimeCalculator');
 
 // ✅ FIXED: Validate and process image data
 const processImageUpload = async (imageData, type) => {
@@ -363,6 +367,9 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const updateData = { status };
+    let deliveryEstimate = null;
+
+    // ✨ NEW: Calculate delivery time when accepting order
     if (status === 'accepted') {
       if (!price || price <= 0) {
         return res.status(StatusCodes.BAD_REQUEST).json({ 
@@ -370,6 +377,20 @@ const updateOrderStatus = async (req, res) => {
         });
       }
       updateData.price = price;
+
+      // Calculate delivery time based on workload
+      console.log('📊 Calculating delivery time for order:', orderId);
+      deliveryEstimate = await calculateDeliveryTime(userId, price);
+      
+      updateData.estimatedDeliveryDays = deliveryEstimate.estimatedDays;
+      updateData.expectedCompletionDate = deliveryEstimate.completionDate;
+      updateData.deliveryConfidence = deliveryEstimate.confidence;
+
+      console.log('Delivery estimate calculated:', {
+        days: deliveryEstimate.estimatedDays,
+        date: deliveryEstimate.completionDate,
+        confidence: deliveryEstimate.confidence
+      });
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(
@@ -387,6 +408,7 @@ const updateOrderStatus = async (req, res) => {
       completed: 'Your order has been completed and is ready for pickup'
     };
 
+    // Send status notification
     if (notificationMessages[status]) {
       await Message.create({
         sender: userId,
@@ -396,9 +418,31 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
+    // ✨ NEW: Send delivery time estimate message
+    if (status === 'accepted' && deliveryEstimate) {
+      const deliveryMessage = formatDeliveryMessage(
+        deliveryEstimate, 
+        order.garmentType
+      );
+
+      await Message.create({
+        sender: userId,
+        receiver: order.customer,
+        content: deliveryMessage,
+        order: order._id
+      });
+
+      console.log('📨 Delivery estimate message sent to customer');
+    }
+
     res.status(StatusCodes.OK).json({ 
       success: true, 
-      order: updatedOrder 
+      order: updatedOrder,
+      deliveryEstimate: deliveryEstimate ? {
+        days: deliveryEstimate.estimatedDays,
+        date: deliveryEstimate.completionDate,
+        confidence: deliveryEstimate.confidence
+      } : null
     });
   } catch (error) {
     console.error('Update order status error:', error);
@@ -434,18 +478,53 @@ const confirmOrder = async (req, res) => {
       });
     }
 
+    // ✨ NEW: Recalculate delivery estimate when confirmed
+    let deliveryUpdate = {};
+    if (order.price && order.tailor) {
+      const deliveryEstimate = await calculateDeliveryTime(order.tailor, order.price);
+      
+      deliveryUpdate = {
+        estimatedDeliveryDays: deliveryEstimate.estimatedDays,
+        expectedCompletionDate: deliveryEstimate.completionDate,
+        deliveryConfidence: deliveryEstimate.confidence
+      };
+
+      console.log('📊 Updated delivery estimate on confirmation:', deliveryEstimate);
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
-      { status: 'confirmed' },
+      { 
+        status: 'confirmed',
+        ...deliveryUpdate 
+      },
       { new: true, runValidators: true }
     ).populate('customer tailor');
 
+    // Notify tailor
     await Message.create({
       sender: userId,
       receiver: order.tailor,
       content: 'Order confirmed. You can start working on it.',
       order: order._id
     });
+
+    // ✨ NEW: Send updated delivery reminder to customer
+    if (deliveryUpdate.expectedCompletionDate) {
+      const reminderDate = new Date(deliveryUpdate.expectedCompletionDate).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      await Message.create({
+        sender: order.tailor,
+        receiver: userId,
+        content: `Order confirmed! We'll have your ${order.garmentType} ready by ${reminderDate} (approximately ${deliveryUpdate.estimatedDeliveryDays} days). Thank you for your patience!`,
+        order: order._id
+      });
+    }
 
     res.status(StatusCodes.OK).json({ 
       success: true, 
