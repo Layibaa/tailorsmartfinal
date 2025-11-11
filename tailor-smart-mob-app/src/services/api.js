@@ -345,8 +345,13 @@ export const getTailorOrders = async () => {
 };
 
 export const getTailorOrderDetails = async (orderId) => {
-  const response = await api.get(`/tailors/orders/${orderId}`);
-  return response.data;
+  try {
+    const response = await api.get(`/tailors/orders/${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Get tailor order details error:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 export const getPendingOrders = async () => {
@@ -419,21 +424,7 @@ export const getOrderDetails = async (orderId) => {
     throw error;
   }
 };
-
-export const updateOrder = async (orderId, updateData) => {
-  try {
-    console.log(`📝 Updating order ${orderId} with:`, updateData);
-    const response = await api.put(`/orders/${orderId}`, updateData);
-    return response.data;
-  } catch (error) {
-    console.error('Update order error:', error.response?.data || error.message);
-    
-    if (error.response?.data?.locked) {
-      throw new Error('This design is locked and cannot be edited');
-    }
-    throw error;
-  }
-};
+ 
 
 export const deleteOrder = async (orderId) => {
   try {
@@ -443,6 +434,11 @@ export const deleteOrder = async (orderId) => {
     console.error('Delete order error:', error.response?.data || error.message);
     throw error;
   }
+};
+
+export const getCustomerOrders = async () => {
+  const response = await api.get('/customers/orders');
+  return response.data;
 };
 
 export const updateOrderStatus = async (orderId, statusData) => {
@@ -457,25 +453,41 @@ export const confirmOrder = async (orderId) => {
 
 export const lockOrder = async (orderId, isLocked) => {
   try {
-    console.log(`🔒 ${isLocked ? 'Locking' : 'Unlocking'} order ${orderId}`);
-    const response = await api.patch(`/orders/${orderId}/lock`, { 
-      isLocked: Boolean(isLocked) 
+    console.log(`🔐 API Call - Lock Order:`, {
+      orderId,
+      isLocked,
+      type: typeof isLocked,
+      url: `/orders/${orderId}/lock`
     });
+    
+    // Ensure isLocked is boolean
+    const lockValue = Boolean(isLocked);
+    
+    const response = await api.patch(`/orders/${orderId}/lock`, { 
+      isLocked: lockValue 
+    });
+    
+    console.log('✅ Lock API Response:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Lock order error:', error.response?.data || error.message);
+    console.error('❌ Lock order API error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
     throw error;
   }
 };
-
-export const getCustomerOrders = async () => {
-  const response = await api.get('/customers/orders');
-  return response.data;
-};
+ 
 
 export const getCustomerOrderDetails = async (orderId) => {
-  const response = await api.get(`/customers/orders/${orderId}`);
-  return response.data;
+  try {
+    const response = await api.get(`/customers/orders/${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Get customer order details error:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 // ============================================
