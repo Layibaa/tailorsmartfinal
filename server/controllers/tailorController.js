@@ -1,3 +1,4 @@
+// server/controllers/tailorController.js - FIXED duplicate exports
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { StatusCodes } = require('http-status-codes');
@@ -19,10 +20,18 @@ const getProfile = async (req, res) => {
   res.status(StatusCodes.OK).json({ success: true, tailor });
 };
 
-// Update tailor profile (except password)
+// ✅ FIXED: Update tailor profile with correct field names
 const updateProfile = async (req, res) => {
   const { userId } = req.user;
-  const { name, email, city, region, shopName, shopLocation, averagePrice } = req.body;
+  const { name, email, city, region, shopName, shopLocation, shopAddress, averagePrice } = req.body;
+  
+  console.log('📝 Updating tailor profile:', {
+    userId,
+    shopName,
+    shopLocation,
+    shopAddress,
+    averagePrice
+  });
   
   // Validate required fields
   if (!name || name.trim().length < 2) {
@@ -45,7 +54,9 @@ const updateProfile = async (req, res) => {
     throw new BadRequestError('Shop name is required');
   }
   
-  if (!shopLocation || shopLocation.trim().length === 0) {
+  // ✅ Accept both shopLocation and shopAddress
+  const location = shopLocation || shopAddress;
+  if (!location || location.trim().length === 0) {
     throw new BadRequestError('Shop address is required');
   }
   
@@ -71,12 +82,15 @@ const updateProfile = async (req, res) => {
     updateData.email = email;
   }
   
-  // Update tailorProfile fields
+  // ✅ FIXED: Update tailorProfile fields with both location names
   updateData.tailorProfile = {
     shopName: shopName.trim(),
-    shopLocation: shopLocation.trim(),
+    shopLocation: location.trim(),
+    shopAddress: location.trim(),   // ✅ set both
     averagePrice: parseFloat(averagePrice)
   };
+  
+  console.log('✅ Updating with data:', updateData);
   
   const tailor = await User.findByIdAndUpdate(
     userId,
@@ -87,6 +101,8 @@ const updateProfile = async (req, res) => {
   if (!tailor) {
     throw new NotFoundError(`No tailor with id ${userId}`);
   }
+  
+  console.log('✅ Updated tailor profile:', tailor.tailorProfile);
   
   res.status(StatusCodes.OK).json({ 
     success: true, 
@@ -104,15 +120,13 @@ const sendPasswordChangeOtp = async (req, res) => {
     throw new NotFoundError(`No tailor with id ${userId}`);
   }
   
-  // Generate OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
   
   tailor.otp = otp;
   tailor.otpExpires = otpExpires;
   await tailor.save();
   
-  // In production, send email here
   console.log(`Password change OTP for ${tailor.email}: ${otp}`);
   
   res.status(StatusCodes.OK).json({
@@ -139,12 +153,10 @@ const updatePassword = async (req, res) => {
     throw new NotFoundError(`No tailor with id ${userId}`);
   }
   
-  // Check OTP
   if (!tailor.otp || tailor.otp !== otp || new Date() > tailor.otpExpires) {
     throw new BadRequestError('Invalid or expired OTP');
   }
   
-  // Update password
   const salt = await bcrypt.genSalt(10);
   tailor.password = await bcrypt.hash(newPassword, salt);
   tailor.otp = undefined;
@@ -167,15 +179,13 @@ const sendDeleteAccountOtp = async (req, res) => {
     throw new NotFoundError(`No tailor with id ${userId}`);
   }
   
-  // Generate OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
   
   tailor.otp = otp;
   tailor.otpExpires = otpExpires;
   await tailor.save();
   
-  // In production, send email here
   console.log(`Account deletion OTP for ${tailor.email}: ${otp}`);
   
   res.status(StatusCodes.OK).json({
@@ -198,49 +208,17 @@ const deleteAccount = async (req, res) => {
     throw new NotFoundError(`No tailor with id ${userId}`);
   }
   
-  // Check OTP
   if (!tailor.otp || tailor.otp !== otp || new Date() > tailor.otpExpires) {
     throw new BadRequestError('Invalid or expired OTP');
   }
   
-  // Delete all orders related to this tailor
   await Order.deleteMany({ tailor: userId });
-  
-  // Delete tailor account
   await User.findByIdAndDelete(userId);
   
   res.status(StatusCodes.OK).json({
     success: true,
     message: 'Account deleted successfully'
   });
-};
-
-// Update tailor profile (original function kept for backward compatibility)
-const updateProfileOld = async (req, res) => {
-  const { userId } = req.user;
-  const { name, shopName, shopLocation, averagePrice } = req.body;
-  
-  const updateData = { name };
-  
-  // Only update tailorProfile fields if provided
-  if (shopName || shopLocation || averagePrice) {
-    updateData.tailorProfile = {};
-    if (shopName) updateData.tailorProfile.shopName = shopName;
-    if (shopLocation) updateData.tailorProfile.shopLocation = shopLocation;
-    if (averagePrice) updateData.tailorProfile.averagePrice = averagePrice;
-  }
-  
-  const tailor = await User.findByIdAndUpdate(
-    userId,
-    updateData,
-    { new: true, runValidators: true }
-  ).select('-password');
-  
-  if (!tailor) {
-    throw new NotFoundError(`No tailor with id ${userId}`);
-  }
-  
-  res.status(StatusCodes.OK).json({ tailor });
 };
 
 // Get tailor's orders
@@ -283,7 +261,7 @@ const getPendingOrders = async (req, res) => {
   res.status(StatusCodes.OK).json({ count: orders.length, orders });
 };
 
-// Get active orders (accepted, confirmed, making, payment_done)
+// Get active orders
 const getActiveOrders = async (req, res) => {
   const { userId } = req.user;
   
@@ -314,12 +292,10 @@ const getAllTailors = async (req, res) => {
   try {
     let filter = { role: 'tailor', status: 'active' };
     
-    // Add city filter if provided
     if (city) {
       filter.city = city;
     }
     
-    // Add region filter if provided (only relevant for Islamabad)
     if (region && city === 'Islamabad') {
       filter.region = region;
     }
@@ -342,6 +318,8 @@ const getAllTailors = async (req, res) => {
   }
 };
 
+// ✅ REMOVED: Duplicate updateProfileOld function
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -349,11 +327,10 @@ module.exports = {
   updatePassword,
   sendDeleteAccountOtp,
   deleteAccount,
-  updateProfile: updateProfileOld, // Keep old function name for existing routes
   getMyOrders,
   getOrderDetails,
   getPendingOrders,
   getActiveOrders,
   getCompletedOrders,
-  getAllTailors // ADD THIS LINE
+  getAllTailors
 };

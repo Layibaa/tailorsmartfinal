@@ -1,4 +1,4 @@
-// server/controllers/authController.js - Enhanced with location validation
+// server/controllers/authController.js - FIXED registration to save tailor fields correctly
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 const jwt = require('jsonwebtoken');
@@ -6,7 +6,6 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendEmail } = require('../utils/emailService');
 
-// Valid cities and regions
 const VALID_CITIES = ['Islamabad', 'Karachi', 'Lahore', 'Peshawar', 'Quetta'];
 const ISLAMABAD_REGIONS = [
   'Blue Area', 'F-6', 'F-7', 'F-8', 'F-10', 
@@ -15,9 +14,7 @@ const ISLAMABAD_REGIONS = [
   'E-7', 'E-11', 'G-9', 'G-11', 'I-9', 'I-10'
 ];
 
-// Location validation helper
 const validateLocation = (city, region) => {
-  // Validate city
   if (!city || !VALID_CITIES.includes(city)) {
     return { 
       isValid: false, 
@@ -25,7 +22,6 @@ const validateLocation = (city, region) => {
     };
   }
   
-  // For Islamabad, region is required
   if (city === 'Islamabad') {
     if (!region || !ISLAMABAD_REGIONS.includes(region)) {
       return { 
@@ -34,7 +30,6 @@ const validateLocation = (city, region) => {
       };
     }
   } else {
-    // For other cities, region should not be provided
     if (region && region.trim() !== '') {
       return { 
         isValid: false, 
@@ -112,8 +107,8 @@ const login = async (req, res) => {
       role: user.role,
       status: user.status,
       isVerified: user.isVerified,
-      city: user.city,                    // NEW: Include location
-      region: user.region,                // NEW: Include region
+      city: user.city,
+      region: user.region,
       tailorProfile: user.tailorProfile,
       customerProfile: user.customerProfile
     },
@@ -123,7 +118,7 @@ const login = async (req, res) => {
   });
 };
 
-// Enhanced register function with location validation
+// ✅ FIXED: Register function with correct field mapping
 const register = async (req, res) => {
   try {
     const { 
@@ -132,22 +127,30 @@ const register = async (req, res) => {
       password, 
       role, 
       phone, 
-      city,           // NEW
-      region,         // NEW
+      city,
+      region,
       // Customer profile fields
       age, 
       gender, 
       weight, 
       height,
-      // Tailor profile fields
+      // Tailor profile fields - FIXED names
       shopName,
       shopLocation,
-      averagePrice,
+      shopAddress,      // ✅ accept both
+      averagePrice,     // ✅ FIXED: was missing
       experience,
       specialization
     } = req.body;
     
-    // Validate required fields
+    console.log('📝 Registration data received:', {
+      role,
+      shopName,
+      shopLocation,
+      shopAddress,
+      averagePrice
+    });
+    
     if (!name || !email || !password || !city) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -155,7 +158,6 @@ const register = async (req, res) => {
       });
     }
     
-    // Validate location
     const locationValidation = validateLocation(city, region);
     if (!locationValidation.isValid) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -164,7 +166,6 @@ const register = async (req, res) => {
       });
     }
     
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -173,48 +174,78 @@ const register = async (req, res) => {
       });
     }
     
-    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
     
-    // Prepare user data
     const userData = {
       name,
       email,
       password,
       role: role || 'customer',
       phone,
-      city,                              // NEW: Location fields
-      region: city === 'Islamabad' ? region : null,  // NEW: Only set region for Islamabad
+      city,
+      region: city === 'Islamabad' ? region : null,
       otp,
       otpExpires,
       isVerified: false
     };
     
-    // Add role-specific profile data
+    // ✅ FIXED: Add role-specific profile data with correct field names
     if (role === 'customer' || !role) {
       if (age || gender || weight || height) {
-        userData.customerProfile = {
-          ...(age && { age: parseInt(age) }),
-          ...(gender && { gender }),
-          ...(weight && { weight: parseFloat(weight) }),
-          ...(height && { height: parseFloat(height) })
-        };
+        userData.customerProfile = {};
+        
+        if (age) {
+          userData.customerProfile.age = parseInt(age);
+        }
+        if (gender) {
+          userData.customerProfile.gender = gender;
+        }
+        if (weight) {
+          userData.customerProfile.weight = parseFloat(weight);
+        }
+        if (height) {
+          userData.customerProfile.height = parseFloat(height);
+        }
+        
+        console.log('✅ Customer profile to save:', userData.customerProfile);
       }
     } else if (role === 'tailor') {
-      if (shopName || shopLocation || averagePrice || experience || specialization) {
-        userData.tailorProfile = {
-          ...(shopName && { shopName }),
-          ...(shopLocation && { shopLocation }),
-          ...(averagePrice && { averagePrice: parseFloat(averagePrice) }),
-          ...(experience && { experience: parseInt(experience) }),
-          ...(specialization && { specialization })
-        };
+      // ✅ FIXED: Build tailor profile with all fields
+      if (shopName || shopLocation || shopAddress || averagePrice || experience || specialization) {
+        userData.tailorProfile = {};
+        
+        if (shopName) {
+          userData.tailorProfile.shopName = shopName;
+        }
+        
+        // ✅ Handle both shopLocation and shopAddress
+        const location = shopLocation || shopAddress;
+        if (location) {
+          userData.tailorProfile.shopLocation = location;
+          userData.tailorProfile.shopAddress = location;
+        }
+        
+        // ✅ FIXED: Save averagePrice
+        if (averagePrice) {
+          userData.tailorProfile.averagePrice = parseFloat(averagePrice);
+        }
+        
+        if (experience) {
+          userData.tailorProfile.experience = parseInt(experience);
+        }
+        
+        if (specialization) {
+          userData.tailorProfile.specialization = specialization;
+        }
+        
+        console.log('✅ Tailor profile to save:', userData.tailorProfile);
       }
     }
     
     // Create user
     const user = await User.create(userData);
+    console.log('✅ User created with tailor profile:', user.tailorProfile);
     
     // Send OTP email
     try {
@@ -225,7 +256,7 @@ const register = async (req, res) => {
           text: `Welcome to Tailor Smart! Your OTP for email verification is: ${otp}. This OTP will expire in 10 minutes.`
         });
       } else {
-        console.log(`OTP for ${email}: ${otp}`); // For development
+        console.log(`OTP for ${email}: ${otp}`);
       }
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
@@ -245,7 +276,6 @@ const register = async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     
-    // Handle validation errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -261,7 +291,6 @@ const register = async (req, res) => {
   }
 };
 
-// Update verifyOtp to include location in response
 const verifyOtp = async (req, res) => {
   const { userId, otp } = req.body;
 
@@ -310,25 +339,25 @@ const verifyOtp = async (req, res) => {
       email: user.email,
       role: user.role,
       isVerified: user.isVerified,
-      city: user.city,          // NEW: Include location
-      region: user.region       // NEW: Include region
+      city: user.city,
+      region: user.region,
+      tailorProfile: user.tailorProfile,    // ✅ Include full profile
+      customerProfile: user.customerProfile
     },
     token: accessToken
   });
 };
 
-// Enhanced profile update with location
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { 
       name, 
       phone, 
-      city,     // NEW: Allow city updates
-      region    // NEW: Allow region updates
+      city,
+      region
     } = req.body;
     
-    // Validate location if provided
     if (city || region) {
       const currentUser = await User.findById(userId);
       const newCity = city || currentUser.city;
@@ -343,13 +372,11 @@ const updateProfile = async (req, res) => {
       }
     }
     
-    // Prepare update data
     const updateData = {};
     if (name) updateData.name = name;
     if (phone) updateData.phone = phone;
     if (city) {
       updateData.city = city;
-      // If changing to non-Islamabad city, clear region
       if (city !== 'Islamabad') {
         updateData.region = null;
       }
@@ -358,7 +385,6 @@ const updateProfile = async (req, res) => {
       updateData.region = region || null;
     }
     
-    // Handle role-specific profile updates
     if (req.user.role === 'customer') {
       const { age, gender, weight, height, address, preferredStyles } = req.body;
       
@@ -398,7 +424,6 @@ const updateProfile = async (req, res) => {
       }
     }
     
-    // Save updates
     const user = await User.findByIdAndUpdate(userId, updateData, {
       new: true,
       runValidators: true
@@ -419,7 +444,6 @@ const updateProfile = async (req, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     
-    // Handle validation errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -435,7 +459,6 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// Add endpoint to get location options
 const getLocationOptions = async (req, res) => {
   try {
     res.status(StatusCodes.OK).json({
@@ -453,7 +476,7 @@ const getLocationOptions = async (req, res) => {
   }
 };
 
-// Keep all other existing functions...
+// Keep all other existing functions (refreshToken, logout, whoami, etc.)
 const refreshToken = async (req, res) => {
   const { refreshToken: token } = req.body;
 
@@ -582,7 +605,6 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Keep all other existing functions (resendOtp, forgotPassword, resetPassword, etc.)...
 const resendOtp = async (req, res) => {
   const { userId } = req.body;
 
@@ -780,5 +802,5 @@ module.exports = {
   updatePassword,
   getProfile,
   updateProfile,
-  getLocationOptions, // NEW: Export location options endpoint
+  getLocationOptions,
 };

@@ -1,4 +1,4 @@
-// server/controllers/customerController.js - Enhanced with profile management
+// server/controllers/customerController.js - FIXED profile management
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
@@ -136,6 +136,13 @@ const getProfile = async (req, res) => {
       });
     }
 
+    console.log('✅ Customer profile fetched:', {
+      name: customer.name,
+      city: customer.city,
+      region: customer.region,
+      customerProfile: customer.customerProfile
+    });
+
     res.json({
       success: true,
       data: customer
@@ -150,40 +157,97 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Update customer profile (excluding password)
+// ✅ FIXED: Update customer profile with proper field handling
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
-    const { name, phone, city, region, age, gender, weight, height, address, preferredStyles } = req.body;
+    const { 
+      name, 
+      phone, 
+      city, 
+      region, 
+      age, 
+      gender, 
+      weight, 
+      height, 
+      address, 
+      preferredStyles 
+    } = req.body;
 
-    // Remove sensitive fields from update
+    console.log('📝 Updating customer profile:', {
+      userId,
+      name,
+      city,
+      region,
+      customerProfileFields: { age, gender, weight, height, address, preferredStyles }
+    });
+
+    // Get existing customer data first
+    const existingCustomer = await User.findById(userId);
+    if (!existingCustomer) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: 'Customer not found'
+      });
+    }
+
+    // Build update data
     const updateData = {};
     
     // Basic fields
-    if (name) updateData.name = name;
-    if (phone) updateData.phone = phone;
-    if (city) updateData.city = city;
-    if (region !== undefined) updateData.region = region;
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (city !== undefined) {
+      updateData.city = city;
+      // Clear region if city is not Islamabad
+      if (city !== 'Islamabad') {
+        updateData.region = null;
+      }
+    }
+    if (region !== undefined) {
+      updateData.region = region || null;
+    }
 
-    // Customer profile fields
+    // ✅ FIXED: Customer profile fields - preserve existing data
     if (age !== undefined || gender !== undefined || weight !== undefined || 
         height !== undefined || address !== undefined || preferredStyles !== undefined) {
       
-      const existingCustomer = await User.findById(userId);
-      updateData.customerProfile = existingCustomer?.customerProfile || {};
+      // Start with existing profile or empty object
+      updateData.customerProfile = existingCustomer.customerProfile 
+        ? { ...existingCustomer.customerProfile.toObject() }
+        : {};
       
-      if (age !== undefined) updateData.customerProfile.age = age;
-      if (gender !== undefined) updateData.customerProfile.gender = gender;
-      if (weight !== undefined) updateData.customerProfile.weight = weight;
-      if (height !== undefined) updateData.customerProfile.height = height;
-      if (address !== undefined) updateData.customerProfile.address = address;
-      if (preferredStyles !== undefined) updateData.customerProfile.preferredStyles = preferredStyles;
+      // Update only provided fields
+      if (age !== undefined) {
+        updateData.customerProfile.age = age ? parseInt(age) : null;
+      }
+      if (gender !== undefined) {
+        updateData.customerProfile.gender = gender;
+      }
+      if (weight !== undefined) {
+        updateData.customerProfile.weight = weight ? parseFloat(weight) : null;
+      }
+      if (height !== undefined) {
+        updateData.customerProfile.height = height ? parseFloat(height) : null;
+      }
+      if (address !== undefined) {
+        updateData.customerProfile.address = address;
+      }
+      if (preferredStyles !== undefined) {
+        updateData.customerProfile.preferredStyles = preferredStyles;
+      }
+
+      console.log('✅ Customer profile to update:', updateData.customerProfile);
     }
 
+    // Perform update
     const customer = await User.findByIdAndUpdate(
       userId,
       updateData,
-      { new: true, runValidators: true }
+      { 
+        new: true, 
+        runValidators: true 
+      }
     ).select('-password -refreshToken -otp -otpExpires -passwordResetToken -passwordResetExpires');
 
     if (!customer) {
@@ -193,6 +257,13 @@ const updateProfile = async (req, res) => {
       });
     }
 
+    console.log('✅ Customer profile updated successfully:', {
+      name: customer.name,
+      city: customer.city,
+      region: customer.region,
+      customerProfile: customer.customerProfile
+    });
+
     res.json({
       success: true,
       msg: 'Profile updated successfully',
@@ -200,7 +271,7 @@ const updateProfile = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('❌ Update profile error:', error);
     
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
@@ -282,6 +353,13 @@ const updatePassword = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         msg: 'New password and OTP are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Password must be at least 6 characters'
       });
     }
 
@@ -396,6 +474,13 @@ const deleteAccount = async (req, res) => {
       });
     }
 
+    if (otp.length !== 6) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Invalid OTP format'
+      });
+    }
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -419,14 +504,15 @@ const deleteAccount = async (req, res) => {
       });
     }
 
+    // Delete related orders
+    await Order.deleteMany({ customer: userId });
+
     // Delete user account
     await User.findByIdAndDelete(userId);
 
-    // TODO: Also delete related orders, messages, etc.
-
     res.json({
       success: true,
-      msg: 'Account deleted successfully'
+      msg: 'Account and all related data deleted successfully'
     });
 
   } catch (error) {
