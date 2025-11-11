@@ -2,6 +2,23 @@ const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema(
   {
+    estimatedDeliveryDays: {
+      type: Number,
+      min: 0,
+      default: null
+    },
+    deliveryConfidence: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium'
+    },
+    expectedCompletionDate: Date, // This already exists in your model
+    
+    // ✨ NEW: Track actual completion for learning
+    actualCompletionDate: {
+      type: Date,
+      default: null
+    },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -104,8 +121,14 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Pre-save middleware to update timeline
+// ✨ NEW: Pre-save middleware to track actual completion
 OrderSchema.pre('save', function(next) {
+  // Track when order is actually completed
+  if (this.isModified('status') && this.status === 'completed' && !this.actualCompletionDate) {
+    this.actualCompletionDate = new Date();
+  }
+  
+  // Existing timeline logic
   if (this.isNew || this.isModified('status')) {
     this.timeline.push({
       status: this.status,
@@ -113,8 +136,27 @@ OrderSchema.pre('save', function(next) {
       notes: `Order ${this.isNew ? 'created' : 'updated'} with status: ${this.status}`
     });
   }
+  
   next();
 });
+
+// ✨ NEW: Method to calculate delivery accuracy
+OrderSchema.methods.getDeliveryAccuracy = function() {
+  if (!this.actualCompletionDate || !this.expectedCompletionDate) {
+    return null;
+  }
+  
+  const expectedTime = this.expectedCompletionDate.getTime();
+  const actualTime = this.actualCompletionDate.getTime();
+  const diffDays = Math.abs((actualTime - expectedTime) / (1000 * 60 * 60 * 24));
+  
+  return {
+    wasOnTime: actualTime <= expectedTime,
+    differenceInDays: Math.round(diffDays),
+    expectedDate: this.expectedCompletionDate,
+    actualDate: this.actualCompletionDate
+  };
+};
 
 // Indexes for efficient queries
 OrderSchema.index({ customer: 1, createdAt: -1 });

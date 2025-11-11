@@ -1,37 +1,41 @@
-// Define the app color palette
+// tailor-smart-mob-app/src/styles/colors.js
+// Enhanced with order status colors and fallbacks
+
 const colors = {
   // Primary colors
   black: '#000000',
   white: '#FFFFFF',
   
   // Gray scale
-  lightGray: '#E5E5E5',
-  gray: '#9E9E9E',
-  darkGray: '#424242',
+  lightGray: '#F5F5F5',
+  gray: '#999999',
+  darkGray: '#666666',
   
   // Status colors
-  success: '#4CAF50',
-  warning: '#FFC107',
-  error: '#F44336',
-  info: '#2196F3',
+  success: '#28a745',
+  error: '#dc3545',
+  warning: '#ffc107',
+  info: '#17a2b8',
   
   // Order status colors
-  pending: '#FFC107',
-  accepted: '#2196F3',
-  confirmed: '#9C27B0',
-  making: '#FF9800',
-  payment_done: '#8BC34A',
-  completed: '#4CAF50',
-  rejected: '#F44336',
+  pending: '#ffc107',      // Yellow/Warning
+  accepted: '#17a2b8',     // Blue/Info
+  rejected: '#dc3545',     // Red/Error
+  confirmed: '#007bff',    // Blue
+  making: '#fd7e14',       // Orange
+  payment_done: '#6f42c1', // Purple
+  completed: '#28a745',    // Green/Success
   
-  // Transparent colors
-  transparentBlack: 'rgba(0, 0, 0, 0.5)',
-  transparentWhite: 'rgba(255, 255, 255, 0.8)',
-
-  success: '#10b981',  // Green for positive reviews
-  warning: '#f59e0b',  // Orange for average reviews
-  error: '#ef4444',    // Red for negative reviews
-  star: '#FFD700',     // Gold for stars
+  // UI colors
+  primary: '#000000',
+  secondary: '#666666',
+  background: '#FFFFFF',
+  text: '#000000',
+  textSecondary: '#666666',
+  border: '#E0E0E0',
+  
+  // Additional
+  transparent: 'transparent'
 };
 
 export default colors;
