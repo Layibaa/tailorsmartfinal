@@ -36,6 +36,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../../services/api';
 import ReviewModal from '../../components/ui/ReviewModal';
+import LockStatusBanner from '../../components/orders/LockStatusBanner';
+import MeasurementEditor from '../../components/orders/MeasurementEditor';
+import ChangeHistory from '../../components/orders/ChangeHistory';
+import { lockOrder, updateOrder } from '../../services/api';
 
 const priceSchema = Yup.object().shape({
   price: Yup.number()
@@ -63,6 +67,9 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [canReview, setCanReview] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
   
+const [isEditingMeasurements, setIsEditingMeasurements] = useState(false);
+const [changeHistory, setChangeHistory] = useState([]);
+
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
 
@@ -170,6 +177,94 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setIsSubmittingReview(false);
     }
   };
+
+const handleToggleLock = async () => {
+  try {
+    const newLockState = !order.isLocked;
+    
+    Alert.alert(
+      newLockState ? 'Lock Design?' : 'Unlock Design?',
+      newLockState 
+        ? 'Once locked, no changes can be made until you unlock it again.'
+        : 'Unlocking will allow both parties to edit measurements again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: newLockState ? 'Lock' : 'Unlock',
+          onPress: async () => {
+            try {
+              setIsUpdating(true);
+              const response = await lockOrder(orderId, newLockState);
+              
+              // Add to change history
+              setChangeHistory(prev => [{
+                userName: user.name,
+                action: newLockState ? 'locked the design' : 'unlocked the design',
+                timestamp: new Date().toISOString()
+              }, ...prev]);
+              
+              // Send notification to other party
+              if (newLockState && order.tailor) {
+                await sendMessage({
+                  receiverId: order.tailor._id,
+                  content: `Design has been locked. No further changes can be made.`,
+                  orderId: order._id
+                });
+              }
+              
+              Alert.alert(
+                'Success',
+                `Design ${newLockState ? 'locked' : 'unlocked'} successfully`
+              );
+              
+              loadOrderDetails();
+            } catch (error) {
+              Alert.alert('Error', error.response?.data?.msg || 'Failed to update lock status');
+            } finally {
+              setIsUpdating(false);
+            }
+          }
+        }
+      ]
+    );
+  } catch (error) {
+    console.error('Toggle lock error:', error);
+  }
+};
+
+// ADD THIS FUNCTION to handle measurement updates
+const handleSaveMeasurements = async (newMeasurements) => {
+  try {
+    setIsUpdating(true);
+    
+    await updateOrder(orderId, {
+      measurements: newMeasurements
+    });
+    
+    // Add to change history
+    setChangeHistory(prev => [{
+      userName: user.name,
+      action: 'updated measurements',
+      timestamp: new Date().toISOString()
+    }, ...prev]);
+    
+    // Notify other party
+    const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
+    await sendMessage({
+      receiverId,
+      content: `${user.name} has updated the measurements. Please review.`,
+      orderId: order._id
+    });
+    
+    setIsEditingMeasurements(false);
+    Alert.alert('Success', 'Measurements updated successfully');
+    loadOrderDetails();
+  } catch (error) {
+    Alert.alert('Error', error.message || 'Failed to update measurements');
+  } finally {
+    setIsUpdating(false);
+  }
+};
 
   // Open review modal
   const openReviewModal = () => {
@@ -495,6 +590,17 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </View>
 
+      <LockStatusBanner
+  isLocked={order.isLocked}
+  onToggleLock={handleToggleLock}
+  canToggleLock={
+    user.role === 'customer' && 
+    ['pending', 'accepted'].includes(order.status)
+  }
+  userRole={user.role}
+  orderStatus={order.status}
+/>
+
       {/* Order Info Section */}
       <View style={styles.infoSection}>
         <Text style={styles.sectionTitle}>Order Information</Text>
@@ -588,19 +694,51 @@ const OrderDetailsScreen = ({ route, navigation }) => {
 
       {/* Measurements Section */}
       <View style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>Measurements</Text>
-        
-        {order.measurements && Object.keys(order.measurements).length > 0 ? (
-          Object.entries(order.measurements).map(([key, value]) => (
-            <View style={styles.infoRow} key={key}>
-              <Text style={styles.infoLabel}>{measurementLabels[key] || key}:</Text>
-              <Text style={styles.infoValue}>{value} cm</Text>
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionTitle}>Measurements</Text>
+    {!isEditingMeasurements && !order.isLocked && ['pending', 'accepted'].includes(order.status) && (
+      <TouchableOpacity
+        onPress={() => setIsEditingMeasurements(true)}
+        style={styles.editButton}
+      >
+        <Feather name="edit-3" size={18} color={colors.primary} />
+        <Text style={styles.editButtonText}>Edit</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+
+  {isEditingMeasurements ? (
+    <MeasurementEditor
+      measurements={order.measurements}
+      onSave={handleSaveMeasurements}
+      onCancel={() => setIsEditingMeasurements(false)}
+      garmentType={order.garmentType}
+      userRole={user.role}
+    />
+  ) : (
+    <>
+      {order.measurements && Object.keys(order.measurements).length > 0 ? (
+        <View style={styles.measurementsGrid}>
+          {Object.entries(order.measurements).map(([key, value]) => (
+            <View style={styles.measurementCard} key={key}>
+              <Text style={styles.measurementLabel}>
+                {measurementLabels[key] || key}
+              </Text>
+              <Text style={styles.measurementValue}>
+                {value} <Text style={styles.unitText}>cm</Text>
+              </Text>
             </View>
-          ))
-        ) : (
-          <Text style={styles.noDataText}>No measurement data available</Text>
-        )}
-      </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.noDataText}>No measurement data available</Text>
+      )}
+    </>
+  )}
+
+  {/* Add Change History */}
+  <ChangeHistory changes={changeHistory} />
+</View>
 
       {/* Actions Section */}
       <View style={styles.actionsSection}>
@@ -959,7 +1097,52 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     marginTop: 12
-  }
+  },
+  sectionHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 16
+},
+editButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  backgroundColor: colors.primary + '10',
+  borderRadius: 8
+},
+editButtonText: {
+  color: colors.primary,
+  fontWeight: '600',
+  fontSize: 14
+},
+measurementsGrid: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 12
+},
+measurementCard: {
+  width: '47%',
+  backgroundColor: colors.lightGray,
+  padding: 16,
+  borderRadius: 12
+},
+measurementLabel: {
+  fontSize: 12,
+  color: colors.gray,
+  marginBottom: 6
+},
+measurementValue: {
+  fontSize: 24,
+  fontWeight: 'bold',
+  color: colors.black
+},
+unitText: {
+  fontSize: 14,
+  color: colors.gray
+}
 });
 
 export default OrderDetailsScreen;
