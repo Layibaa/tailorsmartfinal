@@ -1,3 +1,4 @@
+// REPLACE: tailor-smart-mob-app/src/screens/customer/OrderHistoryScreen.js
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   View,
@@ -9,7 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { getCustomerOrders } from '../../services/api';
+import { getCustomerOrders, getMyReviews } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import OrderCard from '../../components/orders/OrderCard';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -18,21 +19,27 @@ import globalStyles from '../../styles/globalStyles';
 
 const OrderHistoryScreen = ({ navigation, route }) => {
   const [orders, setOrders] = useState([]);
+  const [reviews, setReviews] = useState([]); // ✅ NEW: track reviews
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'active', 'completed'
+  const [activeTab, setActiveTab] = useState('all');
   const initialRender = useRef(true);
   
   const { user } = useContext(AuthContext);
 
-  // Load orders
-  const loadOrders = async () => {
+  // ✅ Load orders and reviews
+  const loadData = async () => {
     try {
-      const response = await getCustomerOrders();
-      setOrders(response.orders);
+      const [ordersResponse, reviewsResponse] = await Promise.all([
+        getCustomerOrders(),
+        getMyReviews()
+      ]);
+      
+      setOrders(ordersResponse.orders);
+      setReviews(reviewsResponse.reviews);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load orders');
-      console.error('Error loading orders:', error);
+      Alert.alert('Error', 'Failed to load data');
+      console.error('Error loading data:', error);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -40,24 +47,20 @@ const OrderHistoryScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    loadOrders();
+    loadData();
   }, []);
 
   // Check for new order from route params
   useEffect(() => {
-    // Skip on initial render
     if (initialRender.current) {
       initialRender.current = false;
       return;
     }
 
-    // Check if we have a new order param
     if (route.params?.newOrderAdded && route.params?.newOrderData) {
       console.log("New order detected, updating order list");
       
-      // Add the new order to the list without making a network request
       setOrders(prevOrders => {
-        // Check if order already exists to avoid duplicates
         const orderExists = prevOrders.some(order => 
           order._id === route.params.newOrderData._id
         );
@@ -69,26 +72,45 @@ const OrderHistoryScreen = ({ navigation, route }) => {
         }
       });
       
-      // Clear the params to prevent duplicate updates on screen focus
       navigation.setParams({ newOrderAdded: undefined, newOrderData: undefined });
-      
-      // Set active tab to 'active' to show the new order
       setActiveTab('active');
     }
   }, [route.params?.newOrderAdded, route.params?.newOrderData]);
 
-  // Handle refresh
+  // ✅ Reload data when screen gains focus (after writing review)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (!initialRender.current) {
+        loadData();
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const onRefresh = () => {
     setRefreshing(true);
-    loadOrders();
+    loadData();
   };
 
-  // Handle order press
   const handleOrderPress = (orderId) => {
     navigation.navigate('OrderDetails', { orderId });
   };
 
-  // Filter orders based on active tab
+  // ✅ NEW: Handle write review
+  const handleWriteReview = (orderId) => {
+    navigation.navigate('WriteOrderReview', { 
+      orderId,
+      onReviewSubmitted: () => {
+        loadData(); // Reload data after review submitted
+      }
+    });
+  };
+
+  // ✅ NEW: Check if order has review
+  const hasReview = (orderId) => {
+    return reviews.some(review => review.order?._id === orderId);
+  };
+
   const getFilteredOrders = () => {
     if (activeTab === 'all') {
       return orders;
@@ -104,7 +126,6 @@ const OrderHistoryScreen = ({ navigation, route }) => {
     return orders;
   };
 
-  // Render tabs
   const renderTabs = () => (
     <View style={styles.tabsContainer}>
       <TouchableOpacity
@@ -136,7 +157,6 @@ const OrderHistoryScreen = ({ navigation, route }) => {
     </View>
   );
 
-  // Render empty state
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Feather name="shopping-bag" size={50} color={colors.lightGray} />
@@ -166,17 +186,16 @@ const OrderHistoryScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-  <Text style={styles.headerTitle}>My Orders</Text>
-  <View style={styles.headerIcons}>
-    <TouchableOpacity onPress={onRefresh} style={styles.iconButton}>
-      <Feather name="refresh-ccw" size={24} color={colors.black} />
-    </TouchableOpacity>
-    <TouchableOpacity onPress={() => navigation.navigate('Tailors')} style={styles.iconButton}>
-      <Feather name="plus" size={24} color={colors.black} />
-    </TouchableOpacity>
-  </View>
-</View>
-
+        <Text style={styles.headerTitle}>My Orders</Text>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={onRefresh} style={styles.iconButton}>
+            <Feather name="refresh-ccw" size={24} color={colors.black} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Tailors')} style={styles.iconButton}>
+            <Feather name="plus" size={24} color={colors.black} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {renderTabs()}
 
@@ -194,6 +213,9 @@ const OrderHistoryScreen = ({ navigation, route }) => {
                 actionRequired: true 
               });
             }}
+            // ✅ NEW: Pass review props
+            onWriteReview={handleWriteReview}
+            hasReview={hasReview(item._id)}
           />
         )}
         keyExtractor={item => item._id}
@@ -289,5 +311,6 @@ const styles = StyleSheet.create({
   iconButton: {
     marginLeft: 12
   }
-  });
+});
+
 export default OrderHistoryScreen;

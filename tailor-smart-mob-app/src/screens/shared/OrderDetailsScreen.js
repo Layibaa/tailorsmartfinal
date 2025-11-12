@@ -1,4 +1,4 @@
-// OrderDetailsScreen.js - Simplified Version (No Lock/Edit Features)
+// OrderDetailsScreen.js - COMPLETE FIX
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -29,7 +29,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import colors from '../../styles/colors';
-import { measurementLabels, getRequiredMeasurementsForGarment } from '../../utils/validation';
+import { measurementLabels } from '../../utils/validation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -251,6 +251,180 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+  // ✅ FIXED: Status update with proper error handling
+  const handleUpdateStatus = async (newStatus, statusLabel) => {
+    const confirmMessages = {
+      making: 'Start production on this order?',
+      payment_done: 'Confirm that payment has been received?',
+      completed: 'Mark this order as completed and ready for pickup?'
+    };
+
+    const successMessages = {
+      making: 'Production started! ✓',
+      payment_done: 'Payment confirmed! ✓',
+      completed: 'Order completed! 🎉'
+    };
+
+    const notificationMessages = {
+      making: 'Your order is now being made',
+      payment_done: 'Payment received for your order',
+      completed: '🎉 Your order is completed and ready for pickup!'
+    };
+
+    Alert.alert(
+      'Update Status',
+      confirmMessages[newStatus] || `Update status to ${statusLabel}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              setIsUpdating(true);
+              
+              console.log('🔄 Updating order status:', { orderId, newStatus });
+              
+              // Call API with proper payload
+              const response = await updateOrderStatus(orderId, { status: newStatus });
+              
+              console.log('✅ Status updated successfully:', response);
+              
+              // Send notification to customer
+              if (order.customer) {
+                sendOrderNotification(
+                  order.customer._id,
+                  orderId,
+                  newStatus,
+                  notificationMessages[newStatus]
+                );
+              }
+              
+              // Show success message
+              Alert.alert('Success', successMessages[newStatus] || 'Order status updated', [
+                {
+                  text: 'OK',
+                  onPress: async () => {
+                    // Reload order details to show next button
+                    await loadOrderDetails();
+                  }
+                }
+              ]);
+              
+            } catch (error) {
+              console.error('❌ Update status error:', error);
+              console.error('Error details:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+              });
+              
+              Alert.alert(
+                'Error', 
+                error.response?.data?.msg || error.message || 'Failed to update status'
+              );
+            } finally {
+              setIsUpdating(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = {
+      pending: 'Pending',
+      accepted: 'Accepted',
+      rejected: 'Rejected',
+      confirmed: 'Confirmed',
+      making: 'In Production',
+      payment_done: 'Payment Received',
+      completed: 'Completed'
+    };
+    return labels[status] || status;
+  };
+
+  // ✅ FIXED: Render correct button based on status
+  const renderTailorActionButton = () => {
+    if (!order || user.role !== 'tailor') return null;
+
+    console.log('🎯 Rendering button for status:', order.status);
+
+    switch (order.status) {
+      case 'pending':
+        return (
+          <View style={styles.buttonRow}>
+            <Button
+              title="Accept Order"
+              onPress={() => setIsPriceModalVisible(true)}
+              buttonStyle={styles.actionButton}
+              disabled={isUpdating}
+            />
+            <Button
+              title="Reject"
+              onPress={handleRejectOrder}
+              danger
+              buttonStyle={styles.actionButton}
+              disabled={isUpdating}
+            />
+          </View>
+        );
+
+      case 'confirmed':
+        return (
+          <Button
+            title="🚀 Start Production"
+            onPress={() => handleUpdateStatus('making', 'In Production')}
+            disabled={isUpdating}
+            loading={isUpdating}
+          />
+        );
+
+      case 'making':
+        return (
+          <Button
+            title="💰 Mark Payment Done"
+            onPress={() => handleUpdateStatus('payment_done', 'Payment Done')}
+            disabled={isUpdating}
+            loading={isUpdating}
+          />
+        );
+
+      case 'payment_done':
+        return (
+          <Button
+            title="✅ Mark as Completed"
+            onPress={() => handleUpdateStatus('completed', 'Completed')}
+            disabled={isUpdating}
+            loading={isUpdating}
+          />
+        );
+
+      case 'accepted':
+        return (
+          <View style={styles.waitingContainer}>
+            <Feather name="clock" size={20} color={colors.warning} />
+            <Text style={styles.waitingText}>
+              ⏳ Waiting for customer confirmation
+            </Text>
+          </View>
+        );
+
+      case 'completed':
+        return (
+          <View style={styles.completedContainer}>
+            <Feather name="check-circle" size={20} color={colors.success} />
+            <Text style={styles.completedText}>
+              ✅ Order completed
+            </Text>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   if (isLoading) {
     return <LoadingSpinner fullScreen text="Loading order details..." />;
   }
@@ -265,8 +439,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     );
   }
 
-  const requiredMeasurements = getRequiredMeasurementsForGarment(order.garmentType);
-
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={true}>
       {/* Header */}
@@ -278,7 +450,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: colors[order.status] || colors.gray }]}>
-          <Text style={styles.statusText}>{order.status}</Text>
+          <Text style={styles.statusText}>{getStatusLabel(order.status)}</Text>
         </View>
       </View>
 
@@ -334,7 +506,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.infoValue}>{order.kameezStyle}</Text>
         </View>
 
-        {/* Show price edit button for tailor if negotiation requested and not yet changed */}
         {user.role === 'tailor' && 
          order.status === 'accepted' && 
          order.priceNegotiationRequested && 
@@ -364,12 +535,14 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       </View>
 
       {/* Notes Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📝 Order Notes</Text>
-        <Text style={styles.notesText}>{order.notes || 'No notes provided'}</Text>
-      </View>
+      {order.notes && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📝 Order Notes</Text>
+          <Text style={styles.notesText}>{order.notes}</Text>
+        </View>
+      )}
 
-      {/* Dupatta Details Section (3-piece only) */}
+      {/* Dupatta Details Section */}
       {order.suitType === '3-piece' && order.dupattaDetails && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🧣 Dupatta Details</Text>
@@ -403,40 +576,38 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       )}
 
       {/* Design References Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🖼️ Design Reference</Text>
-        {order.referenceImage?.url && (
-          <View style={styles.imageContainer}>
-            <Text style={styles.imageLabel}>Reference Image:</Text>
-            <TouchableOpacity onPress={() => {
-              setSelectedImage({ url: order.referenceImage.url, title: 'Reference Image' });
-              setIsImageModalVisible(true);
-            }}>
-              <Image source={{ uri: order.referenceImage.url }} style={styles.imagePreview} />
-            </TouchableOpacity>
-          </View>
-        )}
-        {order.customerSketch?.url && (
-          <View style={styles.imageContainer}>
-            <Text style={styles.imageLabel}>Customer Sketch:</Text>
-            <TouchableOpacity onPress={() => {
-              setSelectedImage({ url: order.customerSketch.url, title: 'Customer Sketch' });
-              setIsImageModalVisible(true);
-            }}>
-              <Image source={{ uri: order.customerSketch.url }} style={styles.imagePreview} />
-            </TouchableOpacity>
-          </View>
-        )}
-        {!order.referenceImage?.url && !order.customerSketch?.url && (
-          <Text style={styles.noDataText}>No design references provided</Text>
-        )}
-      </View>
+      {(order.referenceImage?.url || order.customerSketch?.url) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🖼️ Design Reference</Text>
+          {order.referenceImage?.url && (
+            <View style={styles.imageContainer}>
+              <Text style={styles.imageLabel}>Reference Image:</Text>
+              <TouchableOpacity onPress={() => {
+                setSelectedImage({ url: order.referenceImage.url, title: 'Reference Image' });
+                setIsImageModalVisible(true);
+              }}>
+                <Image source={{ uri: order.referenceImage.url }} style={styles.imagePreview} />
+              </TouchableOpacity>
+            </View>
+          )}
+          {order.customerSketch?.url && (
+            <View style={styles.imageContainer}>
+              <Text style={styles.imageLabel}>Customer Sketch:</Text>
+              <TouchableOpacity onPress={() => {
+                setSelectedImage({ url: order.customerSketch.url, title: 'Customer Sketch' });
+                setIsImageModalVisible(true);
+              }}>
+                <Image source={{ uri: order.customerSketch.url }} style={styles.imagePreview} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Measurements Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📏 Measurements</Text>
         
-        {/* Kameez Measurements */}
         <View style={styles.measurementGroup}>
           <Text style={styles.measurementGroupTitle}>👔 Kameez</Text>
           <View style={styles.measurementsGrid}>
@@ -453,7 +624,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Shalwar Measurements */}
         <View style={styles.measurementGroup}>
           <Text style={styles.measurementGroupTitle}>👖 Shalwar</Text>
           <View style={styles.measurementsGrid}>
@@ -471,26 +641,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* Actions */}
+      {/* ✅ FIXED: Actions Section */}
       <View style={styles.actionsSection}>
-        {user.role === 'tailor' && order.status === 'pending' && (
-          <View style={styles.buttonRow}>
-            <Button
-              title="Accept Order"
-              onPress={() => setIsPriceModalVisible(true)}
-              buttonStyle={styles.actionButton}
-              disabled={isUpdating}
-            />
-            <Button
-              title="Reject"
-              onPress={handleRejectOrder}
-              danger
-              buttonStyle={styles.actionButton}
-              disabled={isUpdating}
-            />
-          </View>
-        )}
+        {/* Tailor actions */}
+        {renderTailorActionButton()}
         
+        {/* Customer actions */}
         {user.role === 'customer' && order.status === 'accepted' && (
           <Button
             title="✓ Confirm Order"
@@ -499,25 +655,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           />
         )}
 
-        {user.role === 'tailor' && order.status === 'confirmed' && (
-          <Button
-            title="🚀 Start Production"
-            onPress={async () => {
-              try {
-                setIsUpdating(true);
-                await updateOrderStatus(orderId, { status: 'making' });
-                Alert.alert('Success', 'Production started!');
-                loadOrderDetails();
-              } catch (error) {
-                Alert.alert('Error', 'Failed to start production');
-              } finally {
-                setIsUpdating(false);
-              }
-            }}
-            disabled={isUpdating}
-          />
-        )}
-
+        {/* Message button for both roles */}
         <Button
           title={`💬 Message ${user.role === 'customer' ? 'Tailor' : 'Customer'}`}
           onPress={() => navigation.navigate('Chat', {
@@ -531,13 +669,13 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         />
       </View>
 
-      {/* Price Modal */}
+      {/* Modals */}
       <Modal visible={isPriceModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Set Price for Order</Text>
             <Text style={styles.modalSubtitle}>
-              Enter the price for this {order.garmentType} order
+              Enter the price for this {order.suitType} order
             </Text>
             <Formik
               initialValues={{ price: '' }}
@@ -575,7 +713,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Confirm Modal */}
       <Modal visible={isStatusModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -631,7 +768,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Price Edit Modal (Tailor Only) */}
       <Modal visible={isPriceEditModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -676,7 +812,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Image View Modal */}
       <Modal visible={isImageModalVisible} transparent animationType="fade">
         <View style={styles.imageModalOverlay}>
           <TouchableOpacity 
@@ -698,7 +833,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Bottom Spacing */}
       <View style={styles.bottomSpacing} />
     </ScrollView>
   );
@@ -735,7 +869,8 @@ const styles = StyleSheet.create({
   statusText: {
     color: colors.white,
     fontWeight: '600',
-    fontSize: 12
+    fontSize: 12,
+    textTransform: 'capitalize'
   },
   negotiationBanner: {
     flexDirection: 'row',
@@ -872,13 +1007,6 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8
   },
-  noDataText: {
-    fontSize: 14,
-    color: colors.gray,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginVertical: 12
-  },
   measurementGroup: {
     marginBottom: 20
   },
@@ -916,7 +1044,7 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12
+    marginBottom: 12
   },
   actionsSection: {
     padding: 16,
@@ -924,6 +1052,36 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1
+  },
+  waitingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.warning + '20',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12
+  },
+  waitingText: {
+    fontSize: 14,
+    color: colors.darkGray,
+    fontWeight: '500'
+  },
+  completedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success + '20',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12
+  },
+  completedText: {
+    fontSize: 14,
+    color: colors.success,
+    fontWeight: '600'
   },
   modalOverlay: {
     flex: 1,

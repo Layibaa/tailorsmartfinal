@@ -1,16 +1,22 @@
+// server/controllers/reviewController.js - REPLACE ENTIRE FILE
 const Review = require('../models/Review');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 
-// Create a general review for a tailor (no order required)
-const createGeneralReview = async (req, res) => {
+// ============================================
+// CREATE REVIEW FOR COMPLETED ORDER
+// ============================================
+const createOrderReview = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { role } = req.user;
-    const { tailorId } = req.params;
+    const { orderId } = req.params;
     const { rating, comment, images } = req.body;
 
+    console.log('⭐ Creating review for order:', orderId, 'by user:', userId);
+
+    // Check if user is a customer
     if (role !== 'customer') {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
@@ -18,20 +24,23 @@ const createGeneralReview = async (req, res) => {
       });
     }
 
-    if (!rating) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        msg: 'Rating is required'
-      });
-    }
-
-    if (rating < 1 || rating > 5 || !Number.isInteger(rating)) {
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         msg: 'Rating must be an integer between 1 and 5'
       });
     }
 
+    // Validate comment
+    if (!comment || comment.trim().length < 10) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Comment must be at least 10 characters'
+      });
+    }
+
+    // Validate images
     if (images && (!Array.isArray(images) || images.length > 3)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -39,41 +48,61 @@ const createGeneralReview = async (req, res) => {
       });
     }
 
-    const tailor = await User.findById(tailorId);
-    if (!tailor || tailor.role !== 'tailor') {
+    // ✅ CHECK ORDER EXISTS AND BELONGS TO CUSTOMER
+    const order = await Order.findById(orderId).populate('tailor', 'name');
+    if (!order) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        msg: 'Tailor not found'
+        msg: 'Order not found'
       });
     }
 
-    const existingReview = await Review.findOne({ 
-      customer: userId, 
-      tailor: tailorId,
-      order: { $exists: false }
-    });
+    // ✅ CHECK ORDER BELONGS TO THIS CUSTOMER
+    if (order.customer.toString() !== userId) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        msg: 'You can only review your own orders'
+      });
+    }
 
+    // ✅ CHECK ORDER IS COMPLETED
+    if (order.status !== 'completed') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'You can only review completed orders',
+        currentStatus: order.status
+      });
+    }
+
+    // ✅ CHECK IF REVIEW ALREADY EXISTS FOR THIS ORDER
+    const existingReview = await Review.findOne({ order: orderId });
     if (existingReview) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        msg: 'You have already reviewed this tailor'
+        msg: 'You have already reviewed this order'
       });
     }
 
+    // ✅ CREATE REVIEW
     const review = await Review.create({
       customer: userId,
-      tailor: tailorId,
+      tailor: order.tailor._id,
+      order: orderId,
       rating: parseInt(rating),
-      comment: comment?.trim() || '',
+      comment: comment.trim(),
       images: images || []
     });
 
-    await updateTailorReviewStats(tailorId);
+    // ✅ UPDATE TAILOR'S AVERAGE RATING
+    await updateTailorReviewStats(order.tailor._id);
 
     await review.populate([
       { path: 'customer', select: 'name' },
-      { path: 'tailor', select: 'name' }
+      { path: 'tailor', select: 'name' },
+      { path: 'order', select: 'suitType createdAt' }
     ]);
+
+    console.log('✅ Review created successfully');
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -81,12 +110,12 @@ const createGeneralReview = async (req, res) => {
       review
     });
   } catch (error) {
-    console.error('Create general review error:', error);
+    console.error('❌ Create order review error:', error);
     
     if (error.code === 11000) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        msg: 'You have already reviewed this tailor'
+        msg: 'You have already reviewed this order'
       });
     }
 
@@ -98,9 +127,14 @@ const createGeneralReview = async (req, res) => {
   }
 };
 
+// ============================================
+// GET ALL REVIEWS FOR A TAILOR
+// ============================================
 const getTailorReviews = async (req, res) => {
   try {
     const { tailorId } = req.params;
+
+    console.log('📊 Fetching reviews for tailor:', tailorId);
 
     const tailor = await User.findById(tailorId);
     if (!tailor || tailor.role !== 'tailor') {
@@ -115,7 +149,7 @@ const getTailorReviews = async (req, res) => {
       isVisible: true 
     })
       .populate('customer', 'name')
-      .populate('order', 'garmentType')
+      .populate('order', 'suitType createdAt')
       .sort({ createdAt: -1 });
 
     const totalReviews = reviews.length;
@@ -141,7 +175,7 @@ const getTailorReviews = async (req, res) => {
       reviews
     });
   } catch (error) {
-    console.error('Get tailor reviews error:', error);
+    console.error('❌ Get tailor reviews error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while fetching reviews'
@@ -149,30 +183,50 @@ const getTailorReviews = async (req, res) => {
   }
 };
 
-const checkReviewEligibility = async (req, res) => {
+// ============================================
+// CHECK IF ORDER CAN BE REVIEWED
+// ============================================
+const checkOrderReviewEligibility = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
-    const { tailorId } = req.params;
+    const { orderId } = req.params;
 
-    const tailor = await User.findById(tailorId);
-    if (!tailor || tailor.role !== 'tailor') {
+    console.log('🔍 Checking review eligibility for order:', orderId);
+
+    const order = await Order.findById(orderId).populate('tailor', 'name');
+    if (!order) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        msg: 'Tailor not found'
+        msg: 'Order not found'
       });
     }
 
-    const existingReview = await Review.findOne({ 
-      customer: userId, 
-      tailor: tailorId,
-      order: { $exists: false }
-    });
+    // Check if order belongs to this customer
+    if (order.customer.toString() !== userId) {
+      return res.json({
+        success: true,
+        eligible: false,
+        reason: 'This is not your order'
+      });
+    }
 
+    // Check if order is completed
+    if (order.status !== 'completed') {
+      return res.json({
+        success: true,
+        eligible: false,
+        reason: 'Order must be completed before reviewing',
+        currentStatus: order.status
+      });
+    }
+
+    // Check if already reviewed
+    const existingReview = await Review.findOne({ order: orderId });
     if (existingReview) {
       return res.json({
         success: true,
         eligible: false,
-        reason: 'Already reviewed',
+        reason: 'You have already reviewed this order',
         review: existingReview
       });
     }
@@ -180,13 +234,17 @@ const checkReviewEligibility = async (req, res) => {
     res.json({
       success: true,
       eligible: true,
-      tailor: {
-        _id: tailor._id,
-        name: tailor.name
+      order: {
+        _id: order._id,
+        suitType: order.suitType,
+        tailor: {
+          _id: order.tailor._id,
+          name: order.tailor.name
+        }
       }
     });
   } catch (error) {
-    console.error('Check review eligibility error:', error);
+    console.error('❌ Check review eligibility error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while checking eligibility'
@@ -194,13 +252,18 @@ const checkReviewEligibility = async (req, res) => {
   }
 };
 
+// ============================================
+// GET CUSTOMER'S OWN REVIEWS
+// ============================================
 const getMyReviews = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
 
+    console.log('📋 Fetching reviews for customer:', userId);
+
     const reviews = await Review.find({ customer: userId })
       .populate('tailor', 'name tailorProfile')
-      .populate('order', 'garmentType')
+      .populate('order', 'suitType createdAt')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -209,7 +272,7 @@ const getMyReviews = async (req, res) => {
       reviews
     });
   } catch (error) {
-    console.error('Get my reviews error:', error);
+    console.error('❌ Get my reviews error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while fetching reviews'
@@ -217,11 +280,16 @@ const getMyReviews = async (req, res) => {
   }
 };
 
+// ============================================
+// UPDATE REVIEW
+// ============================================
 const updateReview = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { reviewId } = req.params;
     const { rating, comment, images } = req.body;
+
+    console.log('📝 Updating review:', reviewId);
 
     const review = await Review.findById(reviewId);
     if (!review) {
@@ -249,6 +317,12 @@ const updateReview = async (req, res) => {
     }
 
     if (comment !== undefined) {
+      if (comment.trim().length < 10) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          msg: 'Comment must be at least 10 characters'
+        });
+      }
       review.comment = comment.trim();
     }
 
@@ -271,7 +345,7 @@ const updateReview = async (req, res) => {
     await review.populate([
       { path: 'customer', select: 'name' },
       { path: 'tailor', select: 'name' },
-      { path: 'order', select: 'garmentType' }
+      { path: 'order', select: 'suitType createdAt' }
     ]);
 
     res.json({
@@ -280,7 +354,7 @@ const updateReview = async (req, res) => {
       review
     });
   } catch (error) {
-    console.error('Update review error:', error);
+    console.error('❌ Update review error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while updating review'
@@ -288,10 +362,15 @@ const updateReview = async (req, res) => {
   }
 };
 
+// ============================================
+// DELETE REVIEW
+// ============================================
 const deleteReview = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { reviewId } = req.params;
+
+    console.log('🗑️ Deleting review:', reviewId);
 
     const review = await Review.findById(reviewId);
     if (!review) {
@@ -308,15 +387,16 @@ const deleteReview = async (req, res) => {
       });
     }
 
+    const tailorId = review.tailor;
     await Review.findByIdAndDelete(reviewId);
-    await updateTailorReviewStats(review.tailor);
+    await updateTailorReviewStats(tailorId);
 
     res.json({
       success: true,
       msg: 'Review deleted successfully'
     });
   } catch (error) {
-    console.error('Delete review error:', error);
+    console.error('❌ Delete review error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while deleting review'
@@ -324,6 +404,9 @@ const deleteReview = async (req, res) => {
   }
 };
 
+// ============================================
+// HELPER: UPDATE TAILOR STATS
+// ============================================
 const updateTailorReviewStats = async (tailorId) => {
   try {
     const reviews = await Review.find({ tailor: tailorId, isVisible: true });
@@ -337,15 +420,17 @@ const updateTailorReviewStats = async (tailorId) => {
       'tailorProfile.rating': parseFloat(averageRating.toFixed(1)),
       'tailorProfile.reviewCount': totalCount
     });
+
+    console.log('✅ Updated tailor stats:', { tailorId, averageRating, totalCount });
   } catch (error) {
-    console.error('Update tailor review stats error:', error);
+    console.error('❌ Update tailor stats error:', error);
   }
 };
 
 module.exports = {
-  createGeneralReview,
+  createOrderReview,
   getTailorReviews,
-  checkReviewEligibility,
+  checkOrderReviewEligibility,
   getMyReviews,
   updateReview,
   deleteReview
