@@ -1,4 +1,4 @@
-// server/controllers/customerController.js - FIXED profile management
+// server/controllers/customerController.js - FIXED (removed address, using email)
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
@@ -138,6 +138,7 @@ const getProfile = async (req, res) => {
 
     console.log('✅ Customer profile fetched:', {
       name: customer.name,
+      email: customer.email,
       city: customer.city,
       region: customer.region,
       customerProfile: customer.customerProfile
@@ -157,29 +158,30 @@ const getProfile = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Update customer profile with proper field handling
+// ✅ FIXED: Update customer profile - removed address, proper handling
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { 
       name, 
-      phone, 
+      email,  // ✅ ADDED: email field
       city, 
       region, 
       age, 
       gender, 
       weight, 
       height, 
-      address, 
       preferredStyles 
+      // ✅ REMOVED: address field
     } = req.body;
 
     console.log('📝 Updating customer profile:', {
       userId,
       name,
+      email,
       city,
       region,
-      customerProfileFields: { age, gender, weight, height, address, preferredStyles }
+      customerProfileFields: { age, gender, weight, height, preferredStyles }
     });
 
     // Get existing customer data first
@@ -196,7 +198,7 @@ const updateProfile = async (req, res) => {
     
     // Basic fields
     if (name !== undefined) updateData.name = name;
-    if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email; // ✅ ADDED
     if (city !== undefined) {
       updateData.city = city;
       // Clear region if city is not Islamabad
@@ -208,9 +210,9 @@ const updateProfile = async (req, res) => {
       updateData.region = region || null;
     }
 
-    // ✅ FIXED: Customer profile fields - preserve existing data
+    // ✅ FIXED: Customer profile fields - preserve existing data, removed address
     if (age !== undefined || gender !== undefined || weight !== undefined || 
-        height !== undefined || address !== undefined || preferredStyles !== undefined) {
+        height !== undefined || preferredStyles !== undefined) {
       
       // Start with existing profile or empty object
       updateData.customerProfile = existingCustomer.customerProfile 
@@ -222,7 +224,7 @@ const updateProfile = async (req, res) => {
         updateData.customerProfile.age = age ? parseInt(age) : null;
       }
       if (gender !== undefined) {
-        updateData.customerProfile.gender = gender;
+        updateData.customerProfile.gender = gender; // Now accepts 'Male', 'Female', 'Other'
       }
       if (weight !== undefined) {
         updateData.customerProfile.weight = weight ? parseFloat(weight) : null;
@@ -230,12 +232,10 @@ const updateProfile = async (req, res) => {
       if (height !== undefined) {
         updateData.customerProfile.height = height ? parseFloat(height) : null;
       }
-      if (address !== undefined) {
-        updateData.customerProfile.address = address;
-      }
       if (preferredStyles !== undefined) {
         updateData.customerProfile.preferredStyles = preferredStyles;
       }
+      // ✅ REMOVED: address handling
 
       console.log('✅ Customer profile to update:', updateData.customerProfile);
     }
@@ -259,6 +259,7 @@ const updateProfile = async (req, res) => {
 
     console.log('✅ Customer profile updated successfully:', {
       name: customer.name,
+      email: customer.email,
       city: customer.city,
       region: customer.region,
       customerProfile: customer.customerProfile
