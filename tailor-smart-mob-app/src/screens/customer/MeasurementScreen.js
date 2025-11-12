@@ -1,4 +1,4 @@
-// ✅ UPDATED: MeasurementScreen.js - with Dupatta support
+// ✅ FIXED: MeasurementScreen.js - with Custom Success Modal
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -48,6 +48,10 @@ const MeasurementScreen = ({ route, navigation }) => {
   const [referenceImage, setReferenceImage] = useState(null);
   const [customerSketch, setCustomerSketch] = useState(null);
   const [isCanvasVisible, setIsCanvasVisible] = useState(false);
+
+  // ✅ NEW: Success Modal State
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState(null);
 
   useEffect(() => {
     const measurements = getRequiredMeasurementsForGarment(suitType);
@@ -104,7 +108,6 @@ const MeasurementScreen = ({ route, navigation }) => {
           setPredictedMeasurements(predicted);
           
           if (formikRef?.setFieldValue) {
-            // Only fill body measurements, not dupatta
             requiredMeasurements.forEach(measurement => {
               if (!measurement.includes('dupatta') && predicted[measurement]) {
                 formikRef.setFieldValue(measurement, predicted[measurement].toString());
@@ -256,381 +259,392 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   const initialValues = {
-    // Kameez measurements
     chest: '',
     shoulder: '',
     sleeveLength: '',
     neck: '',
     kameezLength: '',
-    // Shalwar measurements
     waist: '',
     hip: '',
     inseam: '',
     outseam: '',
     thigh: '',
-    // Dupatta measurements (3-piece only)
     dupattaLength: '',
     dupattaWidth: ''
   };
 
-  const handleSubmit = async (values) => {
-  console.log("📝 handleSubmit called with values:", values);
-
-  // Validate BODY measurements only
-  const missingBodyMeasurements = requiredMeasurements.filter(
-    key => !values[key] || values[key] === ''
-  );
-
-  if (missingBodyMeasurements.length > 0) {
-    console.log("⚠️ Missing body measurements:", missingBodyMeasurements);
-    Alert.alert(
-      "Missing Measurements",
-      `Please enter: ${missingBodyMeasurements.map(m => measurementLabels[m] || m).join(', ')}`
-    );
-    return;
-  }
-
-  // Validate DUPATTA separately for 3-piece
-  if (suitType === '3-piece') {
-    if (!values.dupattaLength || !values.dupattaWidth) {
-      console.log("⚠️ Missing dupatta measurements");
-      Alert.alert("Missing Dupatta", "Please enter dupatta length and width");
-      return;
-    }
-  }
-
-  setLoading(true);
-
-  try {
-    // Build measurements object (BODY only)
-    const measurements = {};
-    requiredMeasurements.forEach(key => {
-      if (values[key] && !key.includes('dupatta')) {
-        measurements[key] = parseFloat(values[key]);
+  // ✅ NEW: Handle success modal OK button
+  const handleSuccessModalOk = () => {
+    console.log("📱 Success modal OK clicked, navigating to Order History");
+    setShowSuccessModal(false);
+    
+    // Navigate to Order History
+    navigation.navigate('CustomerTabs', { 
+      screen: 'Orders',
+      params: {
+        newOrderAdded: true,
+        newOrderData: createdOrder
       }
     });
+  };
 
-    console.log("📏 Body measurements:", measurements);
+  // ✅ FIXED: handleSubmit with custom modal
+  const handleSubmit = async (values) => {
+    console.log("📝 handleSubmit called with values:", values);
 
-    const orderData = {
-      tailorId,
-      suitType,
-      shalwarStyle,
-      kameezStyle,
-      measurements,
-      notes: notes || ''
-    };
-
-    // Add dupatta separately if 3-piece
-    if (suitType === '3-piece') {
-      orderData.dupattaDetails = {
-        length: parseFloat(values.dupattaLength),
-        width: parseFloat(values.dupattaWidth),
-        hasPeco: hasPeco
-      };
-      console.log("🧣 Dupatta details:", orderData.dupattaDetails);
-    }
-
-    // Add images if available
-    if (referenceImage?.base64) {
-      console.log('📸 Adding reference image');
-      orderData.referenceImage = referenceImage.base64;
-    }
-    if (customerSketch) {
-      console.log('✏️ Adding customer sketch');
-      orderData.customerSketch = customerSketch;
-    }
-
-    const response = await createOrder(orderData);
-    console.log("✅ Order created successfully:", response);
-
-    EventRegister.emit('newOrderCreated', response.order);
-
-    Alert.alert(
-      'Success',
-      'Your order has been sent to the tailor for review.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.navigate('CustomerTabs', { screen: 'Orders' });
-          }
-        }
-      ]
+    // Validate BODY measurements only
+    const missingBodyMeasurements = requiredMeasurements.filter(
+      key => !values[key] || values[key] === ''
     );
 
-  } catch (error) {
-    console.error('❌ Error creating order:', error);
+    if (missingBodyMeasurements.length > 0) {
+      console.log("⚠️ Missing body measurements:", missingBodyMeasurements);
+      Alert.alert(
+        "Missing Measurements",
+        `Please enter: ${missingBodyMeasurements.map(m => measurementLabels[m] || m).join(', ')}`
+      );
+      return;
+    }
 
-    const errorMessage = error.response?.data?.msg || 
-                         error.message || 
-                         'Failed to create order. Please try again.';
+    // Validate DUPATTA separately for 3-piece
+    if (suitType === '3-piece') {
+      if (!values.dupattaLength || !values.dupattaWidth) {
+        console.log("⚠️ Missing dupatta measurements");
+        Alert.alert("Missing Dupatta", "Please enter dupatta length and width");
+        return;
+      }
+    }
 
-    Alert.alert('Error', errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
 
+    try {
+      // Build measurements object (BODY only)
+      const measurements = {};
+      requiredMeasurements.forEach(key => {
+        if (values[key] && !key.includes('dupatta')) {
+          measurements[key] = parseFloat(values[key]);
+        }
+      });
+
+      console.log("📏 Body measurements:", measurements);
+
+      const orderData = {
+        tailorId,
+        suitType,
+        shalwarStyle,
+        kameezStyle,
+        measurements,
+        notes: notes || ''
+      };
+
+      // Add dupatta separately if 3-piece
+      if (suitType === '3-piece') {
+        orderData.dupattaDetails = {
+          length: parseFloat(values.dupattaLength),
+          width: parseFloat(values.dupattaWidth),
+          hasPeco: hasPeco
+        };
+        console.log("🧣 Dupatta details:", orderData.dupattaDetails);
+      }
+
+      // Add images if available
+      if (referenceImage?.base64) {
+        console.log('📸 Adding reference image');
+        orderData.referenceImage = referenceImage.base64;
+      }
+      if (customerSketch) {
+        console.log('✏️ Adding customer sketch');
+        orderData.customerSketch = customerSketch;
+      }
+
+      const response = await createOrder(orderData);
+      console.log("✅ Order created successfully:", response);
+
+      // Stop loading
+      setLoading(false);
+
+      // Emit event for real-time updates
+      EventRegister.emit('newOrderCreated', response.order);
+
+      // ✅ FIXED: Show custom success modal
+      console.log("🎉 Opening success modal");
+      setCreatedOrder(response.order);
+      setShowSuccessModal(true);
+
+    } catch (error) {
+      console.error('❌ Error creating order:', error);
+      
+      setLoading(false);
+
+      const errorMessage = error.response?.data?.msg || 
+                           error.message || 
+                           'Failed to create order. Please try again.';
+
+      Alert.alert('Error', errorMessage);
+    }
+  };
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={true}
-      nestedScrollEnabled={true}
-    >
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Enter Measurements</Text>
-        <Text style={styles.headerSubtitle}>
-          For {suitType} • Tailor: {tailorName}
-        </Text>
-      </View>
-
-      {/* Auto-Fill Toggle Section */}
-      <View style={styles.autoFillContainer}>
-        <View style={styles.autoFillHeader}>
-          <View style={styles.autoFillTitleRow}>
-            <Feather name="zap" size={20} color={colors.primary} />
-            <Text style={styles.autoFillTitle}>Auto-Fill Body Measurements</Text>
-          </View>
-          <Switch
-            value={autoFillEnabled}
-            onValueChange={handleAutoFillToggle}
-            trackColor={{ false: colors.lightGray, true: colors.primary }}
-            thumbColor={autoFillEnabled ? colors.white : colors.gray}
-            disabled={!canAutoFill}
-          />
-        </View>
-        
-        {canAutoFill ? (
-          <Text style={styles.autoFillDescription}>
-            ✨ Calculate body measurements based on your profile{suitType === '3-piece' ? '. Dupatta measurements must be entered manually.' : ''}
-          </Text>
-        ) : (
-          <Text style={styles.autoFillWarning}>
-            ⚠️ Complete your profile to use auto-fill
-          </Text>
-        )}
-
-        {autoFillEnabled && predictedMeasurements && (
-          <View style={styles.predictionInfo}>
-            <Feather name="info" size={16} color={colors.darkGray} />
-            <Text style={styles.predictionText}>
-              Measurements calculated using Pakistani body standards. Please verify and adjust as needed.
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Design Reference Section */}
-      <View style={styles.designReferenceContainer}>
-        <View style={styles.sectionHeader}>
-          <Feather name="image" size={20} color={colors.black} />
-          <Text style={styles.sectionTitle}>Design Reference (Optional)</Text>
-        </View>
-        <Text style={styles.sectionDescription}>
-          Upload a reference image or draw a sketch to help the tailor understand your design
-        </Text>
-
-        <View style={styles.imageOptionContainer}>
-          <Text style={styles.imageOptionTitle}>Reference Image</Text>
-          {referenceImage ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: referenceImage.uri }} 
-                style={styles.imagePreview}
-                resizeMode="cover"
-              />
-              <TouchableOpacity 
-                style={styles.removeImageButton}
-                onPress={clearReferenceImage}
-              >
-                <Feather name="x" size={20} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity 
-              style={styles.uploadButton}
-              onPress={pickImage}
-            >
-              <Feather name="upload" size={20} color={colors.primary} />
-              <Text style={styles.uploadButtonText}>Upload Image</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.imageOptionContainer}>
-          <Text style={styles.imageOptionTitle}>Draw Your Design</Text>
-          {customerSketch ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: customerSketch }} 
-                style={styles.imagePreview}
-                resizeMode="contain"
-              />
-              <TouchableOpacity 
-                style={styles.removeImageButton}
-                onPress={clearSketch}
-              >
-                <Feather name="x" size={20} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity 
-              style={styles.uploadButton}
-              onPress={openCanvas}
-            >
-              <Feather name="edit-3" size={20} color={colors.primary} />
-              <Text style={styles.uploadButtonText}>Draw Sketch</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.measurementGuideContainer}>
-        <View style={styles.measurementGuideHeader}>
-          <Feather name="info" size={20} color={colors.black} />
-          <Text style={styles.measurementGuideTitle}>Measurement Guide</Text>
-        </View>
-        <Text style={styles.measurementGuideText}>
-          Please provide accurate measurements in centimeters. All fields are required.
-        </Text>
-      </View>
-
-      <Formik
-        initialValues={initialValues}
-        validationSchema={MeasurementsSchema[suitType]}
-        onSubmit={handleSubmit}
+    <View style={{ flex: 1 }}>
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true}
       >
-        {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
-          if (!formikRef) {
-            setFormikRef({ setFieldValue });
-          }
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Enter Measurements</Text>
+          <Text style={styles.headerSubtitle}>
+            For {suitType} • Tailor: {tailorName}
+          </Text>
+        </View>
 
-          return (
-            <View style={styles.formContainer}>
-              {/* Kameez Section */}
-              <View style={styles.measurementSection}>
-                <Text style={styles.measurementSectionTitle}>👔 Kameez Measurements</Text>
-                {['chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength'].map((measurement) => (
-                  <Input
-                    key={measurement}
-                    label={measurementLabels[measurement]}
-                    placeholder={`Enter ${measurementLabels[measurement]}`}
-                    value={values[measurement]}
-                    onChangeText={(text) => {
-                      const sanitizedText = text.replace(/[^0-9.]/g, '');
-                      handleChange(measurement)(sanitizedText);
-                    }}
-                    onBlur={handleBlur(measurement)}
-                    keyboardType="numeric"
-                    error={touched[measurement] && errors[measurement]}
-                    iconName="layout"
-                  />
-                ))}
-              </View>
-
-              {/* Shalwar Section */}
-              <View style={styles.measurementSection}>
-                <Text style={styles.measurementSectionTitle}>👖 Shalwar Measurements</Text>
-                {['waist', 'hip', 'inseam', 'outseam', 'thigh'].map((measurement) => (
-                  <Input
-                    key={measurement}
-                    label={measurementLabels[measurement]}
-                    placeholder={`Enter ${measurementLabels[measurement]}`}
-                    value={values[measurement]}
-                    onChangeText={(text) => {
-                      const sanitizedText = text.replace(/[^0-9.]/g, '');
-                      handleChange(measurement)(sanitizedText);
-                    }}
-                    onBlur={handleBlur(measurement)}
-                    keyboardType="numeric"
-                    error={touched[measurement] && errors[measurement]}
-                    iconName="layout"
-                  />
-                ))}
-              </View>
-
-              {/* Dupatta Section (3-piece only) */}
-              {suitType === '3-piece' && (
-                <View style={styles.measurementSection}>
-                  <Text style={styles.measurementSectionTitle}>🧣 Dupatta Details</Text>
-                  
-                  <Input
-                    label={measurementLabels.dupattaLength}
-                    placeholder="Enter Dupatta Length"
-                    value={values.dupattaLength}
-                    onChangeText={(text) => {
-                      const sanitizedText = text.replace(/[^0-9.]/g, '');
-                      handleChange('dupattaLength')(sanitizedText);
-                    }}
-                    onBlur={handleBlur('dupattaLength')}
-                    keyboardType="numeric"
-                    error={touched.dupattaLength && errors.dupattaLength}
-                    iconName="layout"
-                  />
-
-                  <Input
-                    label={measurementLabels.dupattaWidth}
-                    placeholder="Enter Dupatta Width"
-                    value={values.dupattaWidth}
-                    onChangeText={(text) => {
-                      const sanitizedText = text.replace(/[^0-9.]/g, '');
-                      handleChange('dupattaWidth')(sanitizedText);
-                    }}
-                    onBlur={handleBlur('dupattaWidth')}
-                    keyboardType="numeric"
-                    error={touched.dupattaWidth && errors.dupattaWidth}
-                    iconName="layout"
-                  />
-
-                  {/* Peco Toggle */}
-                  <View style={styles.pecoContainer}>
-                    <View style={styles.pecoLabelContainer}>
-                      <Feather name="scissors" size={20} color={colors.black} />
-                      <Text style={styles.pecoLabel}>Add Peco (Embellishment)</Text>
-                    </View>
-                    <Switch
-                      value={hasPeco}
-                      onValueChange={setHasPeco}
-                      trackColor={{ false: colors.lightGray, true: colors.primary }}
-                      thumbColor={hasPeco ? colors.white : colors.gray}
-                    />
-                  </View>
-                  {hasPeco && (
-                    <View style={styles.pecoInfoBox}>
-                      <Feather name="info" size={16} color={colors.primary} />
-                      <Text style={styles.pecoInfoText}>
-                        Peco decoration will be added to the dupatta edges
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.buttonsContainer}>
-                <Button
-                  title="Submit Order"
-                  onPress={formikSubmit}
-                  loading={loading}
-                  disabled={loading}
-                />
-
-                <Button
-                  title="Go Back"
-                  onPress={() => navigation.goBack()}
-                  outline
-                  buttonStyle={styles.backButton}
-                  disabled={loading}
-                />
-              </View>
+        {/* Auto-Fill Toggle Section */}
+        <View style={styles.autoFillContainer}>
+          <View style={styles.autoFillHeader}>
+            <View style={styles.autoFillTitleRow}>
+              <Feather name="zap" size={20} color={colors.primary} />
+              <Text style={styles.autoFillTitle}>Auto-Fill Body Measurements</Text>
             </View>
-          );
-        }}
-      </Formik>
+            <Switch
+              value={autoFillEnabled}
+              onValueChange={handleAutoFillToggle}
+              trackColor={{ false: colors.lightGray, true: colors.primary }}
+              thumbColor={autoFillEnabled ? colors.white : colors.gray}
+              disabled={!canAutoFill}
+            />
+          </View>
+          
+          {canAutoFill ? (
+            <Text style={styles.autoFillDescription}>
+              ✨ Calculate body measurements based on your profile{suitType === '3-piece' ? '. Dupatta measurements must be entered manually.' : ''}
+            </Text>
+          ) : (
+            <Text style={styles.autoFillWarning}>
+              ⚠️ Complete your profile to use auto-fill
+            </Text>
+          )}
 
+          {autoFillEnabled && predictedMeasurements && (
+            <View style={styles.predictionInfo}>
+              <Feather name="info" size={16} color={colors.darkGray} />
+              <Text style={styles.predictionText}>
+                Measurements calculated using Pakistani body standards. Please verify and adjust as needed.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Design Reference Section */}
+        <View style={styles.designReferenceContainer}>
+          <View style={styles.sectionHeader}>
+            <Feather name="image" size={20} color={colors.black} />
+            <Text style={styles.sectionTitle}>Design Reference (Optional)</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Upload a reference image or draw a sketch to help the tailor understand your design
+          </Text>
+
+          <View style={styles.imageOptionContainer}>
+            <Text style={styles.imageOptionTitle}>Reference Image</Text>
+            {referenceImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: referenceImage.uri }} 
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={clearReferenceImage}
+                >
+                  <Feather name="x" size={20} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.uploadButton}
+                onPress={pickImage}
+              >
+                <Feather name="upload" size={20} color={colors.primary} />
+                <Text style={styles.uploadButtonText}>Upload Image</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.imageOptionContainer}>
+            <Text style={styles.imageOptionTitle}>Draw Your Design</Text>
+            {customerSketch ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: customerSketch }} 
+                  style={styles.imagePreview}
+                  resizeMode="contain"
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={clearSketch}
+                >
+                  <Feather name="x" size={20} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.uploadButton}
+                onPress={openCanvas}
+              >
+                <Feather name="edit-3" size={20} color={colors.primary} />
+                <Text style={styles.uploadButtonText}>Draw Sketch</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.measurementGuideContainer}>
+          <View style={styles.measurementGuideHeader}>
+            <Feather name="info" size={20} color={colors.black} />
+            <Text style={styles.measurementGuideTitle}>Measurement Guide</Text>
+          </View>
+          <Text style={styles.measurementGuideText}>
+            Please provide accurate measurements in centimeters. All fields are required.
+          </Text>
+        </View>
+
+        <Formik
+          initialValues={initialValues}
+          validationSchema={MeasurementsSchema[suitType]}
+          onSubmit={handleSubmit}
+        >
+          {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
+            if (!formikRef) {
+              setFormikRef({ setFieldValue });
+            }
+
+            return (
+              <View style={styles.formContainer}>
+                {/* Kameez Section */}
+                <View style={styles.measurementSection}>
+                  <Text style={styles.measurementSectionTitle}>👔 Kameez Measurements</Text>
+                  {['chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength'].map((measurement) => (
+                    <Input
+                      key={measurement}
+                      label={measurementLabels[measurement]}
+                      placeholder={`Enter ${measurementLabels[measurement]}`}
+                      value={values[measurement]}
+                      onChangeText={(text) => {
+                        const sanitizedText = text.replace(/[^0-9.]/g, '');
+                        handleChange(measurement)(sanitizedText);
+                      }}
+                      onBlur={handleBlur(measurement)}
+                      keyboardType="numeric"
+                      error={touched[measurement] && errors[measurement]}
+                      iconName="layout"
+                    />
+                  ))}
+                </View>
+
+                {/* Shalwar Section */}
+                <View style={styles.measurementSection}>
+                  <Text style={styles.measurementSectionTitle}>👖 Shalwar Measurements</Text>
+                  {['waist', 'hip', 'inseam', 'outseam', 'thigh'].map((measurement) => (
+                    <Input
+                      key={measurement}
+                      label={measurementLabels[measurement]}
+                      placeholder={`Enter ${measurementLabels[measurement]}`}
+                      value={values[measurement]}
+                      onChangeText={(text) => {
+                        const sanitizedText = text.replace(/[^0-9.]/g, '');
+                        handleChange(measurement)(sanitizedText);
+                      }}
+                      onBlur={handleBlur(measurement)}
+                      keyboardType="numeric"
+                      error={touched[measurement] && errors[measurement]}
+                      iconName="layout"
+                    />
+                  ))}
+                </View>
+
+                {/* Dupatta Section (3-piece only) */}
+                {suitType === '3-piece' && (
+                  <View style={styles.measurementSection}>
+                    <Text style={styles.measurementSectionTitle}>🧣 Dupatta Details</Text>
+                    
+                    <Input
+                      label={measurementLabels.dupattaLength}
+                      placeholder="Enter Dupatta Length"
+                      value={values.dupattaLength}
+                      onChangeText={(text) => {
+                        const sanitizedText = text.replace(/[^0-9.]/g, '');
+                        handleChange('dupattaLength')(sanitizedText);
+                      }}
+                      onBlur={handleBlur('dupattaLength')}
+                      keyboardType="numeric"
+                      error={touched.dupattaLength && errors.dupattaLength}
+                      iconName="layout"
+                    />
+
+                    <Input
+                      label={measurementLabels.dupattaWidth}
+                      placeholder="Enter Dupatta Width"
+                      value={values.dupattaWidth}
+                      onChangeText={(text) => {
+                        const sanitizedText = text.replace(/[^0-9.]/g, '');
+                        handleChange('dupattaWidth')(sanitizedText);
+                      }}
+                      onBlur={handleBlur('dupattaWidth')}
+                      keyboardType="numeric"
+                      error={touched.dupattaWidth && errors.dupattaWidth}
+                      iconName="layout"
+                    />
+
+                    {/* Peco Toggle */}
+                    <View style={styles.pecoContainer}>
+                      <View style={styles.pecoLabelContainer}>
+                        <Feather name="scissors" size={20} color={colors.black} />
+                        <Text style={styles.pecoLabel}>Add Peco (Embellishment)</Text>
+                      </View>
+                      <Switch
+                        value={hasPeco}
+                        onValueChange={setHasPeco}
+                        trackColor={{ false: colors.lightGray, true: colors.primary }}
+                        thumbColor={hasPeco ? colors.white : colors.gray}
+                      />
+                    </View>
+                    {hasPeco && (
+                      <View style={styles.pecoInfoBox}>
+                        <Feather name="info" size={16} color={colors.primary} />
+                        <Text style={styles.pecoInfoText}>
+                          Peco decoration will be added to the dupatta edges
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.buttonsContainer}>
+                  <Button
+                    title="Submit Order"
+                    onPress={formikSubmit}
+                    loading={loading}
+                    disabled={loading}
+                  />
+
+                  <Button
+                    title="Go Back"
+                    onPress={() => navigation.goBack()}
+                    outline
+                    buttonStyle={styles.backButton}
+                    disabled={loading}
+                  />
+                </View>
+              </View>
+            );
+          }}
+        </Formik>
+      </ScrollView>
+
+      {/* Drawing Canvas Modal */}
       <Modal
         visible={isCanvasVisible}
         animationType="slide"
@@ -643,7 +657,37 @@ const MeasurementScreen = ({ route, navigation }) => {
           designNotes={notes || ''}
         />
       </Modal>
-    </ScrollView>
+
+      {/* ✅ NEW: Success Confirmation Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalIconContainer}>
+              <Feather name="check-circle" size={60} color={colors.success} />
+            </View>
+            
+            <Text style={styles.modalTitle}>Order Confirmed!</Text>
+            
+            <Text style={styles.modalMessage}>
+              Your order has been successfully sent to the tailor for review.
+            </Text>
+            
+            <TouchableOpacity 
+              style={styles.modalButton}
+              onPress={handleSuccessModalOk}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
@@ -853,7 +897,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightGray,
     borderRadius: 8,
     marginTop: 12
-  },
+  }, 
   pecoLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
