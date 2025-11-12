@@ -638,18 +638,7 @@ export const createGeneralReview = async (tailorId, reviewData) => {
     throw error;
   }
 };
-
-// Get all reviews for a tailor
-export const getTailorReviews = async (tailorId) => {
-  try {
-    console.log('📊 Fetching reviews for tailor:', tailorId);
-    const response = await api.get(`/reviews/tailor/${tailorId}`);
-    return response.data;
-  } catch (error) {
-    console.error('❌ Get tailor reviews error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+ 
 
 // Check if customer can review this tailor (general review)
 export const checkTailorReviewEligibility = async (tailorId) => {
@@ -662,41 +651,7 @@ export const checkTailorReviewEligibility = async (tailorId) => {
     throw error;
   }
 };
-
-// Get customer's own reviews
-export const getMyReviews = async () => {
-  try {
-    const response = await api.get('/reviews/my-reviews');
-    return response.data;
-  } catch (error) {
-    console.error('❌ Get my reviews error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-// Update existing review
-export const updateReview = async (reviewId, reviewData) => {
-  try {
-    console.log('📝 Updating review:', reviewId);
-    const response = await api.put(`/reviews/${reviewId}`, reviewData);
-    return response.data;
-  } catch (error) {
-    console.error('❌ Update review error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-// Delete review
-export const deleteReview = async (reviewId) => {
-  try {
-    console.log('🗑️ Deleting review:', reviewId);
-    const response = await api.delete(`/reviews/${reviewId}`);
-    return response.data;
-  } catch (error) {
-    console.error('❌ Delete review error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+ 
 
 // Add these functions at the bottom before export default api
 
@@ -764,6 +719,89 @@ export const updateOrderPrice = async (orderId, newPrice) => {
     return response.data;
   } catch (error) {
     console.error('❌ Update price error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Create review for a completed order
+export const createOrderReview = async (orderId, reviewData) => {
+  try {
+    console.log('⭐ Creating review for order:', orderId, reviewData);
+    
+    // Validate rating
+    if (!reviewData.rating || reviewData.rating < 1 || reviewData.rating > 5) {
+      throw new Error('Rating must be between 1 and 5');
+    }
+    
+    // Validate comment
+    if (!reviewData.comment || reviewData.comment.trim().length < 10) {
+      throw new Error('Comment must be at least 10 characters');
+    }
+    
+    const response = await api.post(`/reviews/order/${orderId}`, reviewData);
+    console.log('✅ Review created successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Create order review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Check if order can be reviewed
+export const checkOrderReviewEligibility = async (orderId) => {
+  try {
+    console.log('🔍 Checking review eligibility for order:', orderId);
+    const response = await api.get(`/reviews/check-eligibility/order/${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Check order review eligibility error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Get all reviews for a tailor (public - no auth needed)
+export const getTailorReviews = async (tailorId) => {
+  try {
+    console.log('📊 Fetching reviews for tailor:', tailorId);
+    const response = await api.get(`/reviews/tailor/${tailorId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get tailor reviews error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Get customer's own reviews
+export const getMyReviews = async () => {
+  try {
+    const response = await api.get('/reviews/my-reviews');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Get my reviews error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Update existing review
+export const updateReview = async (reviewId, reviewData) => {
+  try {
+    console.log('📝 Updating review:', reviewId);
+    const response = await api.put(`/reviews/${reviewId}`, reviewData);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Update review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Delete review
+export const deleteReview = async (reviewId) => {
+  try {
+    console.log('🗑️ Deleting review:', reviewId);
+    const response = await api.delete(`/reviews/${reviewId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Delete review error:', error.response?.data || error.message);
     throw error;
   }
 };

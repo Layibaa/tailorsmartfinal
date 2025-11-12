@@ -13,11 +13,11 @@ const ReviewSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Tailor ID is required']
     },
-    // order is now OPTIONAL - allows general reviews
+    // ✅ ORDER IS NOW REQUIRED - reviews are tied to orders
     order: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Order',
-      default: null
+      required: [true, 'Order ID is required']
     },
     rating: {
       type: Number,
@@ -51,23 +51,22 @@ const ReviewSchema = new mongoose.Schema(
   }
 );
 
-// Compound index to prevent duplicate reviews per customer-tailor pair
-// One general review per customer per tailor (regardless of orders)
-ReviewSchema.index({ customer: 1, tailor: 1 }, { 
-  unique: true,
-  partialFilterExpression: { order: null } // Only for general reviews
-});
+// ✅ ONE REVIEW PER ORDER (prevents duplicate reviews for same order)
+ReviewSchema.index({ order: 1 }, { unique: true });
 
-// Index for tailor reviews lookup
+// Index for tailor reviews lookup (show all reviews on tailor profile)
 ReviewSchema.index({ tailor: 1, createdAt: -1 });
 ReviewSchema.index({ tailor: 1, rating: 1 });
+
+// Index for customer reviews
+ReviewSchema.index({ customer: 1, createdAt: -1 });
 
 // Virtual for checking if review is positive (4+ stars)
 ReviewSchema.virtual('isPositive').get(function() {
   return this.rating >= 4;
 });
 
-ReviewSchema.set('toJSON', { virtuals: true });
+ReviewSchema.set('toJSON', { virticals: true });
 ReviewSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Review', ReviewSchema);

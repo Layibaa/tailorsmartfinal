@@ -1,5 +1,4 @@
-// tailor-smart-mob-app/src/screens/customer/WriteReviewScreen.js - REPLACE ENTIRE FILE
-
+// tailor-smart-mob-app/src/screens/customer/WriteOrderReviewScreen.js - NEW FILE
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,12 +13,12 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { createGeneralReview, checkTailorReviewEligibility } from '../../services/api';
+import { createOrderReview, checkOrderReviewEligibility } from '../../services/api';
 import Button from '../../components/ui/Button';
 import colors from '../../styles/colors';
 
-const WriteReviewScreen = ({ route, navigation }) => {
-  const { tailorId, tailorName, onReviewSubmitted } = route.params;
+const WriteOrderReviewScreen = ({ route, navigation }) => {
+  const { orderId, onReviewSubmitted } = route.params;
   
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -28,6 +27,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEligible, setIsEligible] = useState(false);
   const [eligibilityReason, setEligibilityReason] = useState('');
+  const [orderInfo, setOrderInfo] = useState(null);
 
   useEffect(() => {
     checkEligibility();
@@ -47,20 +47,20 @@ const WriteReviewScreen = ({ route, navigation }) => {
   const checkEligibility = async () => {
     try {
       setIsLoading(true);
-      const response = await checkTailorReviewEligibility(tailorId);
+      const response = await checkOrderReviewEligibility(orderId);
       
       console.log('Eligibility response:', response);
       
       if (!response.eligible) {
         setIsEligible(false);
-        setEligibilityReason(response.reason || 'You cannot review this tailor');
+        setEligibilityReason(response.reason || 'You cannot review this order');
       } else {
         setIsEligible(true);
+        setOrderInfo(response.order);
       }
     } catch (error) {
       console.error('Error checking eligibility:', error);
       
-      // If the error is "Already reviewed", show it properly
       if (error.response?.data?.msg) {
         setIsEligible(false);
         setEligibilityReason(error.response.data.msg);
@@ -106,7 +106,6 @@ const WriteReviewScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (rating === 0) {
       Alert.alert('Rating Required', 'Please select a star rating');
       return;
@@ -123,21 +122,19 @@ const WriteReviewScreen = ({ route, navigation }) => {
       const reviewData = {
         rating,
         comment: comment.trim(),
-        images: images // In production, upload to cloud storage first
+        images: images
       };
 
-      console.log('Submitting review:', reviewData);
+      console.log('Submitting review for order:', orderId, reviewData);
       
-      const response = await createGeneralReview(tailorId, reviewData);
+      const response = await createOrderReview(orderId, reviewData);
       
       console.log('Review submitted successfully:', response);
 
-      // Call the callback if provided
       if (onReviewSubmitted) {
         onReviewSubmitted();
       }
 
-      // Show success and navigate back
       Alert.alert(
         'Success',
         'Your review has been submitted successfully!',
@@ -160,17 +157,15 @@ const WriteReviewScreen = ({ route, navigation }) => {
         status: error.response?.status
       });
       
-      // Handle specific error cases
       let errorMessage = 'Failed to submit review. Please try again.';
       
       if (error.response?.data?.msg) {
         errorMessage = error.response.data.msg;
         
-        // If duplicate review error, update eligibility
         if (errorMessage.toLowerCase().includes('already reviewed')) {
           setIsEligible(false);
           setEligibilityReason(errorMessage);
-          return; // Don't show alert, just update UI
+          return;
         }
       } else if (error.message) {
         errorMessage = error.message;
@@ -208,7 +203,6 @@ const WriteReviewScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Feather name="arrow-left" size={24} color={colors.black} />
@@ -218,14 +212,15 @@ const WriteReviewScreen = ({ route, navigation }) => {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Tailor Info */}
-        <View style={styles.tailorInfo}>
-          <View style={styles.tailorAvatar}>
-            <Feather name="user" size={32} color={colors.white} />
+        {/* Order Info */}
+        <View style={styles.orderInfo}>
+          <View style={styles.orderIcon}>
+            <Feather name="package" size={32} color={colors.white} />
           </View>
           <View>
-            <Text style={styles.reviewingLabel}>Writing review for</Text>
-            <Text style={styles.tailorName}>{tailorName}</Text>
+            <Text style={styles.reviewingLabel}>Writing review for order</Text>
+            <Text style={styles.orderText}>{orderInfo?.suitType} Suit</Text>
+            <Text style={styles.tailorName}>by {orderInfo?.tailor?.name}</Text>
           </View>
         </View>
 
@@ -265,7 +260,7 @@ const WriteReviewScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Tell us more</Text>
           <TextInput
             style={styles.commentInput}
-            placeholder="Share your experience with this tailor..."
+            placeholder="Share your experience with this order..."
             placeholderTextColor={colors.gray}
             multiline
             numberOfLines={6}
@@ -392,7 +387,7 @@ const styles = StyleSheet.create({
   goBackButton: {
     paddingHorizontal: 32
   },
-  tailorInfo: {
+  orderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
@@ -400,7 +395,7 @@ const styles = StyleSheet.create({
     margin: 16,
     borderRadius: 12
   },
-  tailorAvatar: {
+  orderIcon: {
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -414,10 +409,15 @@ const styles = StyleSheet.create({
     color: colors.gray,
     marginBottom: 4
   },
-  tailorName: {
+  orderText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.black
+  },
+  tailorName: {
+    fontSize: 14,
+    color: colors.gray,
+    marginTop: 2
   },
   section: {
     paddingHorizontal: 16,
@@ -519,4 +519,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default WriteReviewScreen;
+export default WriteOrderReviewScreen;

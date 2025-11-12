@@ -24,9 +24,8 @@ import CreateOrderScreen from '../screens/customer/CreateOrderScreen';
 import MeasurementScreen from '../screens/customer/MeasurementScreen';
 import OrderHistoryScreen from '../screens/customer/OrderHistoryScreen';
 import ProfileScreen from '../screens/customer/CustomerProfileScreen';
-import TailorProfileScreenC from '../screens/customer/TailorProfileScreenC';
-import WriteReviewScreen from '../screens/customer/WriteReviewScreen';
-
+import TailorProfileScreenC from '../screens/customer/TailorProfileScreenC'; 
+import WriteOrderReviewScreen from '../screens/customer/WriteOrderReviewScreen';
 
 
 // Tailor screens
@@ -252,10 +251,10 @@ const CustomerStackNavigator = () => (
         headerShown: false
       }} 
     />
-    {/* ADD THIS NEW SCREEN */}
+    {/* ✅ REPLACED: Order-based review screen */}
     <CustomerStack.Screen 
-      name="WriteReview" 
-      component={WriteReviewScreen} 
+      name="WriteOrderReview" 
+      component={WriteOrderReviewScreen} 
       options={{ 
         headerShown: false
       }} 
@@ -293,14 +292,15 @@ const CustomerStackNavigator = () => (
       })} 
     />
     <CustomerStack.Screen 
-  name="AdminMessages" 
-  component={AdminMessagesScreen} 
-  options={{ 
-    headerShown: false
-  }} 
-/>
+      name="AdminMessages" 
+      component={AdminMessagesScreen} 
+      options={{ 
+        headerShown: false
+      }} 
+    />
   </CustomerStack.Navigator>
 );
+
 // Tailor stack navigator (including tab navigator)
 const TailorStack = createStackNavigator();
 const TailorStackNavigator = () => (

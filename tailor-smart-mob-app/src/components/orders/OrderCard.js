@@ -1,4 +1,4 @@
-// ✅ UPDATED: OrderCard.js - Display suit information
+// REPLACE: tailor-smart-mob-app/src/components/orders/OrderCard.js
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -12,7 +12,9 @@ const OrderCard = ({
   onAccept, 
   onReject,
   onConfirm,
-  userRole
+  onWriteReview, // ✅ NEW: callback for write review
+  userRole,
+  hasReview // ✅ NEW: whether order already has a review
 }) => {
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -103,6 +105,24 @@ const OrderCard = ({
           </View>
         )}
       </View>
+
+      {/* ✅ SHOW REVIEW BUTTON FOR COMPLETED ORDERS */}
+      {userRole === 'customer' && order.status === 'completed' && !hasReview && onWriteReview && (
+        <View style={styles.reviewButtonContainer}>
+          <TouchableOpacity style={styles.reviewButton} onPress={() => onWriteReview(order._id)}>
+            <Feather name="star" size={16} color={colors.white} />
+            <Text style={styles.reviewButtonText}>Write Review</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ✅ SHOW "REVIEWED" BADGE IF ALREADY REVIEWED */}
+      {userRole === 'customer' && order.status === 'completed' && hasReview && (
+        <View style={styles.reviewedBadge}>
+          <Feather name="check-circle" size={16} color={colors.success} />
+          <Text style={styles.reviewedText}>Reviewed</Text>
+        </View>
+      )}
 
       {showActions && (
         <View style={styles.actions}>
@@ -221,6 +241,44 @@ const styles = StyleSheet.create({
     flex: 2,
     textAlign: 'right',
     textTransform: 'capitalize'
+  },
+  // ✅ NEW: Review button styles
+  reviewButtonContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.lightGray
+  },
+  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.black,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8
+  },
+  reviewButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  reviewedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success + '20',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6
+  },
+  reviewedText: {
+    color: colors.success,
+    fontSize: 14,
+    fontWeight: '600'
   },
   actions: {
     flexDirection: 'row',

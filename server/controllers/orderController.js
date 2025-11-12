@@ -1,4 +1,4 @@
-// server/controllers/orderController.js - Without lock/edit features
+// server/controllers/orderController.js - FIXED STATUS UPDATE
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Message = require('../models/Message');
@@ -282,45 +282,72 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
-// UPDATE ORDER STATUS
+// UPDATE ORDER STATUS - FIXED VERSION
 const updateOrderStatus = async (req, res) => {
   try {
-    const { userId, role } = req.user;
+    // ✅ FIX: Handle both userId and id from req.user
+    const userId = req.user.userId || req.user.id;
+    const { role } = req.user;
     const { id: orderId } = req.params;
     const { status, price } = req.body;
 
-    console.log(`📊 Status update - Order: ${orderId}, New status: ${status}, Role: ${role}`);
+    console.log(`📊 Status update request:`, {
+      orderId,
+      newStatus: status,
+      role,
+      userId,
+      hasPrice: !!price
+    });
 
+    // ✅ Validate role
     if (role !== 'tailor') {
       return res.status(StatusCodes.UNAUTHORIZED).json({ 
         msg: 'Only tailors can update order status' 
       });
     }
 
-    const order = await Order.findOne({ _id: orderId, tailor: userId });
+    // ✅ Find order and verify ownership
+    const order = await Order.findOne({ _id: orderId, tailor: userId })
+      .populate('customer tailor');
+    
     if (!order) {
+      console.error('❌ Order not found or unauthorized:', { orderId, userId });
       return res.status(StatusCodes.NOT_FOUND).json({ 
         msg: `No order with id ${orderId} found for this tailor` 
       });
     }
 
+    console.log(`📋 Current order status: ${order.status} -> Requested: ${status}`);
+
+    // ✅ IMPROVED: More flexible status transitions
     const validStatusTransitions = {
       pending: ['rejected', 'accepted'],
-      accepted: ['confirmed', 'rejected'],
+      accepted: ['confirmed', 'rejected'], // Allow tailor to reject if customer hasn't confirmed
       confirmed: ['making'],
       making: ['payment_done'],
       payment_done: ['completed']
     };
 
-    if (!validStatusTransitions[order.status]?.includes(status)) {
+    // ✅ Check if transition is valid
+    const allowedTransitions = validStatusTransitions[order.status];
+    if (!allowedTransitions || !allowedTransitions.includes(status)) {
+      console.error('❌ Invalid status transition:', {
+        from: order.status,
+        to: status,
+        allowed: allowedTransitions
+      });
       return res.status(StatusCodes.BAD_REQUEST).json({ 
-        msg: `Cannot transition from ${order.status} to ${status}` 
+        msg: `Cannot transition from ${order.status} to ${status}. Allowed transitions: ${allowedTransitions?.join(', ') || 'none'}`,
+        currentStatus: order.status,
+        requestedStatus: status,
+        allowedStatuses: allowedTransitions
       });
     }
 
     const updateData = { status };
     let deliveryEstimate = null;
 
+    // ✅ Handle acceptance with price
     if (status === 'accepted') {
       if (!price || price <= 0) {
         return res.status(StatusCodes.BAD_REQUEST).json({ 
@@ -343,12 +370,16 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
+    // ✅ Update the order
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       updateData,
       { new: true, runValidators: true }
     ).populate('customer tailor');
 
+    console.log(`✅ Order status updated successfully: ${order.status} -> ${updatedOrder.status}`);
+
+    // ✅ Send notification messages
     const notificationMessages = {
       accepted: `✅ Your order has been accepted. The price is PKR ${price}. Review and confirm to proceed.`,
       rejected: '❌ Your order has been rejected by the tailor',
@@ -361,12 +392,14 @@ const updateOrderStatus = async (req, res) => {
     if (notificationMessages[status]) {
       await Message.create({
         sender: userId,
-        receiver: order.customer,
+        receiver: order.customer._id,
         content: notificationMessages[status],
         order: order._id
       });
+      console.log(`📨 Notification sent to customer:`, notificationMessages[status]);
     }
 
+    // ✅ Send delivery estimate message for accepted orders
     if (status === 'accepted' && deliveryEstimate) {
       const suitDescription = order.suitType === '3-piece' ? 
         `${order.suitType} suit` : 
@@ -379,7 +412,7 @@ const updateOrderStatus = async (req, res) => {
 
       await Message.create({
         sender: userId,
-        receiver: order.customer,
+        receiver: order.customer._id,
         content: deliveryMessage,
         order: order._id
       });
@@ -397,7 +430,10 @@ const updateOrderStatus = async (req, res) => {
       } : null
     });
   } catch (error) {
-    console.error('❌ Update order status error:', error);
+    console.error('❌ Update order status error:', {
+      message: error.message,
+      stack: error.stack
+    });
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Server error while updating order status',
       error: error.message 
@@ -408,7 +444,8 @@ const updateOrderStatus = async (req, res) => {
 // CONFIRM ORDER
 const confirmOrder = async (req, res) => {
   try {
-    const { userId, role } = req.user;
+    const userId = req.user.userId || req.user.id;
+    const { role } = req.user;
     const { id: orderId } = req.params;
 
     console.log(`✅ Confirm order - Order: ${orderId}, User: ${userId}, Role: ${role}`);
@@ -497,7 +534,8 @@ const confirmOrder = async (req, res) => {
 // DELETE ORDER
 const deleteOrder = async (req, res) => {
   try {
-    const { userId, role } = req.user;
+    const userId = req.user.userId || req.user.id;
+    const { role } = req.user;
     const { id: orderId } = req.params;
 
     const order = await Order.findById(orderId);
@@ -549,7 +587,8 @@ const deleteOrder = async (req, res) => {
 const requestPriceNegotiation = async (req, res) => {
   try {
     const { id: orderId } = req.params;
-    const { userId, role } = req.user;
+    const userId = req.user.userId || req.user.id;
+    const { role } = req.user;
 
     console.log(`💬 Price negotiation requested - Order: ${orderId}, User: ${userId}`);
 
@@ -616,7 +655,8 @@ const updateOrderPrice = async (req, res) => {
   try {
     const { id: orderId } = req.params;
     const { price } = req.body;
-    const { userId, role } = req.user;
+    const userId = req.user.userId || req.user.id;
+    const { role } = req.user;
 
     console.log(`💰 Price update request - Order: ${orderId}, New price: ${price}`);
 
