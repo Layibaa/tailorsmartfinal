@@ -1,9 +1,9 @@
-// COMPLETE FIXED VERSION: OrderDetailsScreen.js
+// COMPLETE OrderDetailsScreen.js with Price Negotiation Feature
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
+  StyleSheet, 
   ScrollView,
   TouchableOpacity,
   Alert,
@@ -26,7 +26,9 @@ import {
   deleteOrder,
   sendMessage,
   updateOrder,
-  lockOrder
+  lockOrder,
+  requestPriceNegotiation,
+  updateOrderPrice
 } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { NotificationContext } from '../../context/NotificationContext';
@@ -54,6 +56,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isPriceModalVisible, setIsPriceModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
   
+  // Price negotiation states
+  const [isPriceEditModalVisible, setIsPriceEditModalVisible] = useState(false);
+  const [newPrice, setNewPrice] = useState('');
+  
   // Editing states
   const [isEditingMeasurements, setIsEditingMeasurements] = useState(false);
   const [editedMeasurements, setEditedMeasurements] = useState({});
@@ -64,14 +70,13 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   
   const [isEditingImages, setIsEditingImages] = useState(false);
   
-  // NEW: Dupatta editing state
   const [isEditingDupatta, setIsEditingDupatta] = useState(false);
   const [editedDupattaDetails, setEditedDupattaDetails] = useState({
     length: '',
     width: '',
     hasPeco: false
   });
-  
+
   // Image states
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -107,8 +112,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setOrder(response.order);
       setEditedNotes(response.order.notes || '');
       setEditedMeasurements(response.order.measurements || {});
+      setNewPrice(response.order.price?.toString() || '');
 
-      // NEW: Load dupatta details
       if (response.order.dupattaDetails) {
         setEditedDupattaDetails({
           length: response.order.dupattaDetails.length?.toString() || '',
@@ -136,15 +141,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  const canEdit = () => {
+ const canEdit = () => {
     if (!order) return false;
     const editableStatuses = ['pending', 'accepted', 'confirmed'];
     const canEditStatus = editableStatuses.includes(order.status);
-    console.log('🔍 Can edit check:', {
-      isLocked: order.isLocked,
-      status: order.status,
-      canEdit: !order.isLocked && canEditStatus
-    });
     return !order.isLocked && canEditStatus;
   };
 
@@ -176,9 +176,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             onPress: async () => {
               try {
                 setIsUpdating(true);
-                console.log(`🔐 ${newLockState ? 'Locking' : 'Unlocking'} order ${orderId}`);
-                
-                const response = await lockOrder(orderId, newLockState);
+                await lockOrder(orderId, newLockState);
                 
                 setChangeHistory(prev => [{
                   userName: user.name,
@@ -190,7 +188,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 await sendMessage({
                   receiverId,
                   content: newLockState 
-                    ? `🔒 ${user.name} has locked the design. All details are finalized. You can now proceed with production.`
+                    ? `🔒 ${user.name} has locked the design. All details are finalized.`
                     : `🔓 ${user.name} has unlocked the design. You can now make changes again.`,
                   orderId: order._id
                 });
@@ -198,7 +196,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 Alert.alert(
                   'Success! ✓',
                   newLockState 
-                    ? 'Design is now locked! 🔒\n\nThe tailor has been notified and can start production.'
+                    ? 'Design is now locked! 🔒\n\nThe tailor has been notified.'
                     : 'Design is now unlocked! 🔓\n\nYou can make changes again.',
                   [{ text: 'OK', onPress: () => loadOrderDetails() }]
                 );
@@ -349,6 +347,90 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  // Price Negotiation Handlers
+  const handleNegotiatePrice = async () => {
+    try {
+      setIsUpdating(true);
+      setIsStatusModalVisible(false);
+      
+      await requestPriceNegotiation(orderId);
+      
+      Alert.alert(
+        'Negotiation Requested',
+        'Your price negotiation request has been sent to the tailor. You\'ll be redirected to chat to discuss the price.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('Chat', {
+                userId: order.tailor._id,
+                name: order.tailor.name,
+                orderId: order._id
+              });
+            }
+          }
+        ]
+      );
+      
+      loadOrderDetails();
+    } catch (error) {
+      console.error('❌ Negotiate price error:', error);
+      Alert.alert('Error', error.response?.data?.msg || 'Failed to request price negotiation');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+ const handleUpdatePrice = async () => {
+    const priceValue = parseFloat(newPrice);
+    
+    if (isNaN(priceValue) || priceValue <= 0) {
+      Alert.alert('Invalid Price', 'Please enter a valid price');
+      return;
+    }
+
+    if (priceValue === order.price) {
+      Alert.alert('Same Price', 'Please enter a different price');
+      return;
+    }
+
+    Alert.alert(
+      'Update Price',
+      `Change price from PKR ${order.price} to PKR ${priceValue}?\n\n⚠️ This can only be done once.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Update',
+          onPress: async () => {
+            try {
+              setIsUpdating(true);
+              await updateOrderPrice(orderId, priceValue);
+              
+              Alert.alert(
+                'Price Updated!',
+                'The customer has been notified about the new price.',
+                [{ text: 'OK', onPress: () => {
+                  setIsPriceEditModalVisible(false);
+                  loadOrderDetails();
+                }}]
+              );
+            } catch (error) {
+              console.error('❌ Update price error:', error);
+              
+              if (error.response?.data?.alreadyChanged) {
+                Alert.alert('Cannot Update', 'Price has already been changed and cannot be modified again');
+              } else {
+                Alert.alert('Error', error.response?.data?.msg || 'Failed to update price');
+              }
+            } finally {
+              setIsUpdating(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // NEW: Handle save dupatta details
@@ -562,7 +644,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     );
   };
 
-  const handleConfirmOrder = async () => {
+   const handleConfirmOrder = async () => {
     try {
       setIsUpdating(true);
       await confirmOrder(orderId);
@@ -578,7 +660,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       
       Alert.alert(
         'Order Confirmed! ✓', 
-        'You can now work with the tailor to finalize measurements and design.\n\n📝 Make changes as needed\n🔒 Lock the design when ready for production'
+        'You can now work with the tailor to finalize measurements and design.'
       );
       setIsStatusModalVisible(false);
       loadOrderDetails();
@@ -632,10 +714,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       <View style={styles.header}>
         <View>
           <Text style={styles.orderIdText}>Order #{orderId.substring(0, 8)}</Text>
-          <Text style={styles.orderDateText}>Placed on {formatDate(order.createdAt)}</Text>
+          <Text style={styles.orderDateText}>
+            Placed on {new Date(order.createdAt).toLocaleDateString()}
+          </Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: colors[order.status] || colors.gray }]}>
-          <Text style={styles.statusText}>{getStatusLabel(order.status)}</Text>
+          <Text style={styles.statusText}>{order.status}</Text>
         </View>
       </View>
 
@@ -692,6 +776,25 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         )}
       </View>
 
+ {/* Price Negotiation Status Banners */}
+      {order.priceNegotiationRequested && !order.priceChangedByTailor && (
+        <View style={styles.negotiationBanner}>
+          <Feather name="message-circle" size={20} color={colors.warning} />
+          <Text style={styles.negotiationText}>
+            💬 Price negotiation in progress. {user.role === 'tailor' ? 'Update the price when ready.' : 'Waiting for tailor response.'}
+          </Text>
+        </View>
+      )}
+
+ {order.priceChangedByTailor && (
+        <View style={styles.priceChangedBanner}>
+          <Feather name="check-circle" size={20} color={colors.success} />
+          <Text style={styles.priceChangedText}>
+            ✅ Price updated from PKR {order.originalPrice} to PKR {order.price}
+          </Text>
+        </View>
+      )}
+
       {/* Collaborative Editing Notice */}
       {canEdit() && (
         <View style={styles.editNotice}>
@@ -702,9 +805,23 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Order Info */}
+       {/* Order Info Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Information</Text>
+        
+        {order.price > 0 && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Price:</Text>
+            <View style={styles.priceContainer}>
+              <Text style={[styles.infoValue, styles.priceText]}>PKR {order.price}</Text>
+              {order.priceChangedByTailor && order.originalPrice && (
+                <Text style={styles.originalPrice}>
+                  (was PKR {order.originalPrice})
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
         
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Suit Type:</Text>
@@ -723,9 +840,30 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         
         {order.price > 0 && (
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Price:</Text>
-            <Text style={styles.infoValue}>PKR {order.price}</Text>
-          </View>
+  <Text style={styles.infoLabel}>Price:</Text>
+  <View style={styles.priceContainer}>
+    <Text style={[styles.infoValue, styles.priceText]}>PKR {order.price}</Text>
+    {order.priceChangedByTailor && order.originalPrice && (
+      <Text style={styles.originalPrice}>
+        (was PKR {order.originalPrice})
+      </Text>
+    )}
+  </View>
+</View>
+        )}
+
+        {/* Show price edit button for tailor if negotiation requested and not yet changed */}
+{user.role === 'tailor' && 
+         order.status === 'accepted' && 
+         order.priceNegotiationRequested && 
+         !order.priceChangedByTailor && (
+          <TouchableOpacity 
+            style={styles.editPriceButton}
+            onPress={() => setIsPriceEditModalVisible(true)}
+          >
+            <Feather name="edit-2" size={16} color={colors.white} />
+            <Text style={styles.editPriceButtonText}>Update Price (One-Time)</Text>
+          </TouchableOpacity>
         )}
         
         {user.role === 'customer' && order.tailor && (
@@ -1261,25 +1399,98 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Confirm Order</Text>
-            <Text style={styles.modalText}>
-              Price: <Text style={styles.modalPrice}>PKR {order?.price}</Text>
+            <Text style={styles.modalPrice}>PKR {order?.price}</Text>
+            
+            {order?.priceChangedByTailor && order?.originalPrice && (
+              <View style={styles.priceComparisonContainer}>
+                <Text style={styles.priceComparisonText}>
+                  Original: PKR {order.originalPrice}
+                </Text>
+                <Feather name="arrow-right" size={16} color={colors.gray} />
+                <Text style={styles.priceComparisonText}>
+                  Updated: PKR {order.price}
+                </Text>
+              </View>
+            )}
+
+      <Text style={styles.modalDescription}>
+              Review the price and confirm to start working with the tailor on your design.
             </Text>
-            <Text style={styles.modalDescription}>
-              After confirmation, you can work with the tailor to finalize the design:
-              {'\n\n'}• Edit measurements together
-              {'\n'}• Update design references
-              {'\n'}• Add notes and details
-              {'\n'}• Lock when everything is perfect
-            </Text>
+
             <Button 
               title="✓ Confirm Order" 
               onPress={handleConfirmOrder}
               loading={isUpdating}
               disabled={isUpdating}
             />
+
+
+      {/* Show negotiate button only if price hasn't been changed yet */}
+       {!order?.priceChangedByTailor && (
+              <Button 
+                title="💬 Negotiate Price" 
+                onPress={handleNegotiatePrice}
+                outline
+                buttonStyle={{ 
+                  marginTop: 12, 
+                  backgroundColor: colors.warning,
+                  borderColor: colors.warning 
+                }}
+                textStyle={{ color: colors.white }}
+                disabled={isUpdating}
+              />
+            )}
+
             <Button 
               title="Cancel" 
               onPress={() => setIsStatusModalVisible(false)} 
+              outline 
+              buttonStyle={{ marginTop: 12 }}
+              disabled={isUpdating}
+            />
+          </View>
+        </View>
+      </Modal>
+
+{/* ADD NEW: Price Edit Modal (Tailor Only) */}
+
+  {/* Price Edit Modal (Tailor Only) */}
+      <Modal visible={isPriceEditModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Update Price</Text>
+            
+            <View style={styles.priceInfoContainer}>
+              <Text style={styles.priceInfoLabel}>Current Price:</Text>
+              <Text style={styles.priceInfoValue}>PKR {order?.price}</Text>
+            </View>
+
+            <Text style={styles.warningText}>
+              ⚠️ You can only change the price once. Make sure it's correct!
+            </Text>
+
+            <Input
+              label="New Price (PKR)"
+              value={newPrice}
+              onChangeText={setNewPrice}
+              keyboardType="numeric"
+              placeholder="Enter new price"
+              iconName="dollar-sign"
+            />
+
+            <Button 
+              title="Update Price" 
+              onPress={handleUpdatePrice}
+              loading={isUpdating}
+              disabled={isUpdating}
+            />
+
+            <Button 
+              title="Cancel" 
+              onPress={() => {
+                setNewPrice(order?.price?.toString() || '');
+                setIsPriceEditModalVisible(false);
+              }} 
               outline 
               buttonStyle={{ marginTop: 12 }}
               disabled={isUpdating}
@@ -1873,7 +2084,106 @@ measurementGroupTitle: {
     color: colors.black,
     marginTop: 16,
     marginBottom: 24
+  },
+   negotiationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.warning + '20',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
+    gap: 8
+  },
+  negotiationText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.darkGray,
+    lineHeight: 18
+  },
+  priceChangedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.success + '20',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
+    gap: 8
+  },
+  priceChangedText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.success,
+    fontWeight: '500',
+    lineHeight: 18
+  },
+  priceContainer: {
+    alignItems: 'flex-end'
+  },
+  priceText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.success
+  },
+  originalPrice: {
+    fontSize: 12,
+    color: colors.gray,
+    textDecorationLine: 'line-through',
+    marginTop: 2
+  },
+  editPriceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.warning,
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8
+  },
+  editPriceButtonText: {
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 14
+  },
+  priceComparisonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12
+  },
+  priceComparisonText: {
+    fontSize: 12,
+    color: colors.gray
+  },
+  priceInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.lightGray,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12
+  },
+  priceInfoLabel: {
+    fontSize: 14,
+    color: colors.gray
+  },
+  priceInfoValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.black
+  },
+  warningText: {
+    fontSize: 13,
+    color: colors.warning,
+    backgroundColor: colors.warning + '20',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+    textAlign: 'center'
   }
 });
-
-export default OrderDetailsScreen; 
+  export default OrderDetailsScreen; 
