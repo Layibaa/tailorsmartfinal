@@ -1,6 +1,4 @@
-// server/routes/orderRoutes.js
-// ✅ UPDATED: Added sketch refinement endpoints
-
+// server/routes/orderRoutes.js - UPDATED with price negotiation endpoints
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
@@ -12,18 +10,19 @@ const {
   deleteOrder,
   lockOrder,
   updateOrderDetails,
-  getOrderDetails
+  getOrderDetails,
+  requestPriceNegotiation,  // NEW
+  updateOrderPrice          // NEW
 } = require('../controllers/orderController');
 
- 
-// Debug middleware to log all requests
+// Debug middleware
 router.use((req, res, next) => {
   console.log(`🛣️ Order Route: ${req.method} ${req.path}`);
   console.log(`📦 Body:`, req.body);
   next();
 });
 
-// ✅ EXISTING ROUTES
+// EXISTING ROUTES
 router.post('/', auth, createOrder);
 router.get('/:id', auth, getOrderDetails);
 router.patch('/:id/status', auth, updateOrderStatus);
@@ -31,7 +30,9 @@ router.patch('/:id/confirm', auth, confirmOrder);
 router.patch('/:id/lock', auth, lockOrder);
 router.put('/:id', auth, updateOrderDetails);
 router.delete('/:id', auth, deleteOrder);
- 
 
-// Export router
+// NEW ROUTES - Price Negotiation
+router.post('/:id/negotiate-price', auth, requestPriceNegotiation);  // Customer requests negotiation
+router.patch('/:id/update-price', auth, updateOrderPrice);            // Tailor updates price (once)
+
 module.exports = router;

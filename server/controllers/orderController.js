@@ -1,4 +1,4 @@
-// UPDATED: server/controllers/orderController.js
+// server/controllers/orderController.js - UPDATED with price negotiation
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Message = require('../models/Message');
@@ -688,6 +688,164 @@ const deleteOrder = async (req, res) => {
     });
   }
 };
+// NEW: Request price negotiation
+const requestPriceNegotiation = async (req, res) => {
+  try {
+    const { id: orderId } = req.params;
+    const { userId, role } = req.user;
+
+    console.log(`💬 Price negotiation requested - Order: ${orderId}, User: ${userId}`);
+
+    // Only customers can request negotiation
+    if (role !== 'customer') {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        msg: 'Only customers can request price negotiation'
+      });
+    }
+
+    const order = await Order.findOne({ _id: orderId, customer: userId })
+      .populate('customer tailor');
+
+    if (!order) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        msg: 'Order not found'
+      });
+    }
+
+    // Can only negotiate when status is 'accepted'
+    if (order.status !== 'accepted') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Price negotiation is only available for accepted orders'
+      });
+    }
+
+    // Check if already requested
+    if (order.priceNegotiationRequested) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Price negotiation has already been requested for this order'
+      });
+    }
+
+    // Check if price was already changed
+    if (order.priceChangedByTailor) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Price has already been negotiated and changed'
+      });
+    }
+
+    // Mark negotiation as requested
+    await order.requestPriceNegotiation();
+
+    // Send notification to tailor
+    await Message.create({
+      sender: userId,
+      receiver: order.tailor._id,
+      content: `💰 Customer wants to negotiate the price of PKR ${order.price}. Please discuss and update the price if needed.`,
+      order: order._id
+    });
+
+    console.log('✅ Price negotiation requested successfully');
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: 'Price negotiation request sent to tailor',
+      order
+    });
+  } catch (error) {
+    console.error('❌ Request price negotiation error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: 'Server error while requesting price negotiation',
+      error: error.message
+    });
+  }
+};
+
+// NEW: Update price (tailor only, one-time)
+const updateOrderPrice = async (req, res) => {
+  try {
+    const { id: orderId } = req.params;
+    const { price } = req.body;
+    const { userId, role } = req.user;
+
+    console.log(`💰 Price update request - Order: ${orderId}, New price: ${price}`);
+
+    // Only tailors can update price
+    if (role !== 'tailor') {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        msg: 'Only tailors can update order price'
+      });
+    }
+
+    // Validate price
+    if (!price || price <= 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Valid price is required'
+      });
+    }
+
+    const order = await Order.findOne({ _id: orderId, tailor: userId })
+      .populate('customer tailor');
+
+    if (!order) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        msg: 'Order not found'
+      });
+    }
+
+    // Can only update price when status is 'accepted'
+    if (order.status !== 'accepted') {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Price can only be updated for accepted orders'
+      });
+    }
+
+    // Check if price was already changed
+    if (order.priceChangedByTailor) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Price has already been changed once and cannot be modified again',
+        alreadyChanged: true
+      });
+    }
+
+    // Update price
+    await order.updatePrice(price, userId);
+
+    // Send notification to customer
+    await Message.create({
+      sender: userId,
+      receiver: order.customer._id,
+      content: `✅ Price has been updated from PKR ${order.originalPrice} to PKR ${price}. Please review and confirm the order.`,
+      order: order._id
+    });
+
+    console.log('✅ Price updated successfully');
+
+    // Reload order with populated fields
+    await order.populate('customer tailor');
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      msg: 'Price updated successfully',
+      order,
+      originalPrice: order.originalPrice,
+      newPrice: price
+    });
+  } catch (error) {
+    console.error('❌ Update price error:', error);
+    
+    if (error.message.includes('already been changed')) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: error.message,
+        alreadyChanged: true
+      });
+    }
+
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: 'Server error while updating price',
+      error: error.message
+    });
+  }
+};
 
 module.exports = {
   createOrder,
@@ -696,5 +854,7 @@ module.exports = {
   confirmOrder,
   deleteOrder,
   updateOrderDetails,
-  lockOrder
+  lockOrder,
+   requestPriceNegotiation,  // NEW
+  updateOrderPrice    
 };

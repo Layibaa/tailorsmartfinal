@@ -763,5 +763,36 @@ export const markMessageAsRead = async (messageId) => {
     throw error;
   }
 };
+export const requestPriceNegotiation = async (orderId) => {
+  try {
+    console.log('💬 Requesting price negotiation for order:', orderId);
+    const response = await api.post(`/orders/${orderId}/negotiate-price`);
+    console.log('✅ Price negotiation requested successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Request price negotiation error:', error.response?.data || error.message);
+    throw error;
+  }
+};
 
+// Tailor updates price (one-time only)
+export const updateOrderPrice = async (orderId, newPrice) => {
+  try {
+    console.log('💰 Updating order price:', { orderId, newPrice });
+    
+    if (!newPrice || newPrice <= 0) {
+      throw new Error('Valid price is required');
+    }
+    
+    const response = await api.patch(`/orders/${orderId}/update-price`, {
+      price: parseFloat(newPrice)
+    });
+    
+    console.log('✅ Price updated successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Update price error:', error.response?.data || error.message);
+    throw error;
+  }
+};
 export default api;

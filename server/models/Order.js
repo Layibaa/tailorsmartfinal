@@ -1,3 +1,4 @@
+// server/models/Order.js - UPDATED with price negotiation tracking
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema(
@@ -13,7 +14,6 @@ const OrderSchema = new mongoose.Schema(
       default: 'medium'
     },
     expectedCompletionDate: Date,
-    
     actualCompletionDate: {
       type: Date,
       default: null
@@ -28,7 +28,6 @@ const OrderSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Tailor ID is required']
     },
-    // ✅ UPDATED: Changed to suit type
     suitType: {
       type: String,
       required: [true, 'Suit type is required'],
@@ -37,7 +36,6 @@ const OrderSchema = new mongoose.Schema(
         message: '{VALUE} is not a supported suit type'
       }
     },
-    // ✅ NEW: Shalwar style
     shalwarStyle: {
       type: String,
       enum: {
@@ -46,7 +44,6 @@ const OrderSchema = new mongoose.Schema(
       },
       required: true
     },
-    // ✅ NEW: Kameez style
     kameezStyle: {
       type: String,
       enum: {
@@ -55,21 +52,17 @@ const OrderSchema = new mongoose.Schema(
       },
       required: true
     },
-    // ✅ NEW: Dupatta details (for 3-piece only)
     dupattaDetails: {
       length: { type: Number, min: 0 },
       width: { type: Number, min: 0 },
       hasPeco: { type: Boolean, default: false }
     },
-    // ✅ UPDATED: Combined measurements for shalwar and kameez
     measurements: {
-      // Kameez measurements
       chest: { type: Number, min: 0 },
       shoulder: { type: Number, min: 0 },
       sleeveLength: { type: Number, min: 0 },
       neck: { type: Number, min: 0 },
       kameezLength: { type: Number, min: 0 },
-      // Shalwar measurements
       waist: { type: Number, min: 0 },
       hip: { type: Number, min: 0 },
       inseam: { type: Number, min: 0 },
@@ -93,6 +86,32 @@ const OrderSchema = new mongoose.Schema(
       min: 0,
       default: 0
     },
+    // NEW: Price negotiation fields
+    priceNegotiationRequested: {
+      type: Boolean,
+      default: false
+    },
+    priceChangedByTailor: {
+      type: Boolean,
+      default: false
+    },
+    originalPrice: {
+      type: Number,
+      min: 0,
+      default: null
+    },
+    priceHistory: [{
+      price: Number,
+      changedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      changedAt: {
+        type: Date,
+        default: Date.now
+      },
+      reason: String
+    }],
     notes: {
       type: String,
       maxlength: 500
@@ -120,7 +139,6 @@ const OrderSchema = new mongoose.Schema(
         notes: String
       }
     ],
-    expectedCompletionDate: Date,
     paymentStatus: {
       type: String,
       enum: ['pending', 'paid', 'refunded'],
@@ -137,7 +155,7 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Pre-save middleware to track actual completion
+// Pre-save middleware
 OrderSchema.pre('save', function(next) {
   if (this.isModified('status') && this.status === 'completed' && !this.actualCompletionDate) {
     this.actualCompletionDate = new Date();
@@ -172,10 +190,44 @@ OrderSchema.methods.getDeliveryAccuracy = function() {
   };
 };
 
-// Indexes for efficient queries
+// NEW: Method to request price negotiation
+OrderSchema.methods.requestPriceNegotiation = function() {
+  this.priceNegotiationRequested = true;
+  return this.save();
+};
+
+// NEW: Method to update price (tailor only, one-time)
+OrderSchema.methods.updatePrice = function(newPrice, tailorId) {
+  if (this.priceChangedByTailor) {
+    throw new Error('Price has already been changed once and cannot be modified again');
+  }
+  
+  // Store original price if not already stored
+  if (!this.originalPrice) {
+    this.originalPrice = this.price;
+  }
+  
+  // Add to price history
+  this.priceHistory.push({
+    price: this.price,
+    changedBy: tailorId,
+    changedAt: new Date(),
+    reason: 'Price negotiation'
+  });
+  
+  // Update price
+  this.price = newPrice;
+  this.priceChangedByTailor = true;
+  this.priceNegotiationRequested = false;
+  
+  return this.save();
+};
+
+// Indexes
 OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ tailor: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ isLocked: 1 });
+OrderSchema.index({ priceNegotiationRequested: 1 });
 
 module.exports = mongoose.model('Order', OrderSchema);
