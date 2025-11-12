@@ -149,7 +149,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       const newLockState = !order.isLocked;
       
       Alert.alert(
-        newLockState ? '🔒 Lock Design?' : '🔓 Unlock Design?',
+        newLockState ? 'Lock Design?' : 'Unlock Design?',
         newLockState 
           ? 'Once locked, no further changes can be made by either party. The tailor can then proceed with production.\n\nAre you sure all details are correct?'
           : 'Unlocking will allow both parties to edit measurements, notes, and design references again.\n\nDo you want to unlock?',
@@ -165,12 +165,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 
                 const response = await lockOrder(orderId, newLockState);
                 
-                console.log('✅ Lock status updated:', response);
+                console.log(' Lock status updated:', response);
                 
                 // Add to change history
                 setChangeHistory(prev => [{
                   userName: user.name,
-                  action: newLockState ? 'locked the design 🔒' : 'unlocked the design 🔓',
+                  action: newLockState ? 'locked the design ' : 'unlocked the design ',
                   timestamp: new Date().toISOString()
                 }, ...prev]);
                 
@@ -179,16 +179,16 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 await sendMessage({
                   receiverId,
                   content: newLockState 
-                    ? `🔒 ${user.name} has locked the design. All details are finalized. You can now proceed with production.`
-                    : `🔓 ${user.name} has unlocked the design. You can now make changes again.`,
+                    ? ` ${user.name} has locked the design. All details are finalized. You can now proceed with production.`
+                    : ` ${user.name} has unlocked the design. You can now make changes again.`,
                   orderId: order._id
                 });
                 
                 Alert.alert(
-                  'Success! ✅',
+                  'Success! ',
                   newLockState 
-                    ? 'Design is now locked! 🔒\n\nThe tailor has been notified and can start production.'
-                    : 'Design is now unlocked! 🔓\n\nYou can make changes again.',
+                    ? 'Design is now locked! \n\nThe tailor has been notified and can start production.'
+                    : 'Design is now unlocked! \n\nYou can make changes again.',
                   [{ text: 'OK', onPress: () => loadOrderDetails() }]
                 );
                 
@@ -296,7 +296,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       });
       
       setIsEditingMeasurements(false);
-      Alert.alert('Success! ✅', 'Measurements updated successfully. The other party has been notified.');
+      Alert.alert('Success! ', 'Measurements updated successfully. The other party has been notified.');
       loadOrderDetails();
     } catch (error) {
       console.error('❌ Save measurements error:', error);
@@ -338,7 +338,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       });
       
       setIsEditingNotes(false);
-      Alert.alert('Success! ✅', 'Notes updated successfully.');
+      Alert.alert('Success! ', 'Notes updated successfully.');
       loadOrderDetails();
     } catch (error) {
       console.error('❌ Save notes error:', error);
@@ -443,7 +443,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setIsEditingImages(false);
       setTempReferenceImage(null);
       setTempCustomerSketch(null);
-      Alert.alert('Success! ✅', 'Design references updated successfully.');
+      Alert.alert('Success! ', 'Design references updated successfully.');
       loadOrderDetails();
     } catch (error) {
       console.error('❌ Save images error:', error);
@@ -521,8 +521,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       }
       
       Alert.alert(
-        'Order Confirmed! ✅', 
-        'You can now work with the tailor to finalize measurements and design.\n\n📝 Make changes as needed\n🔒 Lock the design when ready for production'
+        'Order Confirmed! ', 
+        'You can now work with the tailor to finalize measurements and design.\n\n📝 Make changes as needed\n Lock the design when ready for production'
       );
       setIsStatusModalVisible(false);
       loadOrderDetails();
@@ -596,7 +596,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           />
           <View style={styles.lockBannerText}>
             <Text style={styles.lockBannerTitle}>
-              {order.isLocked ? '🔒 Design Locked' : '🔓 Design Unlocked'}
+              {order.isLocked ? ' Design Locked' : ' Design Unlocked'}
             </Text>
             <Text style={styles.lockBannerDescription}>
               {order.isLocked 
@@ -641,7 +641,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         <View style={styles.editNotice}>
           <Feather name="edit-3" size={20} color={colors.primary} />
           <Text style={styles.editNoticeText}>
-            ✏️ Both parties can edit order details. Changes will notify the other party. 🔒 Lock when finalized.
+             Both parties can edit order details. Changes will notify the other party.  Lock when finalized.
           </Text>
         </View>
       )}
@@ -955,7 +955,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         
         {user.role === 'customer' && order.status === 'accepted' && (
           <Button
-            title="✅ Confirm & Start Collaboration"
+            title=" Confirm & Start Collaboration"
             onPress={() => setIsStatusModalVisible(true)}
             disabled={isUpdating}
           />
@@ -1053,7 +1053,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
               {'\n'}• Lock when everything is perfect
             </Text>
             <Button 
-              title="✅ Confirm Order" 
+              title=" Confirm Order" 
               onPress={handleConfirmOrder}
               loading={isUpdating}
               disabled={isUpdating}
