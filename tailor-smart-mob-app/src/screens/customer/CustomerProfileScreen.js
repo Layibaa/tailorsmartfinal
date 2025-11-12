@@ -1,11 +1,10 @@
-// tailor-smart-mob-app/src/screens/customer/CustomerProfileScreen.js - FULLY FIXED
+// CustomerProfileScreen.js - FULLY FIXED with proper API calls and custom alerts
 import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   TouchableOpacity,
   Modal,
   SafeAreaView,
@@ -19,8 +18,7 @@ import { Picker } from '@react-native-picker/picker';
 import { AuthContext } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import colors from '../../styles/colors';
+import LoadingSpinner from '../../components/ui/LoadingSpinner'; 
 import {
   getUserProfile,
   updateProfile as updateProfileAPI,
@@ -29,9 +27,54 @@ import {
   sendDeleteAccountOtp,
   deleteAccount as deleteAccountAPI,
   getLocationOptions
-} from '../../services/api';
+} from '../../services/api'; 
 
-// ✅ FIXED: Removed address validation, email is read-only
+// Custom Alert Component
+const CustomAlert = ({ visible, title, message, buttons, onDismiss }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onDismiss}
+    >
+      <View style={styles.alertOverlay}>
+        <View style={styles.alertContainer}>
+          <Text style={styles.alertTitle}>{title}</Text>
+          <Text style={styles.alertMessage}>{message}</Text>
+          <View style={styles.alertButtons}>
+            {buttons.map((button, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.alertButton,
+                  button.style === 'destructive' && styles.alertButtonDestructive,
+                  button.style === 'cancel' && styles.alertButtonCancel
+                ]}
+                onPress={() => {
+                  button.onPress?.();
+                  onDismiss();
+                }}
+              >
+                <Text style={[
+                  styles.alertButtonText,
+                  button.style === 'destructive' && styles.alertButtonTextDestructive,
+                  button.style === 'cancel' && styles.alertButtonTextCancel
+                ]}>
+                  {button.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Validation schemas
 const ProfileSchema = Yup.object().shape({
   name: Yup.string()
     .min(2, 'Name must be at least 2 characters')
@@ -81,6 +124,27 @@ const CustomerProfileScreen = ({ navigation }) => {
     cities: [],
     islamabadRegions: []
   });
+  
+  // Custom alert state
+   const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: []
+  });
+
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
 
   useEffect(() => {
     loadProfile();
@@ -93,7 +157,7 @@ const CustomerProfileScreen = ({ navigation }) => {
       console.log('✅ Profile loaded:', response.user);
       setProfile(response.user);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load profile');
+      showAlert('Error', 'Failed to load profile');
       console.error('Load profile error:', error);
     } finally {
       setIsLoading(false);
@@ -112,7 +176,6 @@ const CustomerProfileScreen = ({ navigation }) => {
   const handleUpdateProfile = async (values) => {
     setIsUpdating(true);
     try {
-      // ✅ FIXED: Email is read-only, not sent in update
       const updateData = {
         name: values.name,
         city: values.city,
@@ -128,10 +191,10 @@ const CustomerProfileScreen = ({ navigation }) => {
       const response = await updateProfileAPI(updateData);
       if (response.success) {
         setProfile(response.data);
-        Alert.alert('Success', 'Profile updated successfully');
+        showAlert('Success', 'Profile updated successfully');
       }
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to update profile');
+      showAlert('Error', error.response?.data?.msg || 'Failed to update profile');
     } finally {
       setIsUpdating(false);
     }
@@ -139,47 +202,61 @@ const CustomerProfileScreen = ({ navigation }) => {
 
   const handleSendPasswordOtp = async () => {
     try {
-      await sendPasswordChangeOtp();
+      console.log('📤 Sending password change OTP...');
+      const response = await sendPasswordChangeOtp();
+      console.log('✅ OTP response:', response);
       setPasswordStep(2);
-      Alert.alert('Success', 'OTP sent to your email');
+      showAlert('Success', 'OTP sent to your email');
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to send OTP');
+      console.error('❌ Send OTP error:', error);
+      showAlert('Error', error.response?.data?.msg || 'Failed to send OTP');
     }
   };
 
   const handleChangePassword = async (values) => {
     try {
-      await updatePasswordAPI({
+      console.log('🔐 Changing password with OTP...');
+      const response = await updatePasswordAPI({
         newPassword: values.newPassword,
         otp: values.otp
       });
+      console.log('✅ Password changed:', response);
+      
       setShowPasswordModal(false);
       setPasswordStep(1);
-      Alert.alert('Success', 'Password changed successfully');
+      showAlert('Success', 'Password changed successfully');
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to change password');
+      console.error('❌ Change password error:', error);
+      showAlert('Error', error.response?.data?.msg || 'Failed to change password');
     }
   };
 
   const handleSendDeleteOtp = async () => {
     try {
-      await sendDeleteAccountOtp();
+      console.log('📤 Sending delete account OTP...');
+      const response = await sendDeleteAccountOtp();
+      console.log('✅ Delete OTP response:', response);
       setDeleteStep(2);
-      Alert.alert('Success', 'OTP sent to your email for account deletion');
+      showAlert('Success', 'OTP sent to your email for account deletion');
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to send OTP');
+      console.error('❌ Send delete OTP error:', error);
+      showAlert('Error', error.response?.data?.msg || 'Failed to send OTP');
     }
   };
 
   const handleDeleteAccount = async (values) => {
     try {
-      await deleteAccountAPI({ otp: values.otp });
+      console.log('🗑️ Deleting account with OTP...');
+      const response = await deleteAccountAPI({ otp: values.otp });
+      console.log('✅ Account deleted:', response);
+      
       setShowDeleteModal(false);
-      Alert.alert('Account Deleted', 'Your account has been permanently deleted', [
+      showAlert('Account Deleted', 'Your account has been permanently deleted', [
         { text: 'OK', onPress: () => logout() }
       ]);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to delete account');
+      console.error('❌ Delete account error:', error);
+      showAlert('Error', error.response?.data?.msg || 'Failed to delete account');
     }
   };
 
@@ -189,6 +266,14 @@ const CustomerProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={hideAlert}
+      />
+
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -204,21 +289,18 @@ const CustomerProfileScreen = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
-        persistentScrollbar={true}
-        nestedScrollEnabled={true}
         keyboardShouldPersistTaps="handled"
       >
         <Formik
           initialValues={{
             name: profile?.name || '',
-            email: profile?.email || '', // ✅ FIXED: Now using email
+            email: profile?.email || '',
             city: profile?.city || '',
             region: profile?.region || '',
             age: profile?.customerProfile?.age?.toString() || '',
             gender: profile?.customerProfile?.gender || '',
             weight: profile?.customerProfile?.weight?.toString() || '',
             height: profile?.customerProfile?.height?.toString() || ''
-            // ✅ REMOVED: address field
           }}
           validationSchema={ProfileSchema}
           onSubmit={handleUpdateProfile}
@@ -238,7 +320,6 @@ const CustomerProfileScreen = ({ navigation }) => {
                 iconName="user"
               />
 
-              {/* ✅ FIXED: Email is now a non-editable display field */}
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Email</Text>
                 <View style={styles.readOnlyField}>
@@ -347,8 +428,6 @@ const CustomerProfileScreen = ({ navigation }) => {
                 error={touched.height && errors.height}
                 iconName="trending-up"
               />
-
-              {/* ✅ REMOVED: Address input field */}
 
               {isUpdating ? (
                 <LoadingSpinner />
@@ -493,7 +572,7 @@ const CustomerProfileScreen = ({ navigation }) => {
             {deleteStep === 1 ? (
               <View>
                 <View style={styles.warningContainer}>
-                  <Feather name="alert-triangle" size={48} color={colors.error} />
+                  <Feather name="alert-triangle" size={48} color="#EF4444" />
                   <Text style={styles.warningTitle}>Are you sure?</Text>
                   <Text style={styles.warningText}>
                     This action cannot be undone. Your account and all associated data will be permanently deleted.
@@ -502,7 +581,7 @@ const CustomerProfileScreen = ({ navigation }) => {
                 <Button 
                   title="Send Verification OTP" 
                   onPress={handleSendDeleteOtp}
-                  buttonStyle={styles.deleteButton}
+                  buttonStyle={{ backgroundColor: '#EF4444' }}
                 />
                 <Button 
                   title="Cancel" 
@@ -520,7 +599,7 @@ const CustomerProfileScreen = ({ navigation }) => {
                 {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
                   <View>
                     <View style={styles.warningContainer}>
-                      <Feather name="alert-triangle" size={48} color={colors.error} />
+                      <Feather name="alert-triangle" size={48} color="#EF4444" />
                       <Text style={styles.warningTitle}>Final Confirmation</Text>
                       <Text style={styles.warningText}>
                         Enter the OTP sent to your email to permanently delete your account.
@@ -542,7 +621,7 @@ const CustomerProfileScreen = ({ navigation }) => {
                     <Button 
                       title="Delete My Account" 
                       onPress={handleSubmit}
-                      buttonStyle={styles.deleteButton}
+                      buttonStyle={{ backgroundColor: '#EF4444' }}
                     />
                     <Button 
                       title="Cancel" 
@@ -562,6 +641,14 @@ const CustomerProfileScreen = ({ navigation }) => {
       </Modal>
     </SafeAreaView>
   );
+};
+
+const colors = {
+  white: '#FFFFFF',
+  black: '#000000',
+  gray: '#6B7280',
+  lightGray: '#E5E7EB',
+  error: '#EF4444'
 };
 
 const styles = StyleSheet.create({
@@ -748,6 +835,72 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: colors.gray
+  },
+  // Custom Alert Styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  alertContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5
+  },
+  alertTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.black,
+    marginBottom: 12,
+    textAlign: 'center'
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: colors.gray,
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 22
+  },
+  alertButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    gap: 10
+  },
+  alertButton: {
+    flex: 1,
+    backgroundColor: colors.black,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  alertButtonDestructive: {
+    backgroundColor: colors.error
+  },
+  alertButtonCancel: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.lightGray
+  },
+  alertButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  alertButtonTextDestructive: {
+    color: colors.white
+  },
+  alertButtonTextCancel: {
+    color: colors.black
   }
 });
 

@@ -298,16 +298,7 @@ export const getUserProfile = async () => {
     throw error;
   }
 };
-
-export const updatePassword = async (passwordData) => {
-  try {
-    const response = await api.put('/customers/password', passwordData);
-    return response.data;
-  } catch (error) {
-    console.error('Update password error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+ 
 
 // ============================================
 // TAILOR APIs
@@ -856,6 +847,56 @@ export const deleteReview = async (reviewId) => {
     return response.data;
   } catch (error) {
     console.error('❌ Delete review error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Add these to the PASSWORD MANAGEMENT section:
+
+export const sendPasswordChangeOtp = async () => {
+  try {
+    console.log('📤 Sending password change OTP...');
+    const response = await api.post('/customers/password/send-otp');
+    console.log('✅ Password OTP sent');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Send password OTP error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updatePassword = async (passwordData) => {
+  try {
+    console.log('🔐 Updating password...');
+    const response = await api.put('/customers/password', passwordData);
+    console.log('✅ Password updated');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Update password error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const sendDeleteAccountOtp = async () => {
+  try {
+    console.log('📤 Sending delete account OTP...');
+    const response = await api.post('/customers/delete/send-otp');
+    console.log('✅ Delete account OTP sent');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Send delete OTP error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteAccount = async (otpData) => {
+  try {
+    console.log('🗑️ Deleting account...');
+    const response = await api.delete('/customers/delete', { data: otpData });
+    console.log('✅ Account deleted');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Delete account error:', error.response?.data || error.message);
     throw error;
   }
 };
