@@ -1,4 +1,4 @@
-// PROPERLY FIXED: CustomerProfileScreen.js
+// tailor-smart-mob-app/src/screens/customer/CustomerProfileScreen.js - FULLY FIXED
 import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
@@ -31,11 +31,11 @@ import {
   getLocationOptions
 } from '../../services/api';
 
+// ✅ FIXED: Removed address validation, email is read-only
 const ProfileSchema = Yup.object().shape({
   name: Yup.string()
     .min(2, 'Name must be at least 2 characters')
     .required('Name is required'),
-  phone: Yup.string(),
   city: Yup.string().required('City is required'),
   region: Yup.string().when('city', {
     is: 'Islamabad',
@@ -47,8 +47,7 @@ const ProfileSchema = Yup.object().shape({
     .integer('Age must be a whole number'),
   gender: Yup.string().oneOf(['Male', 'Female', 'Other'], 'Invalid gender'),
   weight: Yup.number().positive('Weight must be positive'),
-  height: Yup.number().positive('Height must be positive'),
-  address: Yup.string()
+  height: Yup.number().positive('Height must be positive')
 });
 
 const PasswordChangeSchema = Yup.object().shape({
@@ -91,6 +90,7 @@ const CustomerProfileScreen = ({ navigation }) => {
   const loadProfile = async () => {
     try {
       const response = await getUserProfile();
+      console.log('✅ Profile loaded:', response.user);
       setProfile(response.user);
     } catch (error) {
       Alert.alert('Error', 'Failed to load profile');
@@ -112,17 +112,18 @@ const CustomerProfileScreen = ({ navigation }) => {
   const handleUpdateProfile = async (values) => {
     setIsUpdating(true);
     try {
+      // ✅ FIXED: Email is read-only, not sent in update
       const updateData = {
         name: values.name,
-        phone: values.phone || null,
         city: values.city,
         region: values.city === 'Islamabad' ? values.region : null,
         age: values.age ? parseInt(values.age) : undefined,
         gender: values.gender || undefined,
         weight: values.weight ? parseFloat(values.weight) : undefined,
-        height: values.height ? parseFloat(values.height) : undefined,
-        address: values.address || undefined
+        height: values.height ? parseFloat(values.height) : undefined
       };
+
+      console.log('📝 Updating profile with:', updateData);
 
       const response = await updateProfileAPI(updateData);
       if (response.success) {
@@ -188,7 +189,6 @@ const CustomerProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Fixed Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -200,27 +200,25 @@ const CustomerProfileScreen = ({ navigation }) => {
         <View style={styles.placeholder} />
       </View>
 
-      {/* Scrollable Content */}
       <ScrollView
-  style={styles.scrollView}
-  contentContainerStyle={styles.scrollContent}
-  showsVerticalScrollIndicator={true}      // ✅ show scrollbar
-  persistentScrollbar={true}               // ✅ keeps it visible while scrolling
-  nestedScrollEnabled={true}               // ✅ helps inside modals/nested views
-  keyboardShouldPersistTaps="handled"
->
-
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        nestedScrollEnabled={true}
+        keyboardShouldPersistTaps="handled"
+      >
         <Formik
           initialValues={{
             name: profile?.name || '',
-            phone: profile?.phone || '',
+            email: profile?.email || '', // ✅ FIXED: Now using email
             city: profile?.city || '',
             region: profile?.region || '',
             age: profile?.customerProfile?.age?.toString() || '',
             gender: profile?.customerProfile?.gender || '',
             weight: profile?.customerProfile?.weight?.toString() || '',
-            height: profile?.customerProfile?.height?.toString() || '',
-            address: profile?.customerProfile?.address || ''
+            height: profile?.customerProfile?.height?.toString() || ''
+            // ✅ REMOVED: address field
           }}
           validationSchema={ProfileSchema}
           onSubmit={handleUpdateProfile}
@@ -240,16 +238,14 @@ const CustomerProfileScreen = ({ navigation }) => {
                 iconName="user"
               />
 
-              <Input
-                label="Email"
-                placeholder="Enter your email"
-                value={values.phone}
-                onChangeText={handleChange('phone')}
-                onBlur={handleBlur('phone')}
-                keyboardType="phone-pad"
-                error={touched.phone && errors.phone}
-                iconName="email"
-              />
+              {/* ✅ FIXED: Email is now a non-editable display field */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Email</Text>
+                <View style={styles.readOnlyField}>
+                  <Feather name="mail" size={20} color={colors.gray} style={styles.fieldIcon} />
+                  <Text style={styles.readOnlyText}>{values.email}</Text>
+                </View>
+              </View>
 
               <Text style={styles.sectionTitle}>Location</Text>
               
@@ -352,17 +348,7 @@ const CustomerProfileScreen = ({ navigation }) => {
                 iconName="trending-up"
               />
 
-              <Input
-                label="Address"
-                placeholder="Enter your address"
-                value={values.address}
-                onChangeText={handleChange('address')}
-                onBlur={handleBlur('address')}
-                multiline
-                numberOfLines={3}
-                error={touched.address && errors.address}
-                iconName="map-pin"
-              />
+              {/* ✅ REMOVED: Address input field */}
 
               {isUpdating ? (
                 <LoadingSpinner />
@@ -604,15 +590,14 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40
   },
- scrollView: {
-  backgroundColor: colors.white,   // ❌ remove flex: 1
-},
-
-scrollContent: {
-  flexGrow: 1,                     // ✅ makes scrolling possible
-  padding: 16,
-  paddingBottom: 120,              // ✅ space for bottom content
-}, 
+  scrollView: {
+    backgroundColor: colors.white
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 16,
+    paddingBottom: 120
+  },
   formContainer: {
     width: '100%'
   },
@@ -735,6 +720,34 @@ scrollContent: {
   },
   cancelButtonText: {
     color: colors.black
+  },
+  fieldContainer: {
+    marginBottom: 16
+  },
+  fieldLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.black,
+    marginBottom: 8
+  },
+  readOnlyField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightGray,
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    minHeight: 50
+  },
+  fieldIcon: {
+    marginRight: 10
+  },
+  readOnlyText: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.gray
   }
 });
 

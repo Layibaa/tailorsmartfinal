@@ -1,3 +1,4 @@
+// tailor-smart-mob-app/src/screens/auth/CustomerSignupScreen.js - FIXED
 import React, { useContext, useState } from 'react';
 import { 
   View, 
@@ -17,7 +18,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import LocationPicker from '../../components/forms/LocationPicker';
 import colors from '../../styles/colors';
 
-// Validation schema with location
+// ✅ FIXED: Gender values are now capitalized to match backend
 const CustomerSignupSchema = Yup.object().shape({
   name: Yup.string()
     .min(3, 'Name must be at least 3 characters')
@@ -34,16 +35,16 @@ const CustomerSignupSchema = Yup.object().shape({
   city: Yup.string()
     .required('City is required'),
   region: Yup.mixed().when('city', {
-  is: (city) => city === 'Islamabad',
-  then: () => Yup.string().required('Region is required for Islamabad'),
-  otherwise: () => Yup.string().nullable(),
-}),
+    is: (city) => city === 'Islamabad',
+    then: () => Yup.string().required('Region is required for Islamabad'),
+    otherwise: () => Yup.string().nullable(),
+  }),
   age: Yup.number()
     .min(16, 'You must be at least 16 years old')
     .max(100, 'Age cannot exceed 100')
     .required('Age is required'),
   gender: Yup.string()
-    .oneOf(['male', 'female', 'other'], 'Please select a valid gender')
+    .oneOf(['Male', 'Female', 'Other'], 'Please select a valid gender')
     .required('Gender is required'),
   weight: Yup.number()
     .min(30, 'Weight must be at least 30kg')
@@ -62,7 +63,7 @@ const CustomerSignupScreen = ({ navigation }) => {
   const handleSignup = async (values) => {
     setError(null);
     
-    // Prepare user data with location
+    // ✅ FIXED: Send capitalized gender values
     const userData = {
       name: values.name,
       email: values.email,
@@ -71,12 +72,12 @@ const CustomerSignupScreen = ({ navigation }) => {
       city: values.city,
       region: values.region || null,
       age: parseInt(values.age),
-      gender: values.gender,
+      gender: values.gender, // Already capitalized from form
       weight: parseFloat(values.weight),
       height: parseFloat(values.height)
     };
 
-    console.log('Customer signup data with location:', userData);
+    console.log('✅ Customer signup data (capitalized gender):', userData);
 
     const result = await register(userData);
     
@@ -94,10 +95,10 @@ const CustomerSignupScreen = ({ navigation }) => {
       keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
     >
       <ScrollView 
-    style={styles.scrollView}
-    contentContainerStyle={styles.contentContainer}
-    showsVerticalScrollIndicator={true}
-  >
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={true}
+      >
         <Text style={styles.title}>Customer Registration</Text>
         <Text style={styles.subtitle}>Join our tailoring app to get custom garments</Text>
         
@@ -112,7 +113,7 @@ const CustomerSignupScreen = ({ navigation }) => {
             city: '',
             region: '',
             age: '',
-            gender: 'male',
+            gender: 'Male', // ✅ FIXED: Default to capitalized
             weight: '',
             height: ''
           }}
@@ -163,7 +164,6 @@ const CustomerSignupScreen = ({ navigation }) => {
                 iconName="check"
               />
 
-              {/* Location Section */}
               <Text style={styles.sectionTitle}>Location</Text>
               <LocationPicker
                 city={values.city}
@@ -194,14 +194,14 @@ const CustomerSignupScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={[
                     styles.radioButton,
-                    values.gender === 'male' && styles.radioButtonSelected
+                    values.gender === 'Male' && styles.radioButtonSelected
                   ]}
-                  onPress={() => setFieldValue('gender', 'male')}
+                  onPress={() => setFieldValue('gender', 'Male')}
                 >
                   <Text
                     style={[
                       styles.radioText,
-                      values.gender === 'male' && styles.radioTextSelected
+                      values.gender === 'Male' && styles.radioTextSelected
                     ]}
                   >
                     Male
@@ -211,14 +211,14 @@ const CustomerSignupScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={[
                     styles.radioButton,
-                    values.gender === 'female' && styles.radioButtonSelected
+                    values.gender === 'Female' && styles.radioButtonSelected
                   ]}
-                  onPress={() => setFieldValue('gender', 'female')}
+                  onPress={() => setFieldValue('gender', 'Female')}
                 >
                   <Text
                     style={[
                       styles.radioText,
-                      values.gender === 'female' && styles.radioTextSelected
+                      values.gender === 'Female' && styles.radioTextSelected
                     ]}
                   >
                     Female
@@ -228,14 +228,14 @@ const CustomerSignupScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={[
                     styles.radioButton,
-                    values.gender === 'other' && styles.radioButtonSelected
+                    values.gender === 'Other' && styles.radioButtonSelected
                   ]}
-                  onPress={() => setFieldValue('gender', 'other')}
+                  onPress={() => setFieldValue('gender', 'Other')}
                 >
                   <Text
                     style={[
                       styles.radioText,
-                      values.gender === 'other' && styles.radioTextSelected
+                      values.gender === 'Other' && styles.radioTextSelected
                     ]}
                   >
                     Other
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: 40,
-    flexGrow: 1  // Use flexGrow instead if needed
+    flexGrow: 1
   },
   scrollView: {
     padding: 20

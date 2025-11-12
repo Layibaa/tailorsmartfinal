@@ -1,4 +1,4 @@
-// server/models/User.js - FIXED with correct tailorProfile fields
+// server/models/User.js - FIXED: Removed address field
 const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
@@ -96,15 +96,15 @@ const UserSchema = new mongoose.Schema(
       }
     },
     
-    // ✅ FIXED: Tailor Profile with correct field names
+    // Tailor Profile
     tailorProfile: {
-      shopName: String,           // ✅ matches signup
-      shopLocation: String,        // ✅ matches signup  
-      shopAddress: String,         // ✅ alias for shopLocation (for compatibility)
-      averagePrice: Number,        // ✅ ADDED - was missing!
+      shopName: String,
+      shopLocation: String,
+      shopAddress: String,
+      averagePrice: Number,
       experience: Number,
       specialties: [String],
-      specialization: String,      // ✅ added for compatibility
+      specialization: String,
       rating: { type: Number, min: 0, max: 5, default: 0 },
       reviewCount: { type: Number, default: 0 },
       reviews: [{
@@ -115,17 +115,27 @@ const UserSchema = new mongoose.Schema(
       }]
     },
     
+    // ✅ FIXED: Customer Profile - removed address field
     customerProfile: {
       age: Number,
-      gender: String,
+      gender: {
+        type: String,
+        enum: ['Male', 'Female', 'Other', 'male', 'female', 'other'] // ✅ Accept both cases
+      },
       weight: Number,
       height: Number,
-      address: String,
+      // ✅ REMOVED: address field
       preferredStyles: [String],
       savedMeasurements: {
-        chest: Number, waist: Number, hip: Number,
-        shoulder: Number, sleeveLength: Number, neck: Number,
-        inseam: Number, outseam: Number, thigh: Number
+        chest: Number, 
+        waist: Number, 
+        hip: Number,
+        shoulder: Number, 
+        sleeveLength: Number, 
+        neck: Number,
+        inseam: Number, 
+        outseam: Number, 
+        thigh: Number
       }
     },
 
@@ -150,7 +160,15 @@ UserSchema.pre('save', async function() {
     }
   }
   
-  // ✅ Sync shopAddress and shopLocation
+  // ✅ Normalize gender to capitalized format
+  if (this.customerProfile && this.customerProfile.gender) {
+    const gender = this.customerProfile.gender.toLowerCase();
+    if (gender === 'male') this.customerProfile.gender = 'Male';
+    else if (gender === 'female') this.customerProfile.gender = 'Female';
+    else if (gender === 'other') this.customerProfile.gender = 'Other';
+  }
+  
+  // Sync shopAddress and shopLocation
   if (this.tailorProfile) {
     if (this.tailorProfile.shopLocation && !this.tailorProfile.shopAddress) {
       this.tailorProfile.shopAddress = this.tailorProfile.shopLocation;

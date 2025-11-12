@@ -353,6 +353,7 @@ const updateProfile = async (req, res) => {
     const userId = req.user.userId || req.user.id;
     const { 
       name, 
+      email,  // ✅ ADDED: email support
       phone, 
       city,
       region
@@ -374,6 +375,7 @@ const updateProfile = async (req, res) => {
     
     const updateData = {};
     if (name) updateData.name = name;
+    if (email) updateData.email = email; // ✅ ADDED
     if (phone) updateData.phone = phone;
     if (city) {
       updateData.city = city;
@@ -386,10 +388,11 @@ const updateProfile = async (req, res) => {
     }
     
     if (req.user.role === 'customer') {
-      const { age, gender, weight, height, address, preferredStyles } = req.body;
+      const { age, gender, weight, height, preferredStyles } = req.body;
+      // ✅ REMOVED: address field
       
       if (age !== undefined || gender !== undefined || weight !== undefined || 
-          height !== undefined || address !== undefined || preferredStyles !== undefined) {
+          height !== undefined || preferredStyles !== undefined) {
         updateData.customerProfile = {};
         const existingUser = await User.findById(userId);
         if (existingUser?.customerProfile) {
@@ -400,7 +403,7 @@ const updateProfile = async (req, res) => {
         if (gender !== undefined) updateData.customerProfile.gender = gender;
         if (weight !== undefined) updateData.customerProfile.weight = weight;
         if (height !== undefined) updateData.customerProfile.height = height;
-        if (address !== undefined) updateData.customerProfile.address = address;
+        // ✅ REMOVED: address handling
         if (preferredStyles !== undefined) updateData.customerProfile.preferredStyles = preferredStyles;
       }
     }
