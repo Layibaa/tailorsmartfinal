@@ -14,8 +14,7 @@ import TailorSignupScreen from '../screens/auth/TailorSignupScreen';
 import OtpVerificationScreen from '../screens/auth/OtpVerificationScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 
-// Admin screens
-import AdminDashboard from '../screens/admin/AdminDashboard';
+// Admin screens 
 import AdminMessagesScreen from '../screens/shared/AdminMessagesScreen';
 
 // Customer screens
@@ -196,27 +195,7 @@ const TailorTabNavigator = () => (
     />
   </Tab.Navigator>
 );
-
-// Admin navigator
-const AdminNavigator = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerStyle: {
-        backgroundColor: colors.white,
-        shadowColor: colors.black,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        elevation: 3
-      },
-      headerTintColor: colors.black,
-      headerTitleStyle: {
-        fontWeight: 'bold'
-      }
-    }}
-  >
-    <Stack.Screen name="Dashboard" component={AdminDashboard} options={{ title: 'Admin Dashboard' }} />
-  </Stack.Navigator>
-);
+ 
 
 // Chat list stack navigator (used in tab navigators)
 const ChatListStack = createStackNavigator();

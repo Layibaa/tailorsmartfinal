@@ -1,5 +1,5 @@
-// ✅ FIXED: MeasurementScreen.js - IMAGE UPLOAD FIX
-import React, { useState, useEffect, useRef } from 'react';
+// ✅ COMPLETE: MeasurementScreen.js with Autofill Feature
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   Image,
   Modal,
   Dimensions,
-  Platform
+  Platform,
+  Switch
 } from 'react-native';
 import { Formik } from 'formik';
 import { Feather } from '@expo/vector-icons';
@@ -26,14 +27,21 @@ import colors from '../../styles/colors';
 import { createOrder } from '../../services/api';
 import { EventRegister } from 'react-native-event-listeners';
 import DrawingCanvas from '../../components/ui/DrawingCanvas';
+import { AuthContext } from '../../context/AuthContext';
+import { measurementPredictor } from '../../utils/measurementPredictor';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MeasurementScreen = ({ route, navigation }) => {
   const { tailorId, tailorName, garmentType, notes } = route.params;
+  const { user } = useContext(AuthContext);
+  
   const [loading, setLoading] = useState(false);
   const [requiredMeasurements, setRequiredMeasurements] = useState([]);
   const [formikRef, setFormikRef] = useState(null);
+  const [autoFillEnabled, setAutoFillEnabled] = useState(false);
+  const [predictedMeasurements, setPredictedMeasurements] = useState(null);
+  const [canAutoFill, setCanAutoFill] = useState(false);
 
   // Image & Canvas States
   const [referenceImage, setReferenceImage] = useState(null);
@@ -44,7 +52,113 @@ const MeasurementScreen = ({ route, navigation }) => {
     const measurements = getRequiredMeasurementsForGarment(garmentType);
     setRequiredMeasurements(measurements);
     requestPermissions();
+    checkAutoFillAvailability();
   }, [garmentType]);
+
+  const checkAutoFillAvailability = () => {
+    // Check if user has complete profile data for autofill
+    if (user?.customerProfile) {
+      const { age, gender, weight, height } = user.customerProfile;
+      const hasCompleteProfile = age && gender && weight && height;
+      setCanAutoFill(hasCompleteProfile);
+      
+      if (!hasCompleteProfile) {
+        console.log('⚠️ Incomplete profile for autofill:', {
+          age: !!age,
+          gender: !!gender,
+          weight: !!weight,
+          height: !!height
+        });
+      }
+    } else {
+      setCanAutoFill(false);
+    }
+  };
+
+  const handleAutoFillToggle = async (newValue) => {
+    if (!canAutoFill) {
+      Alert.alert(
+        'Complete Your Profile',
+        'Please complete your profile (age, gender, weight, height) to use auto-fill measurements.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Go to Profile', 
+            onPress: () => navigation.navigate('Profile')
+          }
+        ]
+      );
+      return;
+    }
+
+    setAutoFillEnabled(newValue);
+
+    if (newValue) {
+      // Calculate and fill measurements
+      try {
+        const profile = user.customerProfile;
+        console.log('📊 Calculating measurements for profile:', profile);
+        
+        const predicted = measurementPredictor.predictMeasurements(profile);
+        
+        if (predicted) {
+          setPredictedMeasurements(predicted);
+          
+          // Auto-fill the form
+          if (formikRef?.setFieldValue) {
+            requiredMeasurements.forEach(measurement => {
+              if (predicted[measurement]) {
+                formikRef.setFieldValue(measurement, predicted[measurement].toString());
+              }
+            });
+          }
+
+          const confidence = measurementPredictor.getConfidence(profile);
+          const bodyFrame = measurementPredictor.getBodyFrame(
+            profile.gender, 
+            profile.height, 
+            profile.weight
+          );
+
+          Alert.alert(
+            'Measurements Auto-Filled',
+            `Based on your profile, we've calculated measurements for a ${bodyFrame} build.\n\n` +
+            `Confidence: ${confidence.toUpperCase()}\n\n` +
+            `Please review and adjust if needed. These are estimates based on Pakistani body standards.`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Error', 'Could not calculate measurements. Please enter manually.');
+          setAutoFillEnabled(false);
+        }
+      } catch (error) {
+        console.error('❌ Error calculating measurements:', error);
+        Alert.alert('Error', 'Could not calculate measurements. Please enter manually.');
+        setAutoFillEnabled(false);
+      }
+    } else {
+      // Clear auto-filled values when turning off
+      Alert.alert(
+        'Clear Auto-Fill',
+        'Do you want to clear the auto-filled measurements?',
+        [
+          { text: 'Keep Values', style: 'cancel' },
+          {
+            text: 'Clear All',
+            style: 'destructive',
+            onPress: () => {
+              if (formikRef?.setFieldValue) {
+                requiredMeasurements.forEach(measurement => {
+                  formikRef.setFieldValue(measurement, '');
+                });
+              }
+              setPredictedMeasurements(null);
+            }
+          }
+        ]
+      );
+    }
+  };
 
   const requestPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -53,27 +167,24 @@ const MeasurementScreen = ({ route, navigation }) => {
     }
   };
 
-  // ✅ COMPLETELY FIXED IMAGE PICKER
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.5, // Reduced quality to prevent size issues
+        quality: 0.5,
         base64: true
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         
-        // Check if base64 exists
         if (!asset.base64) {
           Alert.alert('Error', 'Failed to process image. Please try again.');
           return;
         }
 
-        // Check file size (approximate)
         const sizeInMB = (asset.base64.length * 0.75) / (1024 * 1024);
         console.log('📊 Image size:', sizeInMB.toFixed(2), 'MB');
         
@@ -82,24 +193,14 @@ const MeasurementScreen = ({ route, navigation }) => {
           return;
         }
 
-        // ✅ FIX: Properly format base64 string
-        // Remove any existing data:image prefix to avoid duplication
         let base64Data = asset.base64;
         if (base64Data.startsWith('data:')) {
-          // Extract just the base64 part after the comma
           base64Data = base64Data.split(',')[1] || base64Data;
         }
 
-        // Now create proper format
         const mimeType = asset.uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
         const base64Image = `data:${mimeType};base64,${base64Data}`;
         
-        console.log('✅ Image formatted:', {
-          mimeType,
-          prefix: base64Image.substring(0, 50),
-          size: base64Image.length
-        });
-
         setReferenceImage({
           uri: asset.uri,
           base64: base64Image
@@ -118,7 +219,7 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   const handleCanvasSave = (signature) => {
-    console.log('✅ Canvas signature saved:', signature.substring(0, 50));
+    console.log('✅ Canvas signature saved');
     setCustomerSketch(signature);
     setIsCanvasVisible(false);
     Alert.alert('Success', 'Your sketch has been saved!');
@@ -169,7 +270,6 @@ const MeasurementScreen = ({ route, navigation }) => {
   const handleSubmit = async (values) => {
     console.log("📝 handleSubmit called");
     
-    // Validate measurements
     const missingMeasurements = requiredMeasurements.filter(
       key => !values[key] || values[key] === ''
     );
@@ -185,7 +285,6 @@ const MeasurementScreen = ({ route, navigation }) => {
     
     setLoading(true);
     
-    // Process measurements
     const measurements = {};
     requiredMeasurements.forEach(key => {
       if (values[key]) {
@@ -196,7 +295,6 @@ const MeasurementScreen = ({ route, navigation }) => {
     console.log("📏 Processed measurements:", measurements);
 
     try {
-      // ✅ FIX: Create order data with proper image handling
       const orderData = {
         tailorId,
         garmentType,
@@ -204,7 +302,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         notes: notes || ''
       };
 
-      // Only add images if they exist
       if (referenceImage?.base64) {
         console.log('📸 Adding reference image');
         orderData.referenceImage = referenceImage.base64;
@@ -214,16 +311,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         console.log('✏️ Adding customer sketch');
         orderData.customerSketch = customerSketch;
       }
-      
-      console.log("📤 Sending order data:", {
-        tailorId: orderData.tailorId,
-        garmentType: orderData.garmentType,
-        measurementCount: Object.keys(orderData.measurements).length,
-        hasReferenceImage: !!orderData.referenceImage,
-        hasCustomerSketch: !!orderData.customerSketch,
-        referenceImagePrefix: orderData.referenceImage?.substring(0, 30),
-        customerSketchPrefix: orderData.customerSketch?.substring(0, 30)
-      });
       
       const response = await createOrder(orderData);
       
@@ -248,11 +335,6 @@ const MeasurementScreen = ({ route, navigation }) => {
 
     } catch (error) {
       console.error('❌ Error creating order:', error);
-      console.error('Error details:', {
-        response: error.response?.data,
-        status: error.response?.status,
-        message: error.message
-      });
       
       const errorMessage = error.response?.data?.msg || 
                           error.message || 
@@ -279,6 +361,42 @@ const MeasurementScreen = ({ route, navigation }) => {
         </Text>
       </View>
 
+      {/* Auto-Fill Toggle Section */}
+      <View style={styles.autoFillContainer}>
+        <View style={styles.autoFillHeader}>
+          <View style={styles.autoFillTitleRow}>
+            <Feather name="zap" size={20} color={colors.primary} />
+            <Text style={styles.autoFillTitle}>Auto-Fill Measurements</Text>
+          </View>
+          <Switch
+            value={autoFillEnabled}
+            onValueChange={handleAutoFillToggle}
+            trackColor={{ false: colors.lightGray, true: colors.primary }}
+            thumbColor={autoFillEnabled ? colors.white : colors.gray}
+            disabled={!canAutoFill}
+          />
+        </View>
+        
+        {canAutoFill ? (
+          <Text style={styles.autoFillDescription}>
+            ✨ Calculate measurements based on your profile (age, gender, weight, height)
+          </Text>
+        ) : (
+          <Text style={styles.autoFillWarning}>
+            ⚠️ Complete your profile to use auto-fill
+          </Text>
+        )}
+
+        {autoFillEnabled && predictedMeasurements && (
+          <View style={styles.predictionInfo}>
+            <Feather name="info" size={16} color={colors.darkGray} />
+            <Text style={styles.predictionText}>
+              Measurements calculated using Pakistani body standards. Please verify and adjust as needed.
+            </Text>
+          </View>
+        )}
+      </View>
+
       {/* Design Reference Section */}
       <View style={styles.designReferenceContainer}>
         <View style={styles.sectionHeader}>
@@ -289,7 +407,6 @@ const MeasurementScreen = ({ route, navigation }) => {
           Upload a reference image or draw a sketch to help the tailor understand your design
         </Text>
 
-        {/* Reference Image */}
         <View style={styles.imageOptionContainer}>
           <Text style={styles.imageOptionTitle}>Reference Image</Text>
           {referenceImage ? (
@@ -317,7 +434,6 @@ const MeasurementScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Customer Sketch */}
         <View style={styles.imageOptionContainer}>
           <Text style={styles.imageOptionTitle}>Draw Your Design</Text>
           {customerSketch ? (
@@ -406,7 +522,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         }}
       </Formik>
 
-      {/* Canvas Modal */}
       <Modal
         visible={isCanvasVisible}
         animationType="slide"
@@ -444,6 +559,62 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.gray,
     textTransform: 'capitalize'
+  },
+  autoFillContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  autoFillHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  autoFillTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1
+  },
+  autoFillTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: colors.black
+  },
+  autoFillDescription: {
+    fontSize: 14,
+    color: colors.darkGray,
+    lineHeight: 20
+  },
+  autoFillWarning: {
+    fontSize: 14,
+    color: colors.error,
+    lineHeight: 20,
+    fontStyle: 'italic'
+  },
+  predictionInfo: {
+    flexDirection: 'row',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: colors.lightGray,
+    borderRadius: 8,
+    alignItems: 'flex-start'
+  },
+  predictionText: {
+    fontSize: 13,
+    color: colors.darkGray,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18
   },
   designReferenceContainer: {
     backgroundColor: colors.white,
