@@ -74,32 +74,27 @@ export const MessageSchema = Yup.object().shape({
     .max(500, 'Message is too long (max 500 characters)')
 });
 
-// Validation schema for order creation
+// ✅ UPDATED: Validation schema for order creation (suit-based)
 export const OrderSchema = Yup.object().shape({
   tailorId: Yup.string()
     .required('Tailor is required'),
-  garmentType: Yup.string()
-    .oneOf(['shalwar', 'kameez'], 'Invalid garment type')
-    .required('Garment type is required'),
+  suitType: Yup.string()
+    .oneOf(['2-piece', '3-piece'], 'Invalid suit type')
+    .required('Suit type is required'),
   shalwarStyle: Yup.string()
     .oneOf(['simple', 'patiala', 'gharara', 'capri', 'other'], 'Invalid shalwar style')
-    .when('garmentType', {
-      is: 'shalwar',
-      then: Yup.string().required('Shalwar style is required'),
-    }),
+    .required('Shalwar style is required'),
   kameezStyle: Yup.string()
     .oneOf(['simple', 'anarkali', 'angrakka', 'a-line', 'other'], 'Invalid kameez style')
-    .when('garmentType', {
-      is: 'kameez',
-      then: Yup.string().required('Kameez style is required'),
-    }),
+    .required('Kameez style is required'),
   notes: Yup.string()
     .max(500, 'Notes are too long (max 500 characters)')
 });
 
-// Validation schema for measurements
+// ✅ UPDATED: Validation schema for measurements (suit-based)
 export const MeasurementsSchema = {
-  shirt: Yup.object().shape({
+  '2-piece': Yup.object().shape({
+    // Kameez measurements
     chest: Yup.number()
       .min(50, 'Chest measurement must be at least 50cm')
       .max(200, 'Chest measurement cannot exceed 200cm')
@@ -115,27 +110,12 @@ export const MeasurementsSchema = {
     neck: Yup.number()
       .min(25, 'Neck measurement must be at least 25cm')
       .max(70, 'Neck measurement cannot exceed 70cm')
-      .required('Neck measurement is required')
-  }),
-  kameez: Yup.object().shape({
-    chest: Yup.number()
-      .min(50, 'Chest measurement must be at least 50cm')
-      .max(200, 'Chest measurement cannot exceed 200cm')
-      .required('Chest measurement is required'),
-    shoulder: Yup.number()
-      .min(30, 'Shoulder measurement must be at least 30cm')
-      .max(100, 'Shoulder measurement cannot exceed 100cm')
-      .required('Shoulder measurement is required'),
-    sleeveLength: Yup.number()
-      .min(40, 'Sleeve length must be at least 40cm')
-      .max(100, 'Sleeve length cannot exceed 100cm')
-      .required('Sleeve length is required'),
-    neck: Yup.number()
-      .min(25, 'Neck measurement must be at least 25cm')
-      .max(70, 'Neck measurement cannot exceed 70cm')
-      .required('Neck measurement is required')
-  }),
-  pants: Yup.object().shape({
+      .required('Neck measurement is required'),
+    kameezLength: Yup.number()
+      .min(60, 'Kameez length must be at least 60cm')
+      .max(150, 'Kameez length cannot exceed 150cm')
+      .required('Kameez length is required'),
+    // Shalwar measurements
     waist: Yup.number()
       .min(50, 'Waist measurement must be at least 50cm')
       .max(200, 'Waist measurement cannot exceed 200cm')
@@ -157,7 +137,29 @@ export const MeasurementsSchema = {
       .max(100, 'Thigh measurement cannot exceed 100cm')
       .required('Thigh measurement is required')
   }),
-  shalwar: Yup.object().shape({
+  '3-piece': Yup.object().shape({
+    // Kameez measurements
+    chest: Yup.number()
+      .min(50, 'Chest measurement must be at least 50cm')
+      .max(200, 'Chest measurement cannot exceed 200cm')
+      .required('Chest measurement is required'),
+    shoulder: Yup.number()
+      .min(30, 'Shoulder measurement must be at least 30cm')
+      .max(100, 'Shoulder measurement cannot exceed 100cm')
+      .required('Shoulder measurement is required'),
+    sleeveLength: Yup.number()
+      .min(40, 'Sleeve length must be at least 40cm')
+      .max(100, 'Sleeve length cannot exceed 100cm')
+      .required('Sleeve length is required'),
+    neck: Yup.number()
+      .min(25, 'Neck measurement must be at least 25cm')
+      .max(70, 'Neck measurement cannot exceed 70cm')
+      .required('Neck measurement is required'),
+    kameezLength: Yup.number()
+      .min(60, 'Kameez length must be at least 60cm')
+      .max(150, 'Kameez length cannot exceed 150cm')
+      .required('Kameez length is required'),
+    // Shalwar measurements
     waist: Yup.number()
       .min(50, 'Waist measurement must be at least 50cm')
       .max(200, 'Waist measurement cannot exceed 200cm')
@@ -177,111 +179,16 @@ export const MeasurementsSchema = {
     thigh: Yup.number()
       .min(40, 'Thigh measurement must be at least 40cm')
       .max(100, 'Thigh measurement cannot exceed 100cm')
-      .required('Thigh measurement is required')
-  }),
-  suit: Yup.object().shape({
-    chest: Yup.number()
-      .min(50, 'Chest measurement must be at least 50cm')
-      .max(200, 'Chest measurement cannot exceed 200cm')
-      .required('Chest measurement is required'),
-    shoulder: Yup.number()
-      .min(30, 'Shoulder measurement must be at least 30cm')
-      .max(100, 'Shoulder measurement cannot exceed 100cm')
-      .required('Shoulder measurement is required'),
-    sleeveLength: Yup.number()
-      .min(40, 'Sleeve length must be at least 40cm')
-      .max(100, 'Sleeve length cannot exceed 100cm')
-      .required('Sleeve length is required'),
-    waist: Yup.number()
-      .min(50, 'Waist measurement must be at least 50cm')
-      .max(200, 'Waist measurement cannot exceed 200cm')
-      .required('Waist measurement is required'),
-    hip: Yup.number()
-      .min(70, 'Hip measurement must be at least 70cm')
-      .max(200, 'Hip measurement cannot exceed 200cm')
-      .required('Hip measurement is required'),
-    inseam: Yup.number()
-      .min(50, 'Inseam measurement must be at least 50cm')
-      .max(120, 'Inseam measurement cannot exceed 120cm')
-      .required('Inseam measurement is required')
-  }),
-  dress: Yup.object().shape({
-    chest: Yup.number()
-      .min(50, 'Chest measurement must be at least 50cm')
-      .max(200, 'Chest measurement cannot exceed 200cm')
-      .required('Chest measurement is required'),
-    waist: Yup.number()
-      .min(50, 'Waist measurement must be at least 50cm')
-      .max(200, 'Waist measurement cannot exceed 200cm')
-      .required('Waist measurement is required'),
-    hip: Yup.number()
-      .min(70, 'Hip measurement must be at least 70cm')
-      .max(200, 'Hip measurement cannot exceed 200cm')
-      .required('Hip measurement is required'),
-    shoulder: Yup.number()
-      .min(30, 'Shoulder measurement must be at least 30cm')
-      .max(100, 'Shoulder measurement cannot exceed 100cm')
-      .required('Shoulder measurement is required'),
-    sleeveLength: Yup.number()
-      .min(0, 'Sleeve length cannot be negative')
-      .max(100, 'Sleeve length cannot exceed 100cm')
-  }),
-  skirt: Yup.object().shape({
-    waist: Yup.number()
-      .min(50, 'Waist measurement must be at least 50cm')
-      .max(200, 'Waist measurement cannot exceed 200cm')
-      .required('Waist measurement is required'),
-    hip: Yup.number()
-      .min(70, 'Hip measurement must be at least 70cm')
-      .max(200, 'Hip measurement cannot exceed 200cm')
-      .required('Hip measurement is required')
-  }),
-  blazer: Yup.object().shape({
-    chest: Yup.number()
-      .min(50, 'Chest measurement must be at least 50cm')
-      .max(200, 'Chest measurement cannot exceed 200cm')
-      .required('Chest measurement is required'),
-    shoulder: Yup.number()
-      .min(30, 'Shoulder measurement must be at least 30cm')
-      .max(100, 'Shoulder measurement cannot exceed 100cm')
-      .required('Shoulder measurement is required'),
-    sleeveLength: Yup.number()
-      .min(40, 'Sleeve length must be at least 40cm')
-      .max(100, 'Sleeve length cannot exceed 100cm')
-      .required('Sleeve length is required'),
-    waist: Yup.number()
-      .min(50, 'Waist measurement must be at least 50cm')
-      .max(200, 'Waist measurement cannot exceed 200cm')
-      .required('Waist measurement is required')
-  }),
-  other: Yup.object().shape({
-    chest: Yup.number()
-      .min(50, 'Chest measurement must be at least 50cm')
-      .max(200, 'Chest measurement cannot exceed 200cm'),
-    waist: Yup.number()
-      .min(50, 'Waist measurement must be at least 50cm')
-      .max(200, 'Waist measurement cannot exceed 200cm'),
-    hip: Yup.number()
-      .min(70, 'Hip measurement must be at least 70cm')
-      .max(200, 'Hip measurement cannot exceed 200cm'),
-    shoulder: Yup.number()
-      .min(30, 'Shoulder measurement must be at least 30cm')
-      .max(100, 'Shoulder measurement cannot exceed 100cm'),
-    sleeveLength: Yup.number()
-      .min(0, 'Sleeve length cannot be negative')
-      .max(100, 'Sleeve length cannot exceed 100cm'),
-    neck: Yup.number()
-      .min(25, 'Neck measurement must be at least 25cm')
-      .max(70, 'Neck measurement cannot exceed 70cm'),
-    inseam: Yup.number()
-      .min(0, 'Inseam measurement cannot be negative')
-      .max(120, 'Inseam measurement cannot exceed 120cm'),
-    outseam: Yup.number()
-      .min(0, 'Outseam measurement cannot be negative')
-      .max(150, 'Outseam measurement cannot exceed 150cm'),
-    thigh: Yup.number()
-      .min(0, 'Thigh measurement cannot be negative')
-      .max(100, 'Thigh measurement cannot exceed 100cm')
+      .required('Thigh measurement is required'),
+    // Dupatta measurements
+    dupattaLength: Yup.number()
+      .min(200, 'Dupatta length must be at least 200cm')
+      .max(350, 'Dupatta length cannot exceed 350cm')
+      .required('Dupatta length is required'),
+    dupattaWidth: Yup.number()
+      .min(70, 'Dupatta width must be at least 70cm')
+      .max(150, 'Dupatta width cannot exceed 150cm')
+      .required('Dupatta width is required')
   })
 };
 
@@ -292,56 +199,51 @@ export const PriceSchema = Yup.object().shape({
     .required('Price is required')
 });
 
-// Helper to get required measurements for a garment type
-export const getRequiredMeasurementsForGarment = (garmentType) => {
-  switch (garmentType) {
-    case 'shirt':
-      return ['chest', 'shoulder', 'sleeveLength', 'neck'];
-    case 'kameez':
-      return ['chest', 'shoulder', 'sleeveLength', 'neck'];
-    case 'pants':
-      return ['waist', 'hip', 'inseam', 'outseam', 'thigh'];
-    case 'shalwar':
-      return ['waist', 'hip', 'inseam', 'outseam', 'thigh'];
-    case 'suit':
-      return ['chest', 'shoulder', 'sleeveLength', 'waist', 'hip', 'inseam'];
-    case 'dress':
-      return ['chest', 'waist', 'hip', 'shoulder', 'sleeveLength'];
-    case 'skirt':
-      return ['waist', 'hip'];
-    case 'blazer':
-      return ['chest', 'shoulder', 'sleeveLength', 'waist'];
-    case 'other':
-      return ['chest', 'waist', 'hip', 'shoulder', 'sleeveLength', 'neck', 'inseam', 'outseam', 'thigh'];
-    default:
-      return [];
+// ✅ UPDATED: Helper to get required measurements for a suit type
+export const getRequiredMeasurementsForGarment = (suitType) => {
+  if (suitType === '2-piece') {
+    return [
+      // Kameez
+      'chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength',
+      // Shalwar
+      'waist', 'hip', 'inseam', 'outseam', 'thigh'
+    ];
+  } else if (suitType === '3-piece') {
+    return [
+      // Kameez
+      'chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength',
+      // Shalwar
+      'waist', 'hip', 'inseam', 'outseam', 'thigh',
+      // Dupatta
+      'dupattaLength', 'dupattaWidth'
+    ];
   }
+  return [];
 };
 
-// Measurement labels for UI
+// ✅ UPDATED: Measurement labels for UI
 export const measurementLabels = {
-  chest: 'Chest Circumference (cm)',
-  waist: 'Waist Circumference (cm)',
-  hip: 'Hip Circumference (cm)',
-  shoulder: 'Shoulder Width (cm)',
-  sleeveLength: 'Sleeve Length (cm)',
-  neck: 'Neck Circumference (cm)',
-  inseam: 'Inseam Length (cm)',
-  outseam: 'Outseam Length (cm)',
-  thigh: 'Thigh Circumference (cm)'
+  // Kameez measurements
+  chest: 'Chest Circumference',
+  shoulder: 'Shoulder Width',
+  sleeveLength: 'Sleeve Length',
+  neck: 'Neck Circumference',
+  kameezLength: 'Kameez Length',
+  // Shalwar measurements
+  waist: 'Waist Circumference',
+  hip: 'Hip Circumference',
+  inseam: 'Inseam Length',
+  outseam: 'Outseam Length',
+  thigh: 'Thigh Circumference',
+  // Dupatta measurements
+  dupattaLength: 'Dupatta Length',
+  dupattaWidth: 'Dupatta Width'
 };
 
-// Garment type options for UI
-export const garmentTypeOptions = [
-  { label: 'Shalwar', value: 'shalwar' },
-  { label: 'Kameez', value: 'kameez' },
-  { label: 'Shirt', value: 'shirt' },
-  { label: 'Pants', value: 'pants' },
-  { label: 'Suit', value: 'suit' },
-  { label: 'Dress', value: 'dress' },
-  { label: 'Skirt', value: 'skirt' },
-  { label: 'Blazer', value: 'blazer' },
-  { label: 'Other', value: 'other' }
+// ✅ UPDATED: Suit type options for UI
+export const suitTypeOptions = [
+  { label: '2-Piece Suit (Shalwar + Kameez)', value: '2-piece' },
+  { label: '3-Piece Suit (Shalwar + Kameez + Dupatta)', value: '3-piece' }
 ];
 
 // Shalwar style options for UI

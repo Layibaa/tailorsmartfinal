@@ -1,4 +1,4 @@
-// ✅ COMPLETE: MeasurementScreen.js with Autofill Feature
+// ✅ UPDATED: MeasurementScreen.js - with Dupatta support
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -33,7 +33,7 @@ import { measurementPredictor } from '../../utils/measurementPredictor';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MeasurementScreen = ({ route, navigation }) => {
-  const { tailorId, tailorName, garmentType, notes } = route.params;
+  const { tailorId, tailorName, suitType, shalwarStyle, kameezStyle, notes } = route.params;
   const { user } = useContext(AuthContext);
   
   const [loading, setLoading] = useState(false);
@@ -42,6 +42,7 @@ const MeasurementScreen = ({ route, navigation }) => {
   const [autoFillEnabled, setAutoFillEnabled] = useState(false);
   const [predictedMeasurements, setPredictedMeasurements] = useState(null);
   const [canAutoFill, setCanAutoFill] = useState(false);
+  const [hasPeco, setHasPeco] = useState(false);
 
   // Image & Canvas States
   const [referenceImage, setReferenceImage] = useState(null);
@@ -49,14 +50,13 @@ const MeasurementScreen = ({ route, navigation }) => {
   const [isCanvasVisible, setIsCanvasVisible] = useState(false);
 
   useEffect(() => {
-    const measurements = getRequiredMeasurementsForGarment(garmentType);
+    const measurements = getRequiredMeasurementsForGarment(suitType);
     setRequiredMeasurements(measurements);
     requestPermissions();
     checkAutoFillAvailability();
-  }, [garmentType]);
+  }, [suitType]);
 
   const checkAutoFillAvailability = () => {
-    // Check if user has complete profile data for autofill
     if (user?.customerProfile) {
       const { age, gender, weight, height } = user.customerProfile;
       const hasCompleteProfile = age && gender && weight && height;
@@ -94,7 +94,6 @@ const MeasurementScreen = ({ route, navigation }) => {
     setAutoFillEnabled(newValue);
 
     if (newValue) {
-      // Calculate and fill measurements
       try {
         const profile = user.customerProfile;
         console.log('📊 Calculating measurements for profile:', profile);
@@ -104,10 +103,10 @@ const MeasurementScreen = ({ route, navigation }) => {
         if (predicted) {
           setPredictedMeasurements(predicted);
           
-          // Auto-fill the form
           if (formikRef?.setFieldValue) {
+            // Only fill body measurements, not dupatta
             requiredMeasurements.forEach(measurement => {
-              if (predicted[measurement]) {
+              if (!measurement.includes('dupatta') && predicted[measurement]) {
                 formikRef.setFieldValue(measurement, predicted[measurement].toString());
               }
             });
@@ -124,7 +123,7 @@ const MeasurementScreen = ({ route, navigation }) => {
             '✨ Measurements Auto-Filled',
             `Based on your profile, we've calculated measurements for a ${bodyFrame} build.\n\n` +
             `Confidence: ${confidence.toUpperCase()}\n\n` +
-            `Please review and adjust if needed. These are estimates based on Pakistani body standards.`,
+            `Please review and adjust if needed. Dupatta measurements must be entered manually.`,
             [{ text: 'OK' }]
           );
         } else {
@@ -137,7 +136,6 @@ const MeasurementScreen = ({ route, navigation }) => {
         setAutoFillEnabled(false);
       }
     } else {
-      // Clear auto-filled values when turning off
       Alert.alert(
         'Clear Auto-Fill',
         'Do you want to clear the auto-filled measurements?',
@@ -149,7 +147,9 @@ const MeasurementScreen = ({ route, navigation }) => {
             onPress: () => {
               if (formikRef?.setFieldValue) {
                 requiredMeasurements.forEach(measurement => {
-                  formikRef.setFieldValue(measurement, '');
+                  if (!measurement.includes('dupatta')) {
+                    formikRef.setFieldValue(measurement, '');
+                  }
                 });
               }
               setPredictedMeasurements(null);
@@ -256,15 +256,21 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   const initialValues = {
+    // Kameez measurements
     chest: '',
-    waist: '',
-    hip: '',
     shoulder: '',
     sleeveLength: '',
     neck: '',
+    kameezLength: '',
+    // Shalwar measurements
+    waist: '',
+    hip: '',
     inseam: '',
     outseam: '',
-    thigh: ''
+    thigh: '',
+    // Dupatta measurements (3-piece only)
+    dupattaLength: '',
+    dupattaWidth: ''
   };
 
   const handleSubmit = async (values) => {
@@ -287,7 +293,7 @@ const MeasurementScreen = ({ route, navigation }) => {
     
     const measurements = {};
     requiredMeasurements.forEach(key => {
-      if (values[key]) {
+      if (values[key] && !key.includes('dupatta')) {
         measurements[key] = parseFloat(values[key]);
       }
     });
@@ -297,10 +303,21 @@ const MeasurementScreen = ({ route, navigation }) => {
     try {
       const orderData = {
         tailorId,
-        garmentType,
+        suitType,
+        shalwarStyle,
+        kameezStyle,
         measurements,
         notes: notes || ''
       };
+
+      // Add dupatta details for 3-piece
+      if (suitType === '3-piece') {
+        orderData.dupattaDetails = {
+          length: parseFloat(values.dupattaLength),
+          width: parseFloat(values.dupattaWidth),
+          hasPeco: hasPeco
+        };
+      }
 
       if (referenceImage?.base64) {
         console.log('📸 Adding reference image');
@@ -357,7 +374,7 @@ const MeasurementScreen = ({ route, navigation }) => {
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>Enter Measurements</Text>
         <Text style={styles.headerSubtitle}>
-          For {garmentType} • Tailor: {tailorName}
+          For {suitType} • Tailor: {tailorName}
         </Text>
       </View>
 
@@ -366,7 +383,7 @@ const MeasurementScreen = ({ route, navigation }) => {
         <View style={styles.autoFillHeader}>
           <View style={styles.autoFillTitleRow}>
             <Feather name="zap" size={20} color={colors.primary} />
-            <Text style={styles.autoFillTitle}>Auto-Fill Measurements</Text>
+            <Text style={styles.autoFillTitle}>Auto-Fill Body Measurements</Text>
           </View>
           <Switch
             value={autoFillEnabled}
@@ -379,7 +396,7 @@ const MeasurementScreen = ({ route, navigation }) => {
         
         {canAutoFill ? (
           <Text style={styles.autoFillDescription}>
-            ✨ Calculate measurements based on your profile (age, gender, weight, height)
+            ✨ Calculate body measurements based on your profile{suitType === '3-piece' ? '. Dupatta measurements must be entered manually.' : ''}
           </Text>
         ) : (
           <Text style={styles.autoFillWarning}>
@@ -474,7 +491,7 @@ const MeasurementScreen = ({ route, navigation }) => {
 
       <Formik
         initialValues={initialValues}
-        validationSchema={MeasurementsSchema[garmentType]}
+        validationSchema={MeasurementsSchema[suitType]}
         onSubmit={handleSubmit}
       >
         {({ handleChange, handleBlur, handleSubmit: formikSubmit, values, errors, touched, setFieldValue }) => {
@@ -484,22 +501,104 @@ const MeasurementScreen = ({ route, navigation }) => {
 
           return (
             <View style={styles.formContainer}>
-              {requiredMeasurements.map((measurement) => (
-                <Input
-                  key={measurement}
-                  label={measurementLabels[measurement] || measurement}
-                  placeholder={`Enter ${measurementLabels[measurement] || measurement}`}
-                  value={values[measurement]}
-                  onChangeText={(text) => {
-                    const sanitizedText = text.replace(/[^0-9.]/g, '');
-                    handleChange(measurement)(sanitizedText);
-                  }}
-                  onBlur={handleBlur(measurement)}
-                  keyboardType="numeric"
-                  error={touched[measurement] && errors[measurement]}
-                  iconName="layout"
-                />
-              ))}
+              {/* Kameez Section */}
+              <View style={styles.measurementSection}>
+                <Text style={styles.measurementSectionTitle}>👔 Kameez Measurements</Text>
+                {['chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength'].map((measurement) => (
+                  <Input
+                    key={measurement}
+                    label={measurementLabels[measurement]}
+                    placeholder={`Enter ${measurementLabels[measurement]}`}
+                    value={values[measurement]}
+                    onChangeText={(text) => {
+                      const sanitizedText = text.replace(/[^0-9.]/g, '');
+                      handleChange(measurement)(sanitizedText);
+                    }}
+                    onBlur={handleBlur(measurement)}
+                    keyboardType="numeric"
+                    error={touched[measurement] && errors[measurement]}
+                    iconName="layout"
+                  />
+                ))}
+              </View>
+
+              {/* Shalwar Section */}
+              <View style={styles.measurementSection}>
+                <Text style={styles.measurementSectionTitle}>👖 Shalwar Measurements</Text>
+                {['waist', 'hip', 'inseam', 'outseam', 'thigh'].map((measurement) => (
+                  <Input
+                    key={measurement}
+                    label={measurementLabels[measurement]}
+                    placeholder={`Enter ${measurementLabels[measurement]}`}
+                    value={values[measurement]}
+                    onChangeText={(text) => {
+                      const sanitizedText = text.replace(/[^0-9.]/g, '');
+                      handleChange(measurement)(sanitizedText);
+                    }}
+                    onBlur={handleBlur(measurement)}
+                    keyboardType="numeric"
+                    error={touched[measurement] && errors[measurement]}
+                    iconName="layout"
+                  />
+                ))}
+              </View>
+
+              {/* Dupatta Section (3-piece only) */}
+              {suitType === '3-piece' && (
+                <View style={styles.measurementSection}>
+                  <Text style={styles.measurementSectionTitle}>🧣 Dupatta Details</Text>
+                  
+                  <Input
+                    label={measurementLabels.dupattaLength}
+                    placeholder="Enter Dupatta Length"
+                    value={values.dupattaLength}
+                    onChangeText={(text) => {
+                      const sanitizedText = text.replace(/[^0-9.]/g, '');
+                      handleChange('dupattaLength')(sanitizedText);
+                    }}
+                    onBlur={handleBlur('dupattaLength')}
+                    keyboardType="numeric"
+                    error={touched.dupattaLength && errors.dupattaLength}
+                    iconName="layout"
+                  />
+
+                  <Input
+                    label={measurementLabels.dupattaWidth}
+                    placeholder="Enter Dupatta Width"
+                    value={values.dupattaWidth}
+                    onChangeText={(text) => {
+                      const sanitizedText = text.replace(/[^0-9.]/g, '');
+                      handleChange('dupattaWidth')(sanitizedText);
+                    }}
+                    onBlur={handleBlur('dupattaWidth')}
+                    keyboardType="numeric"
+                    error={touched.dupattaWidth && errors.dupattaWidth}
+                    iconName="layout"
+                  />
+
+                  {/* Peco Toggle */}
+                  <View style={styles.pecoContainer}>
+                    <View style={styles.pecoLabelContainer}>
+                      <Feather name="scissors" size={20} color={colors.black} />
+                      <Text style={styles.pecoLabel}>Add Peco (Embellishment)</Text>
+                    </View>
+                    <Switch
+                      value={hasPeco}
+                      onValueChange={setHasPeco}
+                      trackColor={{ false: colors.lightGray, true: colors.primary }}
+                      thumbColor={hasPeco ? colors.white : colors.gray}
+                    />
+                  </View>
+                  {hasPeco && (
+                    <View style={styles.pecoInfoBox}>
+                      <Feather name="info" size={16} color={colors.primary} />
+                      <Text style={styles.pecoInfoText}>
+                        Peco decoration will be added to the dupatta edges
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
               <View style={styles.buttonsContainer}>
                 <Button
@@ -523,17 +622,17 @@ const MeasurementScreen = ({ route, navigation }) => {
       </Formik>
 
       <Modal
-  visible={isCanvasVisible}
-  animationType="slide"
-  onRequestClose={() => setIsCanvasVisible(false)}
->
-  <DrawingCanvas 
-    onSave={handleCanvasSave}
-    onClose={() => setIsCanvasVisible(false)}
-    garmentType={garmentType}
-    designNotes={notes || ''}
-  />
-</Modal>
+        visible={isCanvasVisible}
+        animationType="slide"
+        onRequestClose={() => setIsCanvasVisible(false)}
+      >
+        <DrawingCanvas 
+          onSave={handleCanvasSave}
+          onClose={() => setIsCanvasVisible(false)}
+          garmentType={suitType}
+          designNotes={notes || ''}
+        />
+      </Modal>
     </ScrollView>
   );
 };
@@ -559,8 +658,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 16,
-    color: colors.gray,
-    textTransform: 'capitalize'
+    color: colors.gray
   },
   autoFillContainer: {
     backgroundColor: colors.white,
@@ -722,6 +820,54 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     marginBottom: 40
+  },
+  measurementSection: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.lightGray
+  },
+  measurementSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.black,
+    marginBottom: 16
+  },
+  pecoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.lightGray,
+    borderRadius: 8,
+    marginTop: 12
+  },
+  pecoLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1
+  },
+  pecoLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 8,
+    color: colors.black
+  },
+  pecoInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: colors.primary + '10',
+    borderRadius: 8,
+    marginTop: 8
+  },
+  pecoInfoText: {
+    fontSize: 13,
+    color: colors.primary,
+    marginLeft: 8,
+    flex: 1
   },
   buttonsContainer: {
     marginTop: 24,
