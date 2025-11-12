@@ -442,8 +442,62 @@ export const getCustomerOrders = async () => {
 };
 
 export const updateOrderStatus = async (orderId, statusData) => {
-  const response = await api.patch(`/orders/${orderId}/status`, statusData);
-  return response.data;
+  try {
+    console.log('\n📡 ================================');
+    console.log('📡 API: updateOrderStatus called');
+    console.log('📡 Order ID:', orderId);
+    console.log('📡 Order ID Type:', typeof orderId);
+    console.log('📡 Status Data:', JSON.stringify(statusData, null, 2));
+    console.log('📡 ================================\n');
+    
+    // Validate inputs
+    if (!orderId) {
+      throw new Error('Order ID is required');
+    }
+    
+    if (!statusData || !statusData.status) {
+      throw new Error('Status data is required');
+    }
+    
+    // Construct the URL
+    const url = `/orders/${orderId}/status`;
+    console.log('📍 Request URL:', url);
+    console.log('📦 Request Body:', JSON.stringify(statusData, null, 2));
+    
+    // Make the request
+    console.log('⏳ Sending PATCH request...');
+    const response = await api.patch(url, statusData);
+    
+    console.log('\n✅ ================================');
+    console.log('✅ API Response received');
+    console.log('✅ Status:', response.status);
+    console.log('✅ Data:', JSON.stringify(response.data, null, 2));
+    console.log('✅ ================================\n');
+    
+    return response.data;
+    
+  } catch (error) {
+    console.error('\n❌ ================================');
+    console.error('❌ API Error in updateOrderStatus');
+    console.error('❌ Order ID:', orderId);
+    console.error('❌ Status Data:', statusData);
+    console.error('❌ Error Message:', error.message);
+    
+    if (error.response) {
+      console.error('❌ Response Status:', error.response.status);
+      console.error('❌ Response Headers:', JSON.stringify(error.response.headers, null, 2));
+      console.error('❌ Response Data:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      console.error('❌ No response received');
+      console.error('❌ Request:', error.request);
+    } else {
+      console.error('❌ Error setting up request:', error.message);
+    }
+    
+    console.error('❌ ================================\n');
+    
+    throw error;
+  }
 };
 
 export const confirmOrder = async (orderId) => {
