@@ -929,6 +929,58 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginTop: 12
+  },
+  
+  // ✅ SUCCESS MODAL STYLES (matching OrderRequestsScreen style)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8
+  },
+  modalIconContainer: {
+    marginBottom: 20
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.black,
+    textAlign: 'center',
+    marginBottom: 12
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: colors.gray,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24
+  },
+  modalButton: {
+    backgroundColor: colors.black,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center'
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white
   }
 });
 
