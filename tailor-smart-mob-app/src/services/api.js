@@ -450,34 +450,6 @@ export const confirmOrder = async (orderId) => {
   const response = await api.patch(`/orders/${orderId}/confirm`, {});
   return response.data;
 };
-
-export const lockOrder = async (orderId, isLocked) => {
-  try {
-    console.log(`🔐 API Call - Lock Order:`, {
-      orderId,
-      isLocked,
-      type: typeof isLocked,
-      url: `/orders/${orderId}/lock`
-    });
-    
-    // Ensure isLocked is boolean
-    const lockValue = Boolean(isLocked);
-    
-    const response = await api.patch(`/orders/${orderId}/lock`, { 
-      isLocked: lockValue 
-    });
-    
-    console.log('✅ Lock API Response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('❌ Lock order API error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
-    throw error;
-  }
-};
  
 
 export const getCustomerOrderDetails = async (orderId) => {
