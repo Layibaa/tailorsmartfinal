@@ -412,6 +412,8 @@ const sendDeleteAccountOtp = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     
+    console.log('🔐 Sending delete account OTP for user:', userId);
+    
     const user = await User.findById(userId);
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -424,40 +426,104 @@ const sendDeleteAccountOtp = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+    console.log('📧 Generated OTP for delete account:', otp);
+    console.log('📧 User email:', user.email);
+
     user.otp = otp;
     user.otpExpires = otpExpires;
     await user.save();
 
+    console.log('✅ OTP saved to database');
+
     // Send OTP email
     try {
-      if (typeof sendEmail === 'function') {
-        await sendEmail({
-          to: user.email,
-          subject: 'Account Deletion OTP - Tailor Smart',
-          text: `Your OTP for account deletion is: ${otp}. This OTP will expire in 10 minutes. If you did not request this, please ignore this email.`
-        });
-      } else {
-        console.log(`Account deletion OTP for ${user.email}: ${otp}`);
-      }
+      await sendEmail({
+        to: user.email,
+        subject: '⚠️ Account Deletion OTP - Tailor Smart',
+        text: `Your OTP for account deletion is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you did not request this, please ignore this email and change your password immediately.`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #EF4444; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+              .otp-box { background-color: white; border: 2px dashed #EF4444; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }
+              .otp-code { font-size: 32px; font-weight: bold; color: #EF4444; letter-spacing: 5px; }
+              .warning { background-color: #FEF2F2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0; }
+              .footer { text-align: center; color: #666; margin-top: 20px; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>⚠️ Account Deletion Request</h1>
+              </div>
+              <div class="content">
+                <h2>Hello ${user.name},</h2>
+                <p>We received a request to delete your Tailor Smart account.</p>
+                
+                <div class="otp-box">
+                  <p style="margin: 0; font-size: 14px; color: #666;">Your verification code is:</p>
+                  <div class="otp-code">${otp}</div>
+                  <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">Valid for 10 minutes</p>
+                </div>
+                
+                <div class="warning">
+                  <strong>⚠️ Important:</strong>
+                  <ul style="margin: 10px 0 0 0;">
+                    <li>This action is <strong>permanent and cannot be undone</strong></li>
+                    <li>All your orders and data will be permanently deleted</li>
+                    <li>If you didn't request this, please ignore this email and change your password immediately</li>
+                  </ul>
+                </div>
+                
+                <p style="margin-top: 20px;">
+                  <strong>Need help?</strong> Contact our support team if you have any questions.
+                </p>
+              </div>
+              <div class="footer">
+                <p>This is an automated email from Tailor Smart. Please do not reply.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      });
+
+      console.log('✅ Email sent successfully to:', user.email);
 
       res.json({
         success: true,
-        msg: 'OTP sent to your email for account deletion verification'
+        msg: 'OTP sent to your email for account deletion verification. Please check your inbox.'
       });
+
     } catch (emailError) {
-      console.error('Email sending failed:', emailError);
-      res.json({
-        success: true,
-        msg: 'OTP generated for account deletion',
-        otp: otp // Only for development
+      console.error('❌ Email sending failed:', emailError);
+      
+      // For development - return OTP in response
+      if (process.env.NODE_ENV === 'development') {
+        return res.json({
+          success: true,
+          msg: 'OTP generated (Email service unavailable - using dev mode)',
+          devOtp: otp, // Only in development
+          note: 'Check console for email preview URL'
+        });
+      }
+      
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        msg: 'Failed to send OTP email. Please try again or contact support.'
       });
     }
 
   } catch (error) {
-    console.error('Send delete account OTP error:', error);
+    console.error('❌ Send delete account OTP error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      msg: 'Server error while sending OTP'
+      msg: 'Server error while sending OTP. Please try again.'
     });
   }
 };
@@ -468,6 +534,9 @@ const deleteAccount = async (req, res) => {
     const userId = req.user.userId || req.user.id;
     const { otp } = req.body;
 
+    console.log('🗑️ Delete account attempt:', { userId, receivedOtp: otp });
+
+    // Validate OTP input
     if (!otp) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -478,10 +547,11 @@ const deleteAccount = async (req, res) => {
     if (otp.length !== 6) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        msg: 'Invalid OTP format'
+        msg: 'OTP must be 6 digits'
       });
     }
 
+    // Find user
     const user = await User.findById(userId);
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -490,37 +560,111 @@ const deleteAccount = async (req, res) => {
       });
     }
 
-    // Verify OTP
-    if (user.otp !== otp) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        msg: 'Invalid OTP'
-      });
-    }
-
-    if (user.otpExpires < new Date()) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        msg: 'OTP has expired'
-      });
-    }
-
-    // Delete related orders
-    await Order.deleteMany({ customer: userId });
-
-    // Delete user account
-    await User.findByIdAndDelete(userId);
-
-    res.json({
-      success: true,
-      msg: 'Account and all related data deleted successfully'
+    console.log('📋 User found:', {
+      id: user._id,
+      email: user.email,
+      storedOtp: user.otp,
+      otpExpires: user.otpExpires
     });
 
+    // Check if OTP exists
+    if (!user.otp || !user.otpExpires) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'No OTP found. Please request a new OTP.'
+      });
+    }
+
+    // Verify OTP
+    if (user.otp !== otp) {
+      console.log('❌ OTP mismatch:', {
+        provided: otp,
+        stored: user.otp
+      });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'Invalid OTP. Please check and try again.'
+      });
+    }
+
+    // Check OTP expiration
+    if (user.otpExpires < new Date()) {
+      console.log('❌ OTP expired:', {
+        expiresAt: user.otpExpires,
+        now: new Date()
+      });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: 'OTP has expired. Please request a new OTP.'
+      });
+    }
+
+    console.log('✅ OTP verified successfully');
+
+    // Delete related data
+    try {
+      // Delete all orders
+      const deletedOrders = await Order.deleteMany({ customer: userId });
+      console.log(`🗑️ Deleted ${deletedOrders.deletedCount} orders`);
+
+      // Delete user account
+      await User.findByIdAndDelete(userId);
+      console.log('✅ User account deleted successfully');
+
+      // Send confirmation email (optional, best effort)
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Account Deleted - Tailor Smart',
+          text: `Your Tailor Smart account has been permanently deleted. We're sorry to see you go.\n\nIf this was a mistake, please contact our support team immediately.`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background-color: #6B7280; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+                .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>Account Deleted</h1>
+                </div>
+                <div class="content">
+                  <h2>Goodbye, ${user.name}</h2>
+                  <p>Your Tailor Smart account has been permanently deleted as requested.</p>
+                  <p>All your data, including orders and profile information, has been removed from our system.</p>
+                  <p>If this was a mistake or you need assistance, please contact our support team immediately.</p>
+                  <p style="margin-top: 30px;">Thank you for using Tailor Smart.</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `
+        });
+      } catch (emailError) {
+        console.error('⚠️ Failed to send deletion confirmation email:', emailError);
+        // Don't fail the deletion if email fails
+      }
+
+      res.json({
+        success: true,
+        msg: 'Account and all related data deleted successfully'
+      });
+
+    } catch (deleteError) {
+      console.error('❌ Error during deletion:', deleteError);
+      throw deleteError;
+    }
+
   } catch (error) {
-    console.error('Delete account error:', error);
+    console.error('❌ Delete account error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      msg: 'Server error while deleting account'
+      msg: 'Server error while deleting account. Please try again or contact support.'
     });
   }
 };

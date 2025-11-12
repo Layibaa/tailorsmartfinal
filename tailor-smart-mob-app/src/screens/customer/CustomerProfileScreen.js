@@ -1,4 +1,4 @@
-// CustomerProfileScreen.js - FULLY FIXED with proper API calls and custom alerts
+// CustomerProfileScreen.js - FULLY FIXED with foolproof delete account
 import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Modal,
   SafeAreaView,
-  Platform
+  ActivityIndicator
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -102,12 +102,14 @@ const PasswordChangeSchema = Yup.object().shape({
     .required('Confirm password is required'),
   otp: Yup.string()
     .length(6, 'OTP must be 6 digits')
+    .matches(/^[0-9]+$/, 'OTP must contain only numbers')
     .required('OTP is required')
 });
 
 const OtpSchema = Yup.object().shape({
   otp: Yup.string()
     .length(6, 'OTP must be 6 digits')
+    .matches(/^[0-9]+$/, 'OTP must contain only numbers')
     .required('OTP is required')
 });
 
@@ -120,13 +122,14 @@ const CustomerProfileScreen = ({ navigation }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [deleteStep, setDeleteStep] = useState(1);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [locationOptions, setLocationOptions] = useState({
     cities: [],
     islamabadRegions: []
   });
   
-  // Custom alert state
-   const [alertConfig, setAlertConfig] = useState({
+  const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
     message: '',
@@ -231,33 +234,111 @@ const CustomerProfileScreen = ({ navigation }) => {
     }
   };
 
+  // ✅ FIXED: Improved OTP sending with better feedback
   const handleSendDeleteOtp = async () => {
+    setIsSendingOtp(true);
     try {
       console.log('📤 Sending delete account OTP...');
       const response = await sendDeleteAccountOtp();
       console.log('✅ Delete OTP response:', response);
-      setDeleteStep(2);
-      showAlert('Success', 'OTP sent to your email for account deletion');
+      
+      // Show dev OTP if available (development mode)
+      if (response.devOtp) {
+        showAlert(
+          'OTP Sent (Dev Mode)', 
+          `OTP: ${response.devOtp}\n\nCheck server console for email preview URL.\n\n${response.note || ''}`,
+          [{ text: 'OK', onPress: () => setDeleteStep(2) }]
+        );
+      } else {
+        setDeleteStep(2);
+        showAlert(
+          'OTP Sent', 
+          'A 6-digit verification code has been sent to your email. Please check your inbox (and spam folder).',
+          [{ text: 'OK' }]
+        );
+      }
     } catch (error) {
       console.error('❌ Send delete OTP error:', error);
-      showAlert('Error', error.response?.data?.msg || 'Failed to send OTP');
+      const errorMsg = error.response?.data?.msg || error.message || 'Failed to send OTP';
+      showAlert(
+        'Error', 
+        `${errorMsg}\n\nPlease try again or contact support if the problem persists.`
+      );
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
-  const handleDeleteAccount = async (values) => {
-    try {
-      console.log('🗑️ Deleting account with OTP...');
-      const response = await deleteAccountAPI({ otp: values.otp });
-      console.log('✅ Account deleted:', response);
-      
-      setShowDeleteModal(false);
-      showAlert('Account Deleted', 'Your account has been permanently deleted', [
-        { text: 'OK', onPress: () => logout() }
-      ]);
-    } catch (error) {
-      console.error('❌ Delete account error:', error);
-      showAlert('Error', error.response?.data?.msg || 'Failed to delete account');
+  // ✅ FIXED: Comprehensive delete account with better error handling
+  const handleDeleteAccount = async (values, { setFieldError, setSubmitting }) => {
+    // Validate OTP format
+    if (!values.otp || values.otp.length !== 6) {
+      setFieldError('otp', 'Please enter a valid 6-digit OTP');
+      setSubmitting(false);
+      return;
     }
+
+    // Confirm deletion one more time
+    showAlert(
+      '⚠️ Final Confirmation',
+      'Are you absolutely sure? This action cannot be undone. All your data will be permanently deleted.',
+      [
+        { 
+          text: 'Cancel', 
+          style: 'cancel',
+          onPress: () => setSubmitting(false)
+        },
+        { 
+          text: 'Delete Forever', 
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeletingAccount(true);
+            try {
+              console.log('🗑️ Deleting account with OTP:', values.otp);
+              const response = await deleteAccountAPI({ otp: values.otp.trim() });
+              console.log('✅ Account deleted:', response);
+              
+              setShowDeleteModal(false);
+              
+              // Show success and logout
+              showAlert(
+                'Account Deleted', 
+                'Your account has been permanently deleted. You will now be logged out.',
+                [{ 
+                  text: 'OK', 
+                  onPress: () => {
+                    setTimeout(() => {
+                      logout();
+                    }, 500);
+                  }
+                }]
+              );
+            } catch (error) {
+              console.error('❌ Delete account error:', error);
+              const errorMsg = error.response?.data?.msg || error.message || 'Failed to delete account';
+              
+              // Provide specific error messages
+              let userMessage = errorMsg;
+              if (errorMsg.includes('Invalid OTP')) {
+                userMessage = 'The OTP you entered is incorrect. Please check and try again.';
+              } else if (errorMsg.includes('expired')) {
+                userMessage = 'The OTP has expired. Please request a new one.';
+                setDeleteStep(1);
+              } else if (errorMsg.includes('No OTP')) {
+                userMessage = 'No OTP found. Please request a new one.';
+                setDeleteStep(1);
+              }
+              
+              showAlert('Error', userMessage);
+              setFieldError('otp', userMessage);
+            } finally {
+              setIsDeletingAccount(false);
+              setSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (isLoading) {
@@ -457,7 +538,7 @@ const CustomerProfileScreen = ({ navigation }) => {
         </Formik>
       </ScrollView>
 
-      {/* Password Change Modal */}
+      {/* Password Change Modal - Keep unchanged */}
       <Modal
         visible={showPasswordModal}
         animationType="slide"
@@ -546,13 +627,15 @@ const CustomerProfileScreen = ({ navigation }) => {
         </SafeAreaView>
       </Modal>
 
-      {/* Delete Account Modal */}
+      {/* ✅ FIXED: Delete Account Modal with better UX */}
       <Modal
         visible={showDeleteModal}
         animationType="slide"
         onRequestClose={() => {
-          setShowDeleteModal(false);
-          setDeleteStep(1);
+          if (!isDeletingAccount) {
+            setShowDeleteModal(false);
+            setDeleteStep(1);
+          }
         }}
       >
         <SafeAreaView style={styles.modalContainer}>
@@ -560,9 +643,12 @@ const CustomerProfileScreen = ({ navigation }) => {
             <Text style={styles.modalTitle}>Delete Account</Text>
             <TouchableOpacity
               onPress={() => {
-                setShowDeleteModal(false);
-                setDeleteStep(1);
+                if (!isDeletingAccount) {
+                  setShowDeleteModal(false);
+                  setDeleteStep(1);
+                }
               }}
+              disabled={isDeletingAccount}
             >
               <Feather name="x" size={24} color={colors.black} />
             </TouchableOpacity>
@@ -577,18 +663,32 @@ const CustomerProfileScreen = ({ navigation }) => {
                   <Text style={styles.warningText}>
                     This action cannot be undone. Your account and all associated data will be permanently deleted.
                   </Text>
+                  <View style={styles.warningList}>
+                    <Text style={styles.warningListItem}>• All your orders will be deleted</Text>
+                    <Text style={styles.warningListItem}>• Your profile information will be removed</Text>
+                    <Text style={styles.warningListItem}>• This cannot be reversed</Text>
+                  </View>
                 </View>
-                <Button 
-                  title="Send Verification OTP" 
-                  onPress={handleSendDeleteOtp}
-                  buttonStyle={{ backgroundColor: '#EF4444' }}
-                />
-                <Button 
-                  title="Cancel" 
-                  onPress={() => setShowDeleteModal(false)}
-                  buttonStyle={styles.cancelButton}
-                  textStyle={styles.cancelButtonText}
-                />
+                {isSendingOtp ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.error} />
+                    <Text style={styles.loadingText}>Sending OTP...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Button 
+                      title="Send Verification OTP" 
+                      onPress={handleSendDeleteOtp}
+                      buttonStyle={{ backgroundColor: '#EF4444' }}
+                    />
+                    <Button 
+                      title="Cancel" 
+                      onPress={() => setShowDeleteModal(false)}
+                      buttonStyle={styles.cancelButton}
+                      textStyle={styles.cancelButtonText}
+                    />
+                  </>
+                )}
               </View>
             ) : (
               <Formik
@@ -596,13 +696,16 @@ const CustomerProfileScreen = ({ navigation }) => {
                 validationSchema={OtpSchema}
                 onSubmit={handleDeleteAccount}
               >
-                {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                {({ handleChange, handleBlur, handleSubmit, values, errors, touched, isSubmitting }) => (
                   <View>
                     <View style={styles.warningContainer}>
                       <Feather name="alert-triangle" size={48} color="#EF4444" />
                       <Text style={styles.warningTitle}>Final Confirmation</Text>
                       <Text style={styles.warningText}>
-                        Enter the OTP sent to your email to permanently delete your account.
+                        Enter the 6-digit OTP sent to your email ({profile?.email}) to permanently delete your account.
+                      </Text>
+                      <Text style={styles.otpHint}>
+                        Check your inbox (and spam folder) for the verification code.
                       </Text>
                     </View>
 
@@ -616,22 +719,43 @@ const CustomerProfileScreen = ({ navigation }) => {
                       maxLength={6}
                       error={touched.otp && errors.otp}
                       iconName="shield"
+                      editable={!isDeletingAccount && !isSubmitting}
                     />
 
-                    <Button 
-                      title="Delete My Account" 
-                      onPress={handleSubmit}
-                      buttonStyle={{ backgroundColor: '#EF4444' }}
-                    />
-                    <Button 
-                      title="Cancel" 
-                      onPress={() => {
-                        setShowDeleteModal(false);
-                        setDeleteStep(1);
-                      }}
-                      buttonStyle={styles.cancelButton}
-                      textStyle={styles.cancelButtonText}
-                    />
+                    {isDeletingAccount ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={colors.error} />
+                        <Text style={styles.loadingText}>Deleting account...</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Button 
+                          title="Delete My Account" 
+                          onPress={handleSubmit}
+                          buttonStyle={{ backgroundColor: '#EF4444' }}
+                          disabled={isSubmitting || values.otp.length !== 6}
+                        />
+                        <Button 
+                          title="Cancel" 
+                          onPress={() => {
+                            setShowDeleteModal(false);
+                            setDeleteStep(1);
+                          }}
+                          buttonStyle={styles.cancelButton}
+                          textStyle={styles.cancelButtonText}
+                          disabled={isSubmitting}
+                        />
+                        <TouchableOpacity
+                          style={styles.resendOtpButton}
+                          onPress={() => {
+                            setDeleteStep(1);
+                          }}
+                          disabled={isSubmitting}
+                        >
+                          <Text style={styles.resendOtpText}>← Request New OTP</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 )}
               </Formik>
@@ -771,7 +895,7 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     flex: 1
-  },
+  }, 
   modalContent: {
     padding: 16
   },
