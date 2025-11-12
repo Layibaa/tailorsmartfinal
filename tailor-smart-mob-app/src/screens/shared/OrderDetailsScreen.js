@@ -1,4 +1,4 @@
-// OrderDetailsScreen.js - COMPLETE FIX
+// OrderDetailsScreen.js - FIXED (No View text errors)
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -214,6 +214,16 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             try {
               setIsUpdating(true);
               await updateOrderStatus(orderId, { status: 'rejected' });
+              
+              if (order.customer) {
+                sendOrderNotification(
+                  order.customer._id,
+                  orderId,
+                  'rejected',
+                  'Your order has been rejected by the tailor'
+                );
+              }
+              
               Alert.alert('Order Rejected', 'The order has been rejected.');
               navigation.goBack();
             } catch (error) {
@@ -251,8 +261,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // ✅ FIXED: Status update with proper error handling
-  const handleUpdateStatus = async (newStatus, statusLabel) => {
+  const handleUpdateStatus = async (newStatus) => {
     const confirmMessages = {
       making: 'Start production on this order?',
       payment_done: 'Confirm that payment has been received?',
@@ -260,20 +269,20 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     };
 
     const successMessages = {
-      making: 'Production started! ✓',
-      payment_done: 'Payment confirmed! ✓',
-      completed: 'Order completed! 🎉'
+      making: 'Production started!',
+      payment_done: 'Payment confirmed!',
+      completed: 'Order completed!'
     };
 
     const notificationMessages = {
       making: 'Your order is now being made',
       payment_done: 'Payment received for your order',
-      completed: '🎉 Your order is completed and ready for pickup!'
+      completed: 'Your order is completed and ready for pickup!'
     };
 
     Alert.alert(
       'Update Status',
-      confirmMessages[newStatus] || `Update status to ${statusLabel}?`,
+      confirmMessages[newStatus] || `Update status to ${newStatus}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -284,12 +293,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
               
               console.log('🔄 Updating order status:', { orderId, newStatus });
               
-              // Call API with proper payload
-              const response = await updateOrderStatus(orderId, { status: newStatus });
+              await updateOrderStatus(orderId, { status: newStatus });
               
-              console.log('✅ Status updated successfully:', response);
+              console.log('✅ Status updated successfully');
               
-              // Send notification to customer
               if (order.customer) {
                 sendOrderNotification(
                   order.customer._id,
@@ -299,24 +306,16 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 );
               }
               
-              // Show success message
-              Alert.alert('Success', successMessages[newStatus] || 'Order status updated', [
+              Alert.alert('Success', successMessages[newStatus], [
                 {
                   text: 'OK',
-                  onPress: async () => {
-                    // Reload order details to show next button
-                    await loadOrderDetails();
-                  }
+                  onPress: () => loadOrderDetails()
                 }
               ]);
               
             } catch (error) {
               console.error('❌ Update status error:', error);
-              console.error('Error details:', {
-                status: error.response?.status,
-                data: error.response?.data,
-                message: error.message
-              });
+              console.error('Error response:', error.response?.data);
               
               Alert.alert(
                 'Error', 
@@ -344,11 +343,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     return labels[status] || status;
   };
 
-  // ✅ FIXED: Render correct button based on status
   const renderTailorActionButton = () => {
     if (!order || user.role !== 'tailor') return null;
 
-    console.log('🎯 Rendering button for status:', order.status);
+    console.log('🎯 Current order status:', order.status);
 
     switch (order.status) {
       case 'pending':
@@ -373,8 +371,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       case 'confirmed':
         return (
           <Button
-            title="🚀 Start Production"
-            onPress={() => handleUpdateStatus('making', 'In Production')}
+            title="Start Production"
+            onPress={() => handleUpdateStatus('making')}
             disabled={isUpdating}
             loading={isUpdating}
           />
@@ -383,8 +381,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       case 'making':
         return (
           <Button
-            title="💰 Mark Payment Done"
-            onPress={() => handleUpdateStatus('payment_done', 'Payment Done')}
+            title="Mark Payment Done"
+            onPress={() => handleUpdateStatus('payment_done')}
             disabled={isUpdating}
             loading={isUpdating}
           />
@@ -393,8 +391,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       case 'payment_done':
         return (
           <Button
-            title="✅ Mark as Completed"
-            onPress={() => handleUpdateStatus('completed', 'Completed')}
+            title="Mark as Completed"
+            onPress={() => handleUpdateStatus('completed')}
             disabled={isUpdating}
             loading={isUpdating}
           />
@@ -405,7 +403,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           <View style={styles.waitingContainer}>
             <Feather name="clock" size={20} color={colors.warning} />
             <Text style={styles.waitingText}>
-              ⏳ Waiting for customer confirmation
+              Waiting for customer confirmation
             </Text>
           </View>
         );
@@ -415,7 +413,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           <View style={styles.completedContainer}>
             <Feather name="check-circle" size={20} color={colors.success} />
             <Text style={styles.completedText}>
-              ✅ Order completed
+              Order completed
             </Text>
           </View>
         );
@@ -454,12 +452,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* Price Negotiation Status Banners */}
+      {/* Price Negotiation Banners */}
       {order.priceNegotiationRequested && !order.priceChangedByTailor && (
         <View style={styles.negotiationBanner}>
           <Feather name="message-circle" size={20} color={colors.warning} />
           <Text style={styles.negotiationText}>
-            💬 Price negotiation in progress. {user.role === 'tailor' ? 'Update the price when ready.' : 'Waiting for tailor response.'}
+            Price negotiation in progress. {user.role === 'tailor' ? 'Update the price when ready.' : 'Waiting for tailor response.'}
           </Text>
         </View>
       )}
@@ -468,12 +466,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         <View style={styles.priceChangedBanner}>
           <Feather name="check-circle" size={20} color={colors.success} />
           <Text style={styles.priceChangedText}>
-            ✅ Price updated from PKR {order.originalPrice} to PKR {order.price}
+            Price updated from PKR {order.originalPrice} to PKR {order.price}
           </Text>
         </View>
       )}
 
-      {/* Order Info Section */}
+      {/* Order Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Information</Text>
         
@@ -534,18 +532,18 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {/* Notes Section */}
+      {/* Notes */}
       {order.notes && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📝 Order Notes</Text>
+          <Text style={styles.sectionTitle}>Order Notes</Text>
           <Text style={styles.notesText}>{order.notes}</Text>
         </View>
       )}
 
-      {/* Dupatta Details Section */}
+      {/* Dupatta Details */}
       {order.suitType === '3-piece' && order.dupattaDetails && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🧣 Dupatta Details</Text>
+          <Text style={styles.sectionTitle}>Dupatta Details</Text>
           <View style={styles.dupattaDetailsContainer}>
             <View style={styles.dupattaDetailRow}>
               <Text style={styles.dupattaLabel}>Length:</Text>
@@ -575,10 +573,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Design References Section */}
+      {/* Design References */}
       {(order.referenceImage?.url || order.customerSketch?.url) && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🖼️ Design Reference</Text>
+          <Text style={styles.sectionTitle}>Design Reference</Text>
           {order.referenceImage?.url && (
             <View style={styles.imageContainer}>
               <Text style={styles.imageLabel}>Reference Image:</Text>
@@ -604,12 +602,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Measurements Section */}
+      {/* Measurements */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📏 Measurements</Text>
+        <Text style={styles.sectionTitle}>Measurements</Text>
         
         <View style={styles.measurementGroup}>
-          <Text style={styles.measurementGroupTitle}>👔 Kameez</Text>
+          <Text style={styles.measurementGroupTitle}>Kameez</Text>
           <View style={styles.measurementsGrid}>
             {['chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength'].map(key => (
               order.measurements[key] && (
@@ -625,7 +623,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.measurementGroup}>
-          <Text style={styles.measurementGroupTitle}>👖 Shalwar</Text>
+          <Text style={styles.measurementGroupTitle}>Shalwar</Text>
           <View style={styles.measurementsGrid}>
             {['waist', 'hip', 'inseam', 'outseam', 'thigh'].map(key => (
               order.measurements[key] && (
@@ -641,23 +639,20 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* ✅ FIXED: Actions Section */}
+      {/* Actions */}
       <View style={styles.actionsSection}>
-        {/* Tailor actions */}
         {renderTailorActionButton()}
         
-        {/* Customer actions */}
         {user.role === 'customer' && order.status === 'accepted' && (
           <Button
-            title="✓ Confirm Order"
+            title="Confirm Order"
             onPress={() => setIsStatusModalVisible(true)}
             disabled={isUpdating}
           />
         )}
 
-        {/* Message button for both roles */}
         <Button
-          title={`💬 Message ${user.role === 'customer' ? 'Tailor' : 'Customer'}`}
+          title={`Message ${user.role === 'customer' ? 'Tailor' : 'Customer'}`}
           onPress={() => navigation.navigate('Chat', {
             userId: user.role === 'customer' ? order.tailor._id : order.customer._id,
             name: user.role === 'customer' ? order.tailor.name : order.customer.name,
@@ -736,7 +731,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             </Text>
 
             <Button 
-              title="✓ Confirm Order" 
+              title="Confirm Order" 
               onPress={handleConfirmOrder}
               loading={isUpdating}
               disabled={isUpdating}
@@ -744,7 +739,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
 
             {!order?.priceChangedByTailor && (
               <Button 
-                title="💬 Negotiate Price" 
+                title="Negotiate Price" 
                 onPress={handleNegotiatePrice}
                 outline
                 buttonStyle={{ 
@@ -779,7 +774,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             </View>
 
             <Text style={styles.warningText}>
-              ⚠️ You can only change the price once. Make sure it's correct!
+              You can only change the price once. Make sure it is correct!
             </Text>
 
             <Input
@@ -904,7 +899,7 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '500',
     lineHeight: 18
-  },
+  }, 
   section: {
     padding: 16,
     borderBottomWidth: 1,
