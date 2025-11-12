@@ -1,6 +1,94 @@
-// server/models/Order.js - UPDATED with price negotiation tracking
+// server/models/Order.js - COMPLETE FIXED VERSION
 const mongoose = require('mongoose');
 
+// CREATE EXPLICIT MEASUREMENT SCHEMA
+const MeasurementSchema = new mongoose.Schema({
+  // Kameez measurements
+  chest: { 
+    type: Number, 
+    required: [true, 'Chest measurement is required'],
+    min: [50, 'Chest must be at least 50cm'],
+    max: [200, 'Chest cannot exceed 200cm']
+  },
+  shoulder: { 
+    type: Number, 
+    required: [true, 'Shoulder measurement is required'],
+    min: [30, 'Shoulder must be at least 30cm'],
+    max: [100, 'Shoulder cannot exceed 100cm']
+  },
+  sleeveLength: { 
+    type: Number, 
+    required: [true, 'Sleeve length is required'],
+    min: [40, 'Sleeve length must be at least 40cm'],
+    max: [100, 'Sleeve length cannot exceed 100cm']
+  },
+  neck: { 
+    type: Number, 
+    required: [true, 'Neck measurement is required'],
+    min: [25, 'Neck must be at least 25cm'],
+    max: [70, 'Neck cannot exceed 70cm']
+  },
+  kameezLength: { 
+    type: Number, 
+    required: [true, 'Kameez length is required'],
+    min: [60, 'Kameez length must be at least 60cm'],
+    max: [150, 'Kameez length cannot exceed 150cm']
+  },
+  
+  // Shalwar measurements
+  waist: { 
+    type: Number, 
+    required: [true, 'Waist measurement is required'],
+    min: [50, 'Waist must be at least 50cm'],
+    max: [200, 'Waist cannot exceed 200cm']
+  },
+  hip: { 
+    type: Number, 
+    required: [true, 'Hip measurement is required'],
+    min: [70, 'Hip must be at least 70cm'],
+    max: [200, 'Hip cannot exceed 200cm']
+  },
+  inseam: { 
+    type: Number, 
+    required: [true, 'Inseam is required'],
+    min: [50, 'Inseam must be at least 50cm'],
+    max: [120, 'Inseam cannot exceed 120cm']
+  },
+  outseam: { 
+    type: Number, 
+    required: [true, 'Outseam is required'],
+    min: [70, 'Outseam must be at least 70cm'],
+    max: [150, 'Outseam cannot exceed 150cm']
+  },
+  thigh: { 
+    type: Number, 
+    required: [true, 'Thigh measurement is required'],
+    min: [40, 'Thigh must be at least 40cm'],
+    max: [100, 'Thigh cannot exceed 100cm']
+  }
+}, { _id: false }); // _id: false prevents MongoDB from creating _id for subdocument
+
+// CREATE EXPLICIT DUPATTA SCHEMA
+const DupattaDetailsSchema = new mongoose.Schema({
+  length: { 
+    type: Number, 
+    required: [true, 'Dupatta length is required for 3-piece'],
+    min: [200, 'Dupatta length must be at least 200cm'],
+    max: [350, 'Dupatta length cannot exceed 350cm']
+  },
+  width: { 
+    type: Number, 
+    required: [true, 'Dupatta width is required for 3-piece'],
+    min: [70, 'Dupatta width must be at least 70cm'],
+    max: [150, 'Dupatta width cannot exceed 150cm']
+  },
+  hasPeco: { 
+    type: Boolean, 
+    default: false 
+  }
+}, { _id: false });
+
+// MAIN ORDER SCHEMA - USE THE EXPLICIT SCHEMAS
 const OrderSchema = new mongoose.Schema(
   {
     estimatedDeliveryDays: {
@@ -52,23 +140,19 @@ const OrderSchema = new mongoose.Schema(
       },
       required: true
     },
-    dupattaDetails: {
-      length: { type: Number, min: 0 },
-      width: { type: Number, min: 0 },
-      hasPeco: { type: Boolean, default: false }
-    },
+    
+    // ✅ USE EXPLICIT SCHEMA FOR MEASUREMENTS
     measurements: {
-      chest: { type: Number, min: 0 },
-      shoulder: { type: Number, min: 0 },
-      sleeveLength: { type: Number, min: 0 },
-      neck: { type: Number, min: 0 },
-      kameezLength: { type: Number, min: 0 },
-      waist: { type: Number, min: 0 },
-      hip: { type: Number, min: 0 },
-      inseam: { type: Number, min: 0 },
-      outseam: { type: Number, min: 0 },
-      thigh: { type: Number, min: 0 }
+      type: MeasurementSchema,
+      required: [true, 'Measurements are required']
     },
+    
+    // ✅ USE EXPLICIT SCHEMA FOR DUPATTA (optional - only for 3-piece)
+    dupattaDetails: {
+      type: DupattaDetailsSchema,
+      default: null
+    },
+    
     status: {
       type: String,
       enum: {
@@ -86,7 +170,8 @@ const OrderSchema = new mongoose.Schema(
       min: 0,
       default: 0
     },
-    // NEW: Price negotiation fields
+    
+    // Price negotiation fields
     priceNegotiationRequested: {
       type: Boolean,
       default: false
@@ -112,6 +197,7 @@ const OrderSchema = new mongoose.Schema(
       },
       reason: String
     }],
+    
     notes: {
       type: String,
       maxlength: 500
@@ -155,8 +241,18 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Pre-save middleware
+// ✅ ENHANCED Pre-save middleware with logging
 OrderSchema.pre('save', function(next) {
+  console.log('💾 PRE-SAVE HOOK - Order data:', {
+    id: this._id,
+    suitType: this.suitType,
+    hasMeasurements: !!this.measurements,
+    measurements: this.measurements,
+    measurementKeys: this.measurements ? Object.keys(this.measurements.toObject()) : [],
+    hasDupatta: !!this.dupattaDetails,
+    dupattaDetails: this.dupattaDetails
+  });
+  
   if (this.isModified('status') && this.status === 'completed' && !this.actualCompletionDate) {
     this.actualCompletionDate = new Date();
   }
@@ -172,7 +268,7 @@ OrderSchema.pre('save', function(next) {
   next();
 });
 
-// Method to calculate delivery accuracy
+// Existing methods...
 OrderSchema.methods.getDeliveryAccuracy = function() {
   if (!this.actualCompletionDate || !this.expectedCompletionDate) {
     return null;
@@ -190,24 +286,20 @@ OrderSchema.methods.getDeliveryAccuracy = function() {
   };
 };
 
-// NEW: Method to request price negotiation
 OrderSchema.methods.requestPriceNegotiation = function() {
   this.priceNegotiationRequested = true;
   return this.save();
 };
 
-// NEW: Method to update price (tailor only, one-time)
 OrderSchema.methods.updatePrice = function(newPrice, tailorId) {
   if (this.priceChangedByTailor) {
     throw new Error('Price has already been changed once and cannot be modified again');
   }
   
-  // Store original price if not already stored
   if (!this.originalPrice) {
     this.originalPrice = this.price;
   }
   
-  // Add to price history
   this.priceHistory.push({
     price: this.price,
     changedBy: tailorId,
@@ -215,7 +307,6 @@ OrderSchema.methods.updatePrice = function(newPrice, tailorId) {
     reason: 'Price negotiation'
   });
   
-  // Update price
   this.price = newPrice;
   this.priceChangedByTailor = true;
   this.priceNegotiationRequested = false;

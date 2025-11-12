@@ -182,12 +182,12 @@ export const MeasurementsSchema = {
       .required('Thigh measurement is required'),
     // Dupatta measurements
     dupattaLength: Yup.number()
-      .min(200, 'Dupatta length must be at least 200cm')
-      .max(350, 'Dupatta length cannot exceed 350cm')
+      .min(50, 'Dupatta length must be at least 50cm')
+      .max(100, 'Dupatta length cannot exceed 100cm')
       .required('Dupatta length is required'),
     dupattaWidth: Yup.number()
-      .min(70, 'Dupatta width must be at least 70cm')
-      .max(150, 'Dupatta width cannot exceed 150cm')
+      .min(50, 'Dupatta width must be at least 50cm')
+      .max(100, 'Dupatta width cannot exceed 100cm')
       .required('Dupatta width is required')
   })
 };
@@ -200,25 +200,19 @@ export const PriceSchema = Yup.object().shape({
 });
 
 // ✅ UPDATED: Helper to get required measurements for a suit type
+// Replace getRequiredMeasurementsForGarment function
 export const getRequiredMeasurementsForGarment = (suitType) => {
-  if (suitType === '2-piece') {
-    return [
-      // Kameez
-      'chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength',
-      // Shalwar
-      'waist', 'hip', 'inseam', 'outseam', 'thigh'
-    ];
-  } else if (suitType === '3-piece') {
-    return [
-      // Kameez
-      'chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength',
-      // Shalwar
-      'waist', 'hip', 'inseam', 'outseam', 'thigh',
-      // Dupatta
-      'dupattaLength', 'dupattaWidth'
-    ];
-  }
-  return [];
+  // Return ONLY body measurements (same for 2-piece and 3-piece)
+  return [
+    // Kameez
+    'chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength',
+    // Shalwar
+    'waist', 'hip', 'inseam', 'outseam', 'thigh'
+  ];
+};
+
+export const getDupattaRequiredFields = () => {
+  return ['dupattaLength', 'dupattaWidth'];
 };
 
 // ✅ UPDATED: Measurement labels for UI
