@@ -124,12 +124,12 @@ const DrawingCanvas = ({ onSave, onClose, garmentType = 'clothing', designNotes 
     try {
       // Confirm action
       Alert.alert(
-        '✨ Refine Design',
+        ' Refine Design',
         'AI will analyze your sketch and create a cleaner, professional version. Continue?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: '✨ Refine',
+            text: ' Refine',
             onPress: async () => {
               setIsRefining(true);
               setShowSparkles(true);
@@ -138,7 +138,7 @@ const DrawingCanvas = ({ onSave, onClose, garmentType = 'clothing', designNotes 
                 // Capture current canvas
                 const currentSketch = canvasRef.current.toDataURL('image/png');
                 
-                console.log('✨ Starting AI refinement...');
+                console.log(' Starting AI refinement...');
                 
                 // Call AI refinement service
                 const result = await refineSketch(currentSketch, garmentType, designNotes);
@@ -148,12 +148,12 @@ const DrawingCanvas = ({ onSave, onClose, garmentType = 'clothing', designNotes 
                   await loadImageToCanvas(result.refinedImage);
                   
                   // Show success message with suggestions
-                  let successMessage = '✨ Your design has been refined!';
+                  let successMessage = 'Your design has been refined!';
                   if (result.suggestions && result.suggestions.length > 0) {
                     successMessage += '\n\n💡 Suggestions:\n' + result.suggestions.join('\n');
                   }
                   
-                  Alert.alert('Success! ✨', successMessage);
+                  Alert.alert('Success! ', successMessage);
                 } else {
                   throw new Error('No refined image received');
                 }
@@ -296,7 +296,7 @@ const DrawingCanvas = ({ onSave, onClose, garmentType = 'clothing', designNotes 
           ) : (
             <>
               <Feather name="zap" size={18} color={colors.white} />
-              <Text style={styles.refineButtonText}>✨ Refine Design</Text>
+              <Text style={styles.refineButtonText}> Refine Design</Text>
             </>
           )}
         </TouchableOpacity>

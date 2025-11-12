@@ -15,12 +15,7 @@ const {
   getOrderDetails
 } = require('../controllers/orderController');
 
-// ✨ NEW: Import sketch refinement controller
-const { 
-  refineSketch, 
-  checkServiceStatus 
-} = require('../controllers/sketchRefinementController');
-
+ 
 // Debug middleware to log all requests
 router.use((req, res, next) => {
   console.log(`🛣️ Order Route: ${req.method} ${req.path}`);
@@ -36,10 +31,7 @@ router.patch('/:id/confirm', auth, confirmOrder);
 router.patch('/:id/lock', auth, lockOrder);
 router.put('/:id', auth, updateOrderDetails);
 router.delete('/:id', auth, deleteOrder);
-
-// ✨ NEW ROUTES: Sketch refinement endpoints
-router.post('/refine-sketch', auth, refineSketch);
-router.get('/refine-sketch/status', auth, checkServiceStatus);
+ 
 
 // Export router
 module.exports = router;
