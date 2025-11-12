@@ -12,9 +12,8 @@ const OrderSchema = new mongoose.Schema(
       enum: ['low', 'medium', 'high'],
       default: 'medium'
     },
-    expectedCompletionDate: Date, // This already exists in your model
+    expectedCompletionDate: Date,
     
-    // ✨ NEW: Track actual completion for learning
     actualCompletionDate: {
       type: Date,
       default: null
@@ -29,34 +28,53 @@ const OrderSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Tailor ID is required']
     },
-    garmentType: {
+    // ✅ UPDATED: Changed to suit type
+    suitType: {
       type: String,
-      required: [true, 'Garment type is required'],
+      required: [true, 'Suit type is required'],
       enum: {
-        values: ['shalwar', 'kameez'],
-        message: '{VALUE} is not a supported garment type'
+        values: ['2-piece', '3-piece'],
+        message: '{VALUE} is not a supported suit type'
       }
     },
+    // ✅ NEW: Shalwar style
     shalwarStyle: {
       type: String,
       enum: {
         values: ['simple', 'patiala', 'gharara', 'capri', 'other'],
         message: '{VALUE} is not a supported shalwar style'
-      }
+      },
+      required: true
     },
+    // ✅ NEW: Kameez style
     kameezStyle: {
       type: String,
       enum: {
         values: ['simple', 'anarkali', 'angrakka', 'a-line', 'other'],
         message: '{VALUE} is not a supported kameez style'
-      }
+      },
+      required: true
     },
-    measurements: {
-      chest: { type: Number, min: 0 },
-      waist: { type: Number, min: 0 },
-      shoulder: { type: Number, min: 0 },
+    // ✅ NEW: Dupatta details (for 3-piece only)
+    dupattaDetails: {
       length: { type: Number, min: 0 },
-      sleeve: { type: Number, min: 0 },
+      width: { type: Number, min: 0 },
+      hasPeco: { type: Boolean, default: false }
+    },
+    // ✅ UPDATED: Combined measurements for shalwar and kameez
+    measurements: {
+      // Kameez measurements
+      chest: { type: Number, min: 0 },
+      shoulder: { type: Number, min: 0 },
+      sleeveLength: { type: Number, min: 0 },
+      neck: { type: Number, min: 0 },
+      kameezLength: { type: Number, min: 0 },
+      // Shalwar measurements
+      waist: { type: Number, min: 0 },
+      hip: { type: Number, min: 0 },
+      inseam: { type: Number, min: 0 },
+      outseam: { type: Number, min: 0 },
+      thigh: { type: Number, min: 0 }
     },
     status: {
       type: String,
@@ -79,10 +97,9 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       maxlength: 500
     },
-    // ✨ NEW: Image/Sketch fields
     referenceImage: {
       url: { type: String },
-      publicId: { type: String }, // For Cloudinary deletion
+      publicId: { type: String },
       uploadedAt: { type: Date }
     },
     customerSketch: {
@@ -90,7 +107,6 @@ const OrderSchema = new mongoose.Schema(
       publicId: { type: String },
       uploadedAt: { type: Date }
     },
-    // ✨ END NEW
     timeline: [
       {
         status: {
@@ -121,14 +137,12 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✨ NEW: Pre-save middleware to track actual completion
+// Pre-save middleware to track actual completion
 OrderSchema.pre('save', function(next) {
-  // Track when order is actually completed
   if (this.isModified('status') && this.status === 'completed' && !this.actualCompletionDate) {
     this.actualCompletionDate = new Date();
   }
   
-  // Existing timeline logic
   if (this.isNew || this.isModified('status')) {
     this.timeline.push({
       status: this.status,
@@ -140,7 +154,7 @@ OrderSchema.pre('save', function(next) {
   next();
 });
 
-// ✨ NEW: Method to calculate delivery accuracy
+// Method to calculate delivery accuracy
 OrderSchema.methods.getDeliveryAccuracy = function() {
   if (!this.actualCompletionDate || !this.expectedCompletionDate) {
     return null;

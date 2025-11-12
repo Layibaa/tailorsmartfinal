@@ -11,7 +11,8 @@ import {
   Image,
   TextInput,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Switch
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -63,6 +64,14 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   
   const [isEditingImages, setIsEditingImages] = useState(false);
   
+  // NEW: Dupatta editing state
+  const [isEditingDupatta, setIsEditingDupatta] = useState(false);
+  const [editedDupattaDetails, setEditedDupattaDetails] = useState({
+    length: '',
+    width: '',
+    hasPeco: false
+  });
+  
   // Image states
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -98,6 +107,15 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setOrder(response.order);
       setEditedNotes(response.order.notes || '');
       setEditedMeasurements(response.order.measurements || {});
+
+      // NEW: Load dupatta details
+      if (response.order.dupattaDetails) {
+        setEditedDupattaDetails({
+          length: response.order.dupattaDetails.length?.toString() || '',
+          width: response.order.dupattaDetails.width?.toString() || '',
+          hasPeco: response.order.dupattaDetails.hasPeco || false
+        });
+      }
       
       if (actionRequired) {
         if (user.role === 'tailor' && response.order.status === 'pending') {
@@ -118,7 +136,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Can edit if: not locked AND (pending OR accepted OR confirmed)
   const canEdit = () => {
     if (!order) return false;
     const editableStatuses = ['pending', 'accepted', 'confirmed'];
@@ -131,14 +148,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     return !order.isLocked && canEditStatus;
   };
 
-  // Customer can lock if: status is accepted or confirmed AND not already locked
   const canToggleLock = () => {
     if (!order || user.role !== 'customer') return false;
     const lockableStatuses = ['accepted', 'confirmed'];
     return lockableStatuses.includes(order.status);
   };
 
-  // Handle lock/unlock
   const handleToggleLock = async () => {
     if (!canToggleLock()) {
       Alert.alert('Cannot Lock', 'You can only lock orders that are accepted or confirmed.');
@@ -165,30 +180,26 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                 
                 const response = await lockOrder(orderId, newLockState);
                 
-                console.log(' Lock status updated:', response);
-                
-                // Add to change history
                 setChangeHistory(prev => [{
                   userName: user.name,
-                  action: newLockState ? 'locked the design ' : 'unlocked the design ',
+                  action: newLockState ? 'locked the design 🔒' : 'unlocked the design 🔓',
                   timestamp: new Date().toISOString()
                 }, ...prev]);
                 
-                // Send notification to other party
                 const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
                 await sendMessage({
                   receiverId,
                   content: newLockState 
-                    ? ` ${user.name} has locked the design. All details are finalized. You can now proceed with production.`
-                    : ` ${user.name} has unlocked the design. You can now make changes again.`,
+                    ? `🔒 ${user.name} has locked the design. All details are finalized. You can now proceed with production.`
+                    : `🔓 ${user.name} has unlocked the design. You can now make changes again.`,
                   orderId: order._id
                 });
                 
                 Alert.alert(
-                  'Success! ',
+                  'Success! ✓',
                   newLockState 
-                    ? 'Design is now locked! \n\nThe tailor has been notified and can start production.'
-                    : 'Design is now unlocked! \n\nYou can make changes again.',
+                    ? 'Design is now locked! 🔒\n\nThe tailor has been notified and can start production.'
+                    : 'Design is now unlocked! 🔓\n\nYou can make changes again.',
                   [{ text: 'OK', onPress: () => loadOrderDetails() }]
                 );
                 
@@ -207,7 +218,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Validate measurement
   const validateMeasurement = (field, value) => {
     const numValue = parseFloat(value);
     if (isNaN(numValue)) {
@@ -222,7 +232,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     return null;
   };
 
-  // Handle measurement change
   const handleMeasurementChange = (field, value) => {
     const sanitized = value.replace(/[^0-9.]/g, '');
     setEditedMeasurements(prev => ({
@@ -242,20 +251,17 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     });
   };
 
-  // Handle save measurements
   const handleSaveMeasurements = async () => {
     if (!canEdit()) {
       Alert.alert('Cannot Edit', 'This order is locked or cannot be edited in current status.');
       return;
     }
 
-    // Check for errors
     if (Object.keys(measurementErrors).length > 0) {
       Alert.alert('Invalid Values', 'Please fix measurement errors before saving.');
       return;
     }
 
-    // Check for required measurements
     const requiredFields = getRequiredMeasurementsForGarment(order.garmentType);
     const missingFields = requiredFields.filter(field => !editedMeasurements[field]);
     
@@ -280,14 +286,12 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       
       await updateOrder(orderId, { measurements });
       
-      // Add to change history
       setChangeHistory(prev => [{
         userName: user.name,
         action: 'updated measurements 📏',
         timestamp: new Date().toISOString()
       }, ...prev]);
       
-      // Notify other party
       const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
       await sendMessage({
         receiverId,
@@ -296,7 +300,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       });
       
       setIsEditingMeasurements(false);
-      Alert.alert('Success! ', 'Measurements updated successfully. The other party has been notified.');
+      Alert.alert('Success! ✓', 'Measurements updated successfully. The other party has been notified.');
       loadOrderDetails();
     } catch (error) {
       console.error('❌ Save measurements error:', error);
@@ -306,7 +310,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Handle save notes
   const handleSaveNotes = async () => {
     if (!canEdit()) {
       Alert.alert('Cannot Edit', 'This order is locked or cannot be edited in current status.');
@@ -338,7 +341,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       });
       
       setIsEditingNotes(false);
-      Alert.alert('Success! ', 'Notes updated successfully.');
+      Alert.alert('Success! ✓', 'Notes updated successfully.');
       loadOrderDetails();
     } catch (error) {
       console.error('❌ Save notes error:', error);
@@ -348,7 +351,62 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Handle image picker
+  // NEW: Handle save dupatta details
+  const handleSaveDupattaDetails = async () => {
+    if (!canEdit()) {
+      Alert.alert('Cannot Edit', 'This order is locked or cannot be edited in current status.');
+      return;
+    }
+
+    const length = parseFloat(editedDupattaDetails.length);
+    const width = parseFloat(editedDupattaDetails.width);
+
+    if (isNaN(length) || length < 200 || length > 350) {
+      Alert.alert('Invalid Length', 'Dupatta length must be between 200-350 cm');
+      return;
+    }
+
+    if (isNaN(width) || width < 70 || width > 150) {
+      Alert.alert('Invalid Width', 'Dupatta width must be between 70-150 cm');
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      console.log('💾 Saving dupatta details');
+      
+      await updateOrder(orderId, {
+        dupattaDetails: {
+          length,
+          width,
+          hasPeco: editedDupattaDetails.hasPeco
+        }
+      });
+      
+      setChangeHistory(prev => [{
+        userName: user.name,
+        action: 'updated dupatta details 🧣',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
+      
+      const receiverId = user.role === 'customer' ? order.tailor._id : order.customer._id;
+      await sendMessage({
+        receiverId,
+        content: `🧣 ${user.name} has updated the dupatta details.`,
+        orderId: order._id
+      });
+      
+      setIsEditingDupatta(false);
+      Alert.alert('Success!', 'Dupatta details updated successfully.');
+      loadOrderDetails();
+    } catch (error) {
+      console.error('❌ Save dupatta details error:', error);
+      Alert.alert('Error', error.message || 'Failed to update dupatta details');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const pickImage = async (type) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -393,13 +451,11 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Handle canvas sketch
   const handleCanvasSave = (signature) => {
     setTempCustomerSketch({ uri: signature, base64: signature });
     setIsCanvasVisible(false);
   };
 
-  // Save image changes
   const handleSaveImages = async () => {
     if (!canEdit()) {
       Alert.alert('Cannot Edit', 'This order is locked or cannot be edited in current status.');
@@ -443,7 +499,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       setIsEditingImages(false);
       setTempReferenceImage(null);
       setTempCustomerSketch(null);
-      Alert.alert('Success! ', 'Design references updated successfully.');
+      Alert.alert('Success! ✓', 'Design references updated successfully.');
       loadOrderDetails();
     } catch (error) {
       console.error('❌ Save images error:', error);
@@ -521,8 +577,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       }
       
       Alert.alert(
-        'Order Confirmed! ', 
-        'You can now work with the tailor to finalize measurements and design.\n\n📝 Make changes as needed\n Lock the design when ready for production'
+        'Order Confirmed! ✓', 
+        'You can now work with the tailor to finalize measurements and design.\n\n📝 Make changes as needed\n🔒 Lock the design when ready for production'
       );
       setIsStatusModalVisible(false);
       loadOrderDetails();
@@ -596,7 +652,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           />
           <View style={styles.lockBannerText}>
             <Text style={styles.lockBannerTitle}>
-              {order.isLocked ? ' Design Locked' : ' Design Unlocked'}
+              {order.isLocked ? '🔒 Design Locked' : '🔓 Design Unlocked'}
             </Text>
             <Text style={styles.lockBannerDescription}>
               {order.isLocked 
@@ -641,7 +697,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         <View style={styles.editNotice}>
           <Feather name="edit-3" size={20} color={colors.primary} />
           <Text style={styles.editNoticeText}>
-             Both parties can edit order details. Changes will notify the other party.  Lock when finalized.
+            ✨ Both parties can edit order details. Changes will notify the other party. 🔒 Lock when finalized.
           </Text>
         </View>
       )}
@@ -651,8 +707,18 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         <Text style={styles.sectionTitle}>Order Information</Text>
         
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Garment Type:</Text>
-          <Text style={styles.infoValue}>{order.garmentType}</Text>
+          <Text style={styles.infoLabel}>Suit Type:</Text>
+          <Text style={styles.infoValue}>{order.suitType}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Shalwar Style:</Text>
+          <Text style={styles.infoValue}>{order.shalwarStyle}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Kameez Style:</Text>
+          <Text style={styles.infoValue}>{order.kameezStyle}</Text>
         </View>
         
         {order.price > 0 && (
@@ -723,6 +789,122 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.notesText}>{order.notes || 'No notes provided'}</Text>
         )}
       </View>
+
+      {/* NEW: Dupatta Details Section (3-piece only) */}
+      {order.suitType === '3-piece' && order.dupattaDetails && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🧣 Dupatta Details</Text>
+            {canEdit() && !isEditingDupatta && (
+              <TouchableOpacity onPress={() => setIsEditingDupatta(true)} style={styles.editIconButton}>
+                <Feather name="edit-3" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {isEditingDupatta ? (
+            <View style={styles.dupattaEditor}>
+              <Text style={styles.editorInfo}>
+                Update dupatta measurements and decoration preferences
+              </Text>
+              <View style={styles.measurementInputContainer}>
+                <Text style={styles.measurementInputLabel}>Length (cm)</Text>
+                <TextInput
+                  style={styles.measurementInput}
+                  value={editedDupattaDetails.length}
+                  onChangeText={(text) => setEditedDupattaDetails(prev => ({
+                    ...prev,
+                    length: text.replace(/[^0-9.]/g, '')
+                  }))}
+                  keyboardType="decimal-pad"
+                  placeholder="Enter length (200-350 cm)"
+                  editable={!isUpdating}
+                />
+              </View>
+              <View style={styles.measurementInputContainer}>
+                <Text style={styles.measurementInputLabel}>Width (cm)</Text>
+                <TextInput
+                  style={styles.measurementInput}
+                  value={editedDupattaDetails.width}
+                  onChangeText={(text) => setEditedDupattaDetails(prev => ({
+                    ...prev,
+                    width: text.replace(/[^0-9.]/g, '')
+                  }))}
+                  keyboardType="decimal-pad"
+                  placeholder="Enter width (70-150 cm)"
+                  editable={!isUpdating}
+                />
+              </View>
+              <View style={styles.pecoToggleContainer}>
+                <View style={styles.pecoLabelContainer}>
+                  <Feather name="scissors" size={18} color={colors.black} />
+                  <Text style={styles.pecoToggleLabel}>Add Peco Decoration</Text>
+                </View>
+                <Switch
+                  value={editedDupattaDetails.hasPeco}
+                  onValueChange={(value) => setEditedDupattaDetails(prev => ({
+                    ...prev,
+                    hasPeco: value
+                  }))}
+                  trackColor={{ false: colors.lightGray, true: colors.primary }}
+                  thumbColor={editedDupattaDetails.hasPeco ? colors.white : colors.gray}
+                  disabled={isUpdating}
+                />
+              </View>
+              <View style={styles.buttonRow}>
+                <Button 
+                  title="Save Changes" 
+                  onPress={handleSaveDupattaDetails} 
+                  buttonStyle={styles.smallButton}
+                  loading={isUpdating}
+                  disabled={isUpdating}
+                />
+                <Button 
+                  title="Cancel" 
+                  onPress={() => {
+                    setEditedDupattaDetails({
+                      length: order.dupattaDetails.length?.toString() || '',
+                      width: order.dupattaDetails.width?.toString() || '',
+                      hasPeco: order.dupattaDetails.hasPeco || false
+                    });
+                    setIsEditingDupatta(false);
+                  }} 
+                  outline 
+                  buttonStyle={styles.smallButton}
+                  disabled={isUpdating}
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.dupattaDetailsContainer}>
+              <View style={styles.dupattaDetailRow}>
+                <Text style={styles.dupattaLabel}>Length:</Text>
+                <Text style={styles.dupattaValue}>{order.dupattaDetails.length} cm</Text>
+              </View>
+              <View style={styles.dupattaDetailRow}>
+                <Text style={styles.dupattaLabel}>Width:</Text>
+                <Text style={styles.dupattaValue}>{order.dupattaDetails.width} cm</Text>
+              </View>
+              <View style={styles.dupattaDetailRow}>
+                <Text style={styles.dupattaLabel}>Peco Decoration:</Text>
+                <View style={styles.pecoStatusContainer}>
+                  {order.dupattaDetails.hasPeco ? (
+                    <>
+                      <Feather name="check-circle" size={16} color={colors.success} />
+                      <Text style={[styles.dupattaValue, { color: colors.success, marginLeft: 6 }]}>Yes</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Feather name="x-circle" size={16} color={colors.gray} />
+                      <Text style={[styles.dupattaValue, { color: colors.gray, marginLeft: 6 }]}>No</Text>
+                    </>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Design References Section */}
       <View style={styles.section}>
@@ -804,6 +986,17 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           <View>
             {order.referenceImage?.url && (
               <View style={styles.imageContainer}>
+                <Text style={styles.imageLabel}>Reference Image:</Text>
+                <TouchableOpacity onPress={() => {
+                  setSelectedImage({ url: order.referenceImage.url, title: 'Reference Image' });
+                  setIsImageModalVisible(true);
+                }}>
+                  <Image source={{ uri: order.referenceImage.url }} style={styles.imagePreview} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {order.customerSketch?.url && (
+              <View style={styles.imageContainer}>
                 <Text style={styles.imageLabel}>Customer Sketch:</Text>
                 <TouchableOpacity onPress={() => {
                   setSelectedImage({ url: order.customerSketch.url, title: 'Customer Sketch' });
@@ -820,7 +1013,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {/* Measurements Section */}
+      {/* Measurements Section - UPDATED with grouping */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>📏 Measurements</Text>
@@ -881,15 +1074,40 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
         ) : (
-          <View style={styles.measurementsGrid}>
-            {requiredMeasurements.map(key => (
-              <View style={styles.measurementCard} key={key}>
-                <Text style={styles.measurementLabel}>{measurementLabels[key] || key}</Text>
-                <Text style={styles.measurementValue}>
-                  {order.measurements[key] || 'N/A'} <Text style={styles.unitText}>cm</Text>
-                </Text>
+          <View>
+            {/* Kameez Measurements */}
+            <View style={styles.measurementGroup}>
+              <Text style={styles.measurementGroupTitle}>👔 Kameez</Text>
+              <View style={styles.measurementsGrid}>
+                {['chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength'].map(key => (
+                  order.measurements[key] && (
+                    <View style={styles.measurementCard} key={key}>
+                      <Text style={styles.measurementLabel}>{measurementLabels[key]}</Text>
+                      <Text style={styles.measurementValue}>
+                        {order.measurements[key]} <Text style={styles.unitText}>cm</Text>
+                      </Text>
+                    </View>
+                  )
+                ))}
               </View>
-            ))}
+            </View>
+
+            {/* Shalwar Measurements */}
+            <View style={styles.measurementGroup}>
+              <Text style={styles.measurementGroupTitle}>👖 Shalwar</Text>
+              <View style={styles.measurementsGrid}>
+                {['waist', 'hip', 'inseam', 'outseam', 'thigh'].map(key => (
+                  order.measurements[key] && (
+                    <View style={styles.measurementCard} key={key}>
+                      <Text style={styles.measurementLabel}>{measurementLabels[key]}</Text>
+                      <Text style={styles.measurementValue}>
+                        {order.measurements[key]} <Text style={styles.unitText}>cm</Text>
+                      </Text>
+                    </View>
+                  )
+                ))}
+              </View>
+            </View>
           </View>
         )}
       </View>
@@ -911,6 +1129,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                       change.action.includes('measurements') ? 'maximize' :
                       change.action.includes('notes') ? 'file-text' :
                       change.action.includes('references') ? 'image' :
+                      change.action.includes('dupatta') ? 'minimize' :
                       'user'
                     } 
                     size={14} 
@@ -955,7 +1174,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         
         {user.role === 'customer' && order.status === 'accepted' && (
           <Button
-            title=" Confirm & Start Collaboration"
+            title="✓ Confirm & Start Collaboration"
             onPress={() => setIsStatusModalVisible(true)}
             disabled={isUpdating}
           />
@@ -1053,7 +1272,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
               {'\n'}• Lock when everything is perfect
             </Text>
             <Button 
-              title=" Confirm Order" 
+              title="✓ Confirm Order" 
               onPress={handleConfirmOrder}
               loading={isUpdating}
               disabled={isUpdating}
@@ -1093,13 +1312,13 @@ const OrderDetailsScreen = ({ route, navigation }) => {
 
       {/* Canvas Modal */}
       <Modal visible={isCanvasVisible} animationType="slide">
-  <DrawingCanvas 
-    onSave={handleCanvasSave}
-    onClose={() => setIsCanvasVisible(false)}
-    garmentType={order?.garmentType || 'clothing'}
-    designNotes={order?.notes || editedNotes || ''}
-  />
-</Modal>
+        <DrawingCanvas 
+          onSave={handleCanvasSave}
+          onClose={() => setIsCanvasVisible(false)}
+          garmentType={order?.garmentType || 'clothing'}
+          designNotes={order?.notes || editedNotes || ''}
+        />
+      </Modal>
 
       {/* Bottom Spacing */}
       <View style={styles.bottomSpacing} />
@@ -1261,6 +1480,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.darkGray,
     lineHeight: 20
+  },
+  // NEW: Dupatta styles
+  dupattaEditor: {
+    backgroundColor: colors.lightGray,
+    padding: 16,
+    borderRadius: 8
+  },
+  dupattaDetailsContainer: {
+    backgroundColor: colors.lightGray,
+    padding: 16,
+    borderRadius: 8
+  },
+  dupattaDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.white
+  },
+  dupattaLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.black
+  },
+  dupattaValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.black
+  },
+  pecoStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  pecoToggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    marginTop: 12
+  },
+  pecoLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1
+  },
+  pecoToggleLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginLeft: 8,
+    color: colors.black
+  },
+  // NEW: Measurement grouping styles
+  measurementGroup: {
+    marginBottom: 20
+  },
+  measurementGroupTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.black,
+    marginBottom: 12
   },
   imageContainer: {
     marginBottom: 16
@@ -1455,7 +1738,69 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '100%',
     maxWidth: 400
-  },
+  }, 
+  dupattaEditor: {
+  backgroundColor: colors.lightGray,
+  padding: 16,
+  borderRadius: 8
+},
+dupattaDetailsContainer: {
+  backgroundColor: colors.lightGray,
+  padding: 16,
+  borderRadius: 8
+},
+dupattaDetailRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 12,
+  paddingVertical: 8,
+  borderBottomWidth: 1,
+  borderBottomColor: colors.white
+},
+dupattaLabel: {
+  fontSize: 14,
+  fontWeight: '500',
+  color: colors.black
+},
+dupattaValue: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: colors.black
+},
+pecoStatusContainer: {
+  flexDirection: 'row',
+  alignItems: 'center'
+},
+pecoToggleContainer: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: 16,
+  backgroundColor: colors.white,
+  borderRadius: 8,
+  marginTop: 12
+},
+pecoLabelContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flex: 1
+},
+pecoToggleLabel: {
+  fontSize: 15,
+  fontWeight: '500',
+  marginLeft: 8,
+  color: colors.black
+},
+measurementGroup: {
+  marginBottom: 20
+},
+measurementGroupTitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: colors.black,
+  marginBottom: 12
+},
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',

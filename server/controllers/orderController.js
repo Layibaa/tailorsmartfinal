@@ -1,4 +1,4 @@
-// COMPLETE FIXED: server/controllers/orderController.js
+// UPDATED: server/controllers/orderController.js
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Message = require('../models/Message');
@@ -44,7 +44,7 @@ const processImageUpload = async (imageData, type) => {
   }
 };
 
-// ✅ CREATE ORDER
+// ✅ CREATE ORDER - UPDATED FOR SUIT SYSTEM
 const createOrder = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
@@ -60,17 +60,23 @@ const createOrder = async (req, res) => {
 
     const { 
       tailorId, 
-      garmentType, 
+      suitType,
+      shalwarStyle,
+      kameezStyle,
       measurements, 
       notes,
+      dupattaDetails,
       referenceImage,
       customerSketch
     } = req.body;
     
     console.log('📋 Order data received:', {
       tailorId,
-      garmentType,
+      suitType,
+      shalwarStyle,
+      kameezStyle,
       measurements,
+      dupattaDetails,
       hasReferenceImage: !!referenceImage,
       hasCustomerSketch: !!customerSketch
     });
@@ -81,6 +87,29 @@ const createOrder = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ 
         msg: `No tailor found with id ${tailorId}` 
       });
+    }
+
+    // Validate suit type
+    if (!['2-piece', '3-piece'].includes(suitType)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Invalid suit type. Must be 2-piece or 3-piece'
+      });
+    }
+
+    // Validate styles
+    if (!shalwarStyle || !kameezStyle) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: 'Both shalwar and kameez styles are required'
+      });
+    }
+
+    // Validate dupatta details for 3-piece
+    if (suitType === '3-piece') {
+      if (!dupattaDetails || !dupattaDetails.length || !dupattaDetails.width) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          msg: 'Dupatta length and width are required for 3-piece suit'
+        });
+      }
     }
 
     // Process image uploads
@@ -106,22 +135,35 @@ const createOrder = async (req, res) => {
 
     // Create order
     console.log('💾 Creating order in database...');
-    const order = await Order.create({
+    const orderData = {
       customer: userId,
       tailor: tailorId,
-      garmentType,
+      suitType,
+      shalwarStyle,
+      kameezStyle,
       measurements,
       notes,
       status: 'pending',
       isLocked: false,
       referenceImage: referenceImageData,
       customerSketch: customerSketchData
-    });
+    };
+
+    // Add dupatta details for 3-piece
+    if (suitType === '3-piece') {
+      orderData.dupattaDetails = dupattaDetails;
+    }
+
+    const order = await Order.create(orderData);
 
     console.log('✅ Order created:', order._id);
 
     // Create notification message
-    const messageContent = `📦 New order request for ${garmentType}${referenceImageData || customerSketchData ? ' (includes design reference)' : ''}. Review and set a price to accept.`;
+    const suitDescription = suitType === '3-piece' ? 
+      `${suitType} suit (Shalwar, Kameez, Dupatta)` : 
+      `${suitType} suit (Shalwar, Kameez)`;
+    
+    const messageContent = `📦 New order request for ${suitDescription}${referenceImageData || customerSketchData ? ' (includes design reference)' : ''}. Review and set a price to accept.`;
     
     await Message.create({
       sender: userId,
@@ -182,7 +224,7 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
-// ✅ LOCK/UNLOCK ORDER - COMPLETE FIX
+// ✅ LOCK/UNLOCK ORDER
 const lockOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -192,7 +234,6 @@ const lockOrder = async (req, res) => {
 
     console.log(`🔐 Lock request - Order: ${id}, User: ${userId}, Role: ${role}, isLocked: ${isLocked}`);
 
-    // Validate isLocked is boolean
     if (typeof isLocked !== 'boolean') {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'isLocked must be a boolean value',
@@ -201,7 +242,6 @@ const lockOrder = async (req, res) => {
       });
     }
 
-    // Find order
     const order = await Order.findById(id).populate('customer tailor');
     if (!order) {
       return res.status(StatusCodes.NOT_FOUND).json({ 
@@ -211,35 +251,30 @@ const lockOrder = async (req, res) => {
 
     console.log(`📦 Order found - Customer: ${order.customer._id}, Tailor: ${order.tailor._id}, Current lock: ${order.isLocked}, Status: ${order.status}`);
 
-    // Only customers can lock/unlock
     if (role !== 'customer') {
       return res.status(StatusCodes.FORBIDDEN).json({ 
         msg: 'Only customers can lock/unlock orders' 
       });
     }
 
-    // Check if user is the customer of this order
     if (order.customer._id.toString() !== userId) {
       return res.status(StatusCodes.FORBIDDEN).json({ 
         msg: 'Not authorized to lock/unlock this order' 
       });
     }
 
-    // Can only lock/unlock in accepted or confirmed status
     if (!['accepted', 'confirmed'].includes(order.status)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: `Order cannot be locked/unlocked in current status (${order.status}). Only accepted or confirmed orders can be locked.` 
       });
     }
 
-    // Update lock status
     order.isLocked = isLocked;
     order.updatedAt = new Date();
     const savedOrder = await order.save();
 
     console.log(`✅ Order lock updated successfully: ${savedOrder.isLocked}`);
 
-    // Send notification to tailor
     if (order.tailor) {
       try {
         await Message.create({
@@ -253,11 +288,9 @@ const lockOrder = async (req, res) => {
         console.log('📧 Lock notification sent to tailor');
       } catch (msgError) {
         console.error('❌ Failed to send lock notification:', msgError);
-        // Continue anyway - lock status was updated
       }
     }
 
-    // Repopulate before sending response
     await savedOrder.populate('customer tailor');
 
     res.json({
@@ -275,11 +308,11 @@ const lockOrder = async (req, res) => {
   }
 };  
 
-// ✅ UPDATE ORDER DETAILS - COMPLETE FIX
+// ✅ UPDATE ORDER DETAILS - UPDATED FOR SUIT SYSTEM
 const updateOrderDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const { measurements, notes, referenceImage, customerSketch } = req.body;
+    const { measurements, notes, referenceImage, customerSketch, dupattaDetails } = req.body;
     const userId = req.user.userId || req.user.id;
     const { role } = req.user;
 
@@ -288,7 +321,8 @@ const updateOrderDetails = async (req, res) => {
       hasMeasurements: !!measurements,
       hasNotes: notes !== undefined,
       hasReferenceImage: !!referenceImage,
-      hasCustomerSketch: !!customerSketch
+      hasCustomerSketch: !!customerSketch,
+      hasDupattaDetails: !!dupattaDetails
     });
 
     const order = await Order.findById(id).populate('customer tailor');
@@ -298,7 +332,6 @@ const updateOrderDetails = async (req, res) => {
       });
     }
 
-    // Check authorization - both customer and tailor can edit
     const isCustomer = role === 'customer' && order.customer._id.toString() === userId;
     const isTailor = role === 'tailor' && order.tailor._id.toString() === userId;
 
@@ -308,7 +341,6 @@ const updateOrderDetails = async (req, res) => {
       });
     }
 
-    // Check if locked
     if (order.isLocked) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: '🔒 This design is locked and cannot be edited. Ask the customer to unlock it first.',
@@ -316,7 +348,6 @@ const updateOrderDetails = async (req, res) => {
       });
     }
 
-    // Check status
     if (!['pending', 'accepted', 'confirmed'].includes(order.status)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: `Order cannot be edited in current status (${order.status})` 
@@ -335,11 +366,16 @@ const updateOrderDetails = async (req, res) => {
       order.notes = notes;
     }
 
+    // Update dupatta details (for 3-piece)
+    if (dupattaDetails && order.suitType === '3-piece') {
+      console.log('👗 Updating dupatta details');
+      order.dupattaDetails = { ...order.dupattaDetails, ...dupattaDetails };
+    }
+
     // Process and update images
     try {
       if (referenceImage) {
         console.log('📸 Updating reference image');
-        // Delete old image if exists
         if (order.referenceImage?.publicId) {
           try {
             await deleteImage(order.referenceImage.publicId);
@@ -347,14 +383,12 @@ const updateOrderDetails = async (req, res) => {
             console.error('⚠️ Failed to delete old reference image:', delError);
           }
         }
-        // Upload new image
         const referenceImageData = await processImageUpload(referenceImage, 'reference');
         order.referenceImage = referenceImageData;
       }
 
       if (customerSketch) {
         console.log('✏️ Updating customer sketch');
-        // Delete old sketch if exists
         if (order.customerSketch?.publicId) {
           try {
             await deleteImage(order.customerSketch.publicId);
@@ -362,7 +396,6 @@ const updateOrderDetails = async (req, res) => {
             console.error('⚠️ Failed to delete old sketch:', delError);
           }
         }
-        // Upload new sketch
         const customerSketchData = await processImageUpload(customerSketch, 'sketch');
         order.customerSketch = customerSketchData;
       }
@@ -432,7 +465,6 @@ const updateOrderStatus = async (req, res) => {
     const updateData = { status };
     let deliveryEstimate = null;
 
-    // Calculate delivery time when accepting order
     if (status === 'accepted') {
       if (!price || price <= 0) {
         return res.status(StatusCodes.BAD_REQUEST).json({ 
@@ -470,7 +502,6 @@ const updateOrderStatus = async (req, res) => {
       completed: '✅ Your order has been completed and is ready for pickup'
     };
 
-    // Send status notification
     if (notificationMessages[status]) {
       await Message.create({
         sender: userId,
@@ -480,11 +511,14 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Send delivery time estimate message
     if (status === 'accepted' && deliveryEstimate) {
+      const suitDescription = order.suitType === '3-piece' ? 
+        `${order.suitType} suit` : 
+        `${order.suitType} suit`;
+      
       const deliveryMessage = formatDeliveryMessage(
         deliveryEstimate, 
-        order.garmentType
+        suitDescription
       );
 
       await Message.create({
@@ -542,7 +576,6 @@ const confirmOrder = async (req, res) => {
       });
     }
 
-    // Recalculate delivery estimate when confirmed
     let deliveryUpdate = {};
     if (order.price && order.tailor) {
       const deliveryEstimate = await calculateDeliveryTime(order.tailor, order.price);
@@ -565,7 +598,6 @@ const confirmOrder = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('customer tailor');
 
-    // Notify tailor
     await Message.create({
       sender: userId,
       receiver: order.tailor,
@@ -573,7 +605,6 @@ const confirmOrder = async (req, res) => {
       order: order._id
     });
 
-    // Send updated delivery reminder to customer
     if (deliveryUpdate.expectedCompletionDate) {
       const reminderDate = new Date(deliveryUpdate.expectedCompletionDate).toLocaleDateString('en-US', {
         weekday: 'long',
@@ -582,10 +613,14 @@ const confirmOrder = async (req, res) => {
         day: 'numeric'
       });
 
+      const suitDescription = order.suitType === '3-piece' ? 
+        `${order.suitType} suit` : 
+        `${order.suitType} suit`;
+
       await Message.create({
         sender: order.tailor,
         receiver: userId,
-        content: `✅ Order confirmed! We'll have your ${order.garmentType} ready by ${reminderDate} (approximately ${deliveryUpdate.estimatedDeliveryDays} days). Work with your tailor to finalize the design!`,
+        content: `✅ Order confirmed! We'll have your ${suitDescription} ready by ${reminderDate} (approximately ${deliveryUpdate.estimatedDeliveryDays} days). Work with your tailor to finalize the design!`,
         order: order._id
       });
     }
@@ -625,7 +660,6 @@ const deleteOrder = async (req, res) => {
       });
     }
 
-    // Delete images from Cloudinary
     try {
       if (order.referenceImage?.publicId) {
         console.log('🗑️ Deleting reference image:', order.referenceImage.publicId);
@@ -637,7 +671,6 @@ const deleteOrder = async (req, res) => {
       }
     } catch (imageError) {
       console.error('❌ Error deleting images:', imageError);
-      // Continue with order deletion
     }
 
     await Order.findByIdAndDelete(orderId);

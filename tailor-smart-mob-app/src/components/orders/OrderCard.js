@@ -1,3 +1,4 @@
+// ✅ UPDATED: OrderCard.js - Display suit information
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -13,18 +14,15 @@ const OrderCard = ({
   onConfirm,
   userRole
 }) => {
-  // Helper function to format date
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Helper function to get status color
   const getStatusColor = (status) => {
     return colors[status] || colors.gray;
   };
 
-  // Helper function to get status label
   const getStatusLabel = (status) => {
     const statusMap = {
       pending: 'Pending',
@@ -38,28 +36,27 @@ const OrderCard = ({
     return statusMap[status] || status;
   };
 
-  // Helper function to get garment type label
-  const getGarmentTypeLabel = (type) => {
-    const garmentMap = {
-      shirt: 'Shirt',
-      pants: 'Pants',
-      suit: 'Suit',
-      dress: 'Dress',
-      skirt: 'Skirt',
-      blazer: 'Blazer',
-      other: 'Other'
-    };
-    return garmentMap[type] || type;
+  const getSuitDescription = (order) => {
+    if (order.suitType === '3-piece') {
+      return `${order.suitType} Suit (Shalwar, Kameez, Dupatta)`;
+    }
+    return `${order.suitType} Suit (Shalwar & Kameez)`;
   };
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.header}>
         <View style={styles.row}>
-          <Feather name="shopping-bag" size={20} color={colors.black} />
-          <Text style={styles.garmentType}>
-            {getGarmentTypeLabel(order.garmentType)}
-          </Text>
+          <Feather name="package" size={20} color={colors.black} />
+          <View style={styles.titleContainer}>
+            <Text style={styles.suitType}>{getSuitDescription(order)}</Text>
+            {order.suitType === '3-piece' && order.dupattaDetails?.hasPeco && (
+              <View style={styles.pecoTag}>
+                <Feather name="star" size={12} color={colors.warning} />
+                <Text style={styles.pecoText}>with Peco</Text>
+              </View>
+            )}
+          </View>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>
           <Text style={styles.statusText}>{getStatusLabel(order.status)}</Text>
@@ -74,10 +71,17 @@ const OrderCard = ({
           <Text style={styles.detailValue}>{formatDate(order.createdAt)}</Text>
         </View>
 
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Styles:</Text>
+          <Text style={styles.detailValue}>
+            {order.shalwarStyle} shalwar, {order.kameezStyle} kameez
+          </Text>
+        </View>
+
         {order.price > 0 && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Price:</Text>
-            <Text style={styles.detailValue}> PKR {order.price}</Text>
+            <Text style={styles.detailValue}>PKR {order.price}</Text>
           </View>
         )}
 
@@ -153,13 +157,33 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    flex: 1
   },
-  garmentType: {
-    fontSize: 18,
-    fontWeight: '600',
+  titleContainer: {
     marginLeft: 8,
-    color: colors.black
+    flex: 1
+  },
+  suitType: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.black,
+    marginBottom: 4
+  },
+  pecoTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.warning + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start'
+  },
+  pecoText: {
+    fontSize: 11,
+    color: colors.warning,
+    fontWeight: '500',
+    marginLeft: 4
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -195,7 +219,8 @@ const styles = StyleSheet.create({
     color: colors.black,
     fontWeight: '500',
     flex: 2,
-    textAlign: 'right'
+    textAlign: 'right',
+    textTransform: 'capitalize'
   },
   actions: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+// ✅ UPDATED: CreateOrderScreen.js - Suit-based ordering
 import React, { useState } from 'react';
 import {
   View,
@@ -20,9 +21,9 @@ const CreateOrderScreen = ({ route, navigation }) => {
   const { tailorId, tailorName } = route.params;
   const [loading, setLoading] = useState(false);
 
-  const garmentTypes = [
-    { value: 'shalwar', label: 'Shalwar' },
-    { value: 'kameez', label: 'Kameez' },
+  const suitTypes = [
+    { value: '2-piece', label: '2-Piece Suit', description: 'Shalwar + Kameez' },
+    { value: '3-piece', label: '3-Piece Suit', description: 'Shalwar + Kameez + Dupatta' },
   ];
 
   const shalwarStyles = [
@@ -42,24 +43,15 @@ const CreateOrderScreen = ({ route, navigation }) => {
   ];
 
   const validationSchema = Yup.object({
-    garmentType: Yup.string()
-      .oneOf(['shalwar', 'kameez'], 'Please select a garment type')
-      .required('Garment type is required'),
-    style: Yup.string()
-      .when('garmentType', {
-        is: 'shalwar',
-        then: () => Yup.string()
-          .oneOf(['simple', 'patiala', 'gharara', 'capri', 'other'])
-          .required('Shalwar style is required'),
-        otherwise: () => Yup.string()
-          .when('garmentType', {
-            is: 'kameez',
-            then: () => Yup.string()
-              .oneOf(['simple', 'anarkali', 'angrakka', 'a-line', 'other'])
-              .required('Kameez style is required'),
-            otherwise: () => Yup.string()
-          })
-      }),
+    suitType: Yup.string()
+      .oneOf(['2-piece', '3-piece'], 'Please select a suit type')
+      .required('Suit type is required'),
+    shalwarStyle: Yup.string()
+      .oneOf(['simple', 'patiala', 'gharara', 'capri', 'other'])
+      .required('Shalwar style is required'),
+    kameezStyle: Yup.string()
+      .oneOf(['simple', 'anarkali', 'angrakka', 'a-line', 'other'])
+      .required('Kameez style is required'),
     notes: Yup.string()
       .max(500, 'Notes are too long (max 500 characters)')
   });
@@ -68,8 +60,9 @@ const CreateOrderScreen = ({ route, navigation }) => {
     const orderData = {
       tailorId,
       tailorName,
-      garmentType: values.garmentType,
-      [values.garmentType === 'shalwar' ? 'shalwarStyle' : 'kameezStyle']: values.style,
+      suitType: values.suitType,
+      shalwarStyle: values.shalwarStyle,
+      kameezStyle: values.kameezStyle,
       notes: values.notes || ''
     };
 
@@ -78,128 +71,171 @@ const CreateOrderScreen = ({ route, navigation }) => {
 
   return (
     <View style={{ flex: 1 }}>
-   <KeyboardAvoidingView 
-  style={styles.container}
-  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-  keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
->
-  <ScrollView
-  style={styles.scrollView}
-  contentContainerStyle={styles.contentContainer}
-  keyboardShouldPersistTaps="handled"
-  showsVerticalScrollIndicator={true} // ✅ show scrollbar
-  persistentScrollbar={true} // ✅ keeps it visible while scrolling
-  nestedScrollEnabled={true} // ✅ improves nested scrolling in some Android cases
->
-
-    <View style={styles.headerContainer}>
-      <Text style={styles.headerTitle}>Create New Order</Text>
-      <Text style={styles.headerSubtitle}>
-        For tailor: <Text style={styles.tailorName}>{tailorName}</Text>
-      </Text>
-    </View>
-
-    <Formik
-      initialValues={{
-        garmentType: '',
-        style: '',
-        notes: ''
-      }}
-      validationSchema={validationSchema}
-      onSubmit={handleSubmit}
-    >
-      {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
-        <View style={styles.formContainer}>
-          <Text style={styles.sectionTitle}>Select Garment Type</Text>
-          <View style={styles.garmentTypesContainer}>
-            {garmentTypes.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.garmentTypeButton,
-                  values.garmentType === option.value && styles.selectedGarmentType
-                ]}
-                onPress={() => {
-                  setFieldValue('garmentType', option.value);
-                  setFieldValue('style', '');
-                }}
-              >
-                <Text
-                  style={[
-                    styles.garmentTypeText,
-                    values.garmentType === option.value && styles.selectedGarmentTypeText
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          nestedScrollEnabled={true}
+        >
+          <View style={styles.headerContainer}>
+            <Text style={styles.headerTitle}>Create New Order</Text>
+            <Text style={styles.headerSubtitle}>
+              For tailor: <Text style={styles.tailorName}>{tailorName}</Text>
+            </Text>
           </View>
 
-          {values.garmentType && (
-            <>
-              <Text style={styles.sectionTitle}>
-                Select {values.garmentType === 'shalwar' ? 'Shalwar' : 'Kameez'} Style
-              </Text>
-              <View style={styles.garmentTypesContainer}>
-                {(values.garmentType === 'shalwar' ? shalwarStyles : kameezStyles).map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.garmentTypeButton,
-                      values.style === option.value && styles.selectedGarmentType
-                    ]}
-                    onPress={() => setFieldValue('style', option.value)}
-                  >
-                    <Text
+          <Formik
+            initialValues={{
+              suitType: '',
+              shalwarStyle: '',
+              kameezStyle: '',
+              notes: ''
+            }}
+            validationSchema={validationSchema}
+            onSubmit={handleSubmit}
+          >
+            {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
+              <View style={styles.formContainer}>
+                {/* Suit Type Selection */}
+                <Text style={styles.sectionTitle}>Select Suit Type</Text>
+                <View style={styles.suitTypesContainer}>
+                  {suitTypes.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
                       style={[
-                        styles.garmentTypeText,
-                        values.style === option.value && styles.selectedGarmentTypeText
+                        styles.suitTypeCard,
+                        values.suitType === option.value && styles.selectedSuitType
                       ]}
+                      onPress={() => setFieldValue('suitType', option.value)}
                     >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <View style={styles.suitTypeHeader}>
+                        <Text
+                          style={[
+                            styles.suitTypeLabel,
+                            values.suitType === option.value && styles.selectedSuitTypeText
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        {values.suitType === option.value && (
+                          <Feather name="check-circle" size={24} color={colors.white} />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.suitTypeDescription,
+                          values.suitType === option.value && styles.selectedSuitTypeDescription
+                        ]}
+                      >
+                        {option.description}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {touched.suitType && errors.suitType && (
+                  <Text style={styles.errorText}>{errors.suitType}</Text>
+                )}
+
+                {values.suitType && (
+                  <>
+                    {/* Shalwar Style Selection */}
+                    <Text style={styles.sectionTitle}>Select Shalwar Style</Text>
+                    <View style={styles.styleButtonsContainer}>
+                      {shalwarStyles.map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[
+                            styles.styleButton,
+                            values.shalwarStyle === option.value && styles.selectedStyleButton
+                          ]}
+                          onPress={() => setFieldValue('shalwarStyle', option.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.styleButtonText,
+                              values.shalwarStyle === option.value && styles.selectedStyleButtonText
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {touched.shalwarStyle && errors.shalwarStyle && (
+                      <Text style={styles.errorText}>{errors.shalwarStyle}</Text>
+                    )}
+
+                    {/* Kameez Style Selection */}
+                    <Text style={styles.sectionTitle}>Select Kameez Style</Text>
+                    <View style={styles.styleButtonsContainer}>
+                      {kameezStyles.map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[
+                            styles.styleButton,
+                            values.kameezStyle === option.value && styles.selectedStyleButton
+                          ]}
+                          onPress={() => setFieldValue('kameezStyle', option.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.styleButtonText,
+                              values.kameezStyle === option.value && styles.selectedStyleButtonText
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {touched.kameezStyle && errors.kameezStyle && (
+                      <Text style={styles.errorText}>{errors.kameezStyle}</Text>
+                    )}
+                  </>
+                )}
+
+                {/* Additional Notes */}
+                <Text style={styles.sectionTitle}>Additional Notes</Text>
+                <Input
+                  multiline
+                  numberOfLines={4}
+                  placeholder="Add any special instructions or details here"
+                  value={values.notes}
+                  onChangeText={handleChange('notes')}
+                  onBlur={handleBlur('notes')}
+                  error={touched.notes && errors.notes}
+                  iconName="file-text"
+                />
+
+                <View style={styles.buttonsContainer}>
+                  <Button
+                    title="Next: Enter Measurements"
+                    onPress={handleSubmit}
+                    icon="arrow-right"
+                    iconPosition="right"
+                    loading={loading}
+                  />
+                  <Button
+                    title="Cancel"
+                    onPress={() => navigation.goBack()}
+                    outline
+                    buttonStyle={styles.cancelButton}
+                    textStyle={styles.cancelButtonText}
+                  />
+                </View>
               </View>
-            </>
-          )}
-
-          <Text style={styles.sectionTitle}>Additional Notes</Text>
-          <Input
-            multiline
-            numberOfLines={4}
-            placeholder="Add any special instructions or details here"
-            value={values.notes}
-            onChangeText={handleChange('notes')}
-            onBlur={handleBlur('notes')}
-            error={touched.notes && errors.notes}
-            iconName="file-text"
-          />
-
-          <View style={styles.buttonsContainer}>
-            <Button
-              title="Next: Enter Measurements"
-              onPress={handleSubmit}
-              icon="arrow-right"
-              iconPosition="right"
-              loading={loading}
-            />
-            <Button
-              title="Cancel"
-              onPress={() => navigation.goBack()}
-              outline
-              buttonStyle={styles.cancelButton}
-              textStyle={styles.cancelButtonText}
-            />
-          </View>
-        </View>
-      )}
-    </Formik>
-  </ScrollView>
-</KeyboardAvoidingView>
-</View>
-
+            )}
+          </Formik>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -208,17 +244,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white
   }, 
-scrollView: {
-  backgroundColor: colors.white,
-},
-
-contentContainer: {
-  flexGrow: 1,          // ✅ ensures content takes available space
-  paddingHorizontal: 16,
-  paddingTop: 16,
-  paddingBottom: 120,   // ✅ space for buttons + keyboard
-},
-
+  scrollView: {
+    backgroundColor: colors.white,
+  },
+  contentContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 120,
+  },
   headerContainer: {
     marginBottom: 24
   },
@@ -246,30 +280,74 @@ contentContainer: {
     marginBottom: 12,
     marginTop: 16
   },
-  garmentTypesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  suitTypesContainer: {
+    gap: 12,
     marginBottom: 16
   },
-  garmentTypeButton: {
-    borderWidth: 1,
+  suitTypeCard: {
+    borderWidth: 2,
     borderColor: colors.lightGray,
-    borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 10,
-    marginBottom: 10
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: colors.white
   },
-  selectedGarmentType: {
+  selectedSuitType: {
     backgroundColor: colors.black,
     borderColor: colors.black
   },
-  garmentTypeText: {
-    color: colors.black,
-    fontWeight: '500'
+  suitTypeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
   },
-  selectedGarmentTypeText: {
+  suitTypeLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.black
+  },
+  selectedSuitTypeText: {
     color: colors.white
+  },
+  suitTypeDescription: {
+    fontSize: 14,
+    color: colors.gray
+  },
+  selectedSuitTypeDescription: {
+    color: colors.white,
+    opacity: 0.9
+  },
+  styleButtonsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+    gap: 10
+  },
+  styleButton: {
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: colors.white
+  },
+  selectedStyleButton: {
+    backgroundColor: colors.black,
+    borderColor: colors.black
+  },
+  styleButtonText: {
+    color: colors.black,
+    fontWeight: '500',
+    fontSize: 14
+  },
+  selectedStyleButtonText: {
+    color: colors.white
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 12
   },
   buttonsContainer: {
     marginTop: 24
