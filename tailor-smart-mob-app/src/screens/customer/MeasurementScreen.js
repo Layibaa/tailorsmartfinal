@@ -274,94 +274,104 @@ const MeasurementScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async (values) => {
-    console.log("📝 handleSubmit called");
-    
-    const missingMeasurements = requiredMeasurements.filter(
-      key => !values[key] || values[key] === ''
+  console.log("📝 handleSubmit called with values:", values);
+
+  // Validate BODY measurements only
+  const missingBodyMeasurements = requiredMeasurements.filter(
+    key => !values[key] || values[key] === ''
+  );
+
+  if (missingBodyMeasurements.length > 0) {
+    console.log("⚠️ Missing body measurements:", missingBodyMeasurements);
+    Alert.alert(
+      "Missing Measurements",
+      `Please enter: ${missingBodyMeasurements.map(m => measurementLabels[m] || m).join(', ')}`
     );
-    
-    if (missingMeasurements.length > 0) {
-      console.log("⚠️ Missing required measurements:", missingMeasurements);
-      Alert.alert(
-        "Missing Measurements",
-        `Please enter values for: ${missingMeasurements.map(m => measurementLabels[m] || m).join(', ')}`
-      );
+    return;
+  }
+
+  // Validate DUPATTA separately for 3-piece
+  if (suitType === '3-piece') {
+    if (!values.dupattaLength || !values.dupattaWidth) {
+      console.log("⚠️ Missing dupatta measurements");
+      Alert.alert("Missing Dupatta", "Please enter dupatta length and width");
       return;
     }
-    
-    setLoading(true);
-    
+  }
+
+  setLoading(true);
+
+  try {
+    // Build measurements object (BODY only)
     const measurements = {};
     requiredMeasurements.forEach(key => {
       if (values[key] && !key.includes('dupatta')) {
         measurements[key] = parseFloat(values[key]);
       }
     });
-    
-    console.log("📏 Processed measurements:", measurements);
 
-    try {
-      const orderData = {
-        tailorId,
-        suitType,
-        shalwarStyle,
-        kameezStyle,
-        measurements,
-        notes: notes || ''
+    console.log("📏 Body measurements:", measurements);
+
+    const orderData = {
+      tailorId,
+      suitType,
+      shalwarStyle,
+      kameezStyle,
+      measurements,
+      notes: notes || ''
+    };
+
+    // Add dupatta separately if 3-piece
+    if (suitType === '3-piece') {
+      orderData.dupattaDetails = {
+        length: parseFloat(values.dupattaLength),
+        width: parseFloat(values.dupattaWidth),
+        hasPeco: hasPeco
       };
-
-      // Add dupatta details for 3-piece
-      if (suitType === '3-piece') {
-        orderData.dupattaDetails = {
-          length: parseFloat(values.dupattaLength),
-          width: parseFloat(values.dupattaWidth),
-          hasPeco: hasPeco
-        };
-      }
-
-      if (referenceImage?.base64) {
-        console.log('📸 Adding reference image');
-        orderData.referenceImage = referenceImage.base64;
-      }
-      
-      if (customerSketch) {
-        console.log('✏️ Adding customer sketch');
-        orderData.customerSketch = customerSketch;
-      }
-      
-      const response = await createOrder(orderData);
-      
-      console.log("✅ Order created successfully:", response);
-      
-      EventRegister.emit('newOrderCreated', response.order);
-  
-      Alert.alert(
-        'Success',
-        'Your order has been sent to the tailor for review.',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              navigation.navigate('CustomerTabs', {
-                screen: 'Orders'
-              });
-            }
-          }
-        ]
-      );
-
-    } catch (error) {
-      console.error('❌ Error creating order:', error);
-      
-      const errorMessage = error.response?.data?.msg || 
-                          error.message || 
-                          'Failed to create order. Please try again.';
-      
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setLoading(false);
+      console.log("🧣 Dupatta details:", orderData.dupattaDetails);
     }
-  };
+
+    // Add images if available
+    if (referenceImage?.base64) {
+      console.log('📸 Adding reference image');
+      orderData.referenceImage = referenceImage.base64;
+    }
+    if (customerSketch) {
+      console.log('✏️ Adding customer sketch');
+      orderData.customerSketch = customerSketch;
+    }
+
+    const response = await createOrder(orderData);
+    console.log("✅ Order created successfully:", response);
+
+    EventRegister.emit('newOrderCreated', response.order);
+
+    Alert.alert(
+      'Success',
+      'Your order has been sent to the tailor for review.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate('CustomerTabs', { screen: 'Orders' });
+          }
+        }
+      ]
+    );
+
+  } catch (error) {
+    console.error('❌ Error creating order:', error);
+
+    const errorMessage = error.response?.data?.msg || 
+                         error.message || 
+                         'Failed to create order. Please try again.';
+
+    Alert.alert('Error', errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <ScrollView 

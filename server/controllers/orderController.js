@@ -45,6 +45,7 @@ const processImageUpload = async (imageData, type) => {
 };
 
 // ✅ CREATE ORDER - UPDATED FOR SUIT SYSTEM
+// server/controllers/orderController.js - ENHANCED createOrder
 const createOrder = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
@@ -70,16 +71,42 @@ const createOrder = async (req, res) => {
       customerSketch
     } = req.body;
     
-    console.log('📋 Order data received:', {
+    // ✅ EXTENSIVE LOGGING
+    console.log('📋 Received order data:', {
       tailorId,
       suitType,
       shalwarStyle,
       kameezStyle,
-      measurements,
-      dupattaDetails,
+      hasMeasurements: !!measurements,
+      measurementKeys: measurements ? Object.keys(measurements) : [],
+      measurementValues: measurements,
+      hasDupattaDetails: !!dupattaDetails,
+      dupattaValues: dupattaDetails,
       hasReferenceImage: !!referenceImage,
       hasCustomerSketch: !!customerSketch
     });
+
+    // ✅ VALIDATE MEASUREMENTS OBJECT
+    if (!measurements || typeof measurements !== 'object' || Object.keys(measurements).length === 0) {
+      console.error('❌ Invalid or missing measurements:', measurements);
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        msg: 'Valid measurements object is required',
+        received: measurements
+      });
+    }
+
+    // Validate required measurement fields
+    const requiredFields = ['chest', 'shoulder', 'sleeveLength', 'neck', 'kameezLength', 
+                           'waist', 'hip', 'inseam', 'outseam', 'thigh'];
+    const missingFields = requiredFields.filter(field => !measurements[field]);
+    
+    if (missingFields.length > 0) {
+      console.error('❌ Missing measurement fields:', missingFields);
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: `Missing required measurements: ${missingFields.join(', ')}`,
+        missingFields
+      });
+    }
 
     // Validate tailor
     const tailor = await User.findOne({ _id: tailorId, role: 'tailor' });
@@ -103,11 +130,13 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // Validate dupatta details for 3-piece
+    // ✅ VALIDATE DUPATTA FOR 3-PIECE
     if (suitType === '3-piece') {
       if (!dupattaDetails || !dupattaDetails.length || !dupattaDetails.width) {
+        console.error('❌ Missing dupatta details for 3-piece suit:', dupattaDetails);
         return res.status(StatusCodes.BAD_REQUEST).json({
-          msg: 'Dupatta length and width are required for 3-piece suit'
+          msg: 'Dupatta length and width are required for 3-piece suit',
+          received: dupattaDetails
         });
       }
     }
@@ -133,15 +162,27 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // Create order
-    console.log('💾 Creating order in database...');
+    // ✅ BUILD ORDER DATA WITH EXPLICIT STRUCTURE
+    console.log('💾 Creating order with measurements:', measurements);
+    
     const orderData = {
       customer: userId,
       tailor: tailorId,
       suitType,
       shalwarStyle,
       kameezStyle,
-      measurements,
+      measurements: {
+        chest: parseFloat(measurements.chest),
+        shoulder: parseFloat(measurements.shoulder),
+        sleeveLength: parseFloat(measurements.sleeveLength),
+        neck: parseFloat(measurements.neck),
+        kameezLength: parseFloat(measurements.kameezLength),
+        waist: parseFloat(measurements.waist),
+        hip: parseFloat(measurements.hip),
+        inseam: parseFloat(measurements.inseam),
+        outseam: parseFloat(measurements.outseam),
+        thigh: parseFloat(measurements.thigh)
+      },
       notes,
       status: 'pending',
       isLocked: false,
@@ -151,12 +192,29 @@ const createOrder = async (req, res) => {
 
     // Add dupatta details for 3-piece
     if (suitType === '3-piece') {
-      orderData.dupattaDetails = dupattaDetails;
+      orderData.dupattaDetails = {
+        length: parseFloat(dupattaDetails.length),
+        width: parseFloat(dupattaDetails.width),
+        hasPeco: dupattaDetails.hasPeco || false
+      };
+      console.log('🧣 Adding dupatta details:', orderData.dupattaDetails);
     }
 
+    console.log('📦 Final order data structure:', {
+      ...orderData,
+      referenceImage: orderData.referenceImage ? '[PRESENT]' : null,
+      customerSketch: orderData.customerSketch ? '[PRESENT]' : null
+    });
+
+    // ✅ CREATE ORDER
     const order = await Order.create(orderData);
 
-    console.log('✅ Order created:', order._id);
+    console.log('✅ Order created successfully:', {
+      id: order._id,
+      hasMeasurements: !!order.measurements,
+      measurementKeys: order.measurements ? Object.keys(order.measurements.toObject()) : [],
+      hasDupatta: !!order.dupattaDetails
+    });
 
     // Create notification message
     const suitDescription = suitType === '3-piece' ? 
@@ -179,10 +237,16 @@ const createOrder = async (req, res) => {
 
     res.status(StatusCodes.CREATED).json({ success: true, order });
   } catch (error) {
-    console.error('❌ Create order error:', error);
+    console.error('❌ Create order error:', {
+      message: error.message,
+      stack: error.stack,
+      validationErrors: error.errors
+    });
+    
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Server error while creating order',
-      error: error.message 
+      error: error.message,
+      validationErrors: error.errors ? Object.keys(error.errors) : []
     });
   }
 };
