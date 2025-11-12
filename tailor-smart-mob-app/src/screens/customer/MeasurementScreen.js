@@ -121,7 +121,7 @@ const MeasurementScreen = ({ route, navigation }) => {
           );
 
           Alert.alert(
-            'Measurements Auto-Filled',
+            '✨ Measurements Auto-Filled',
             `Based on your profile, we've calculated measurements for a ${bodyFrame} build.\n\n` +
             `Confidence: ${confidence.toUpperCase()}\n\n` +
             `Please review and adjust if needed. These are estimates based on Pakistani body standards.`,
@@ -523,15 +523,17 @@ const MeasurementScreen = ({ route, navigation }) => {
       </Formik>
 
       <Modal
-        visible={isCanvasVisible}
-        animationType="slide"
-        onRequestClose={() => setIsCanvasVisible(false)}
-      >
-        <DrawingCanvas 
-          onSave={handleCanvasSave}
-          onClose={() => setIsCanvasVisible(false)}
-        />
-      </Modal>
+  visible={isCanvasVisible}
+  animationType="slide"
+  onRequestClose={() => setIsCanvasVisible(false)}
+>
+  <DrawingCanvas 
+    onSave={handleCanvasSave}
+    onClose={() => setIsCanvasVisible(false)}
+    garmentType={garmentType}
+    designNotes={notes || ''}
+  />
+</Modal>
     </ScrollView>
   );
 };

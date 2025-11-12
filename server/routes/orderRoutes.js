@@ -1,4 +1,6 @@
-// COMPLETE: server/routes/orderRoutes.js
+// server/routes/orderRoutes.js
+// ✅ UPDATED: Added sketch refinement endpoints
+
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
@@ -13,6 +15,12 @@ const {
   getOrderDetails
 } = require('../controllers/orderController');
 
+// ✨ NEW: Import sketch refinement controller
+const { 
+  refineSketch, 
+  checkServiceStatus 
+} = require('../controllers/sketchRefinementController');
+
 // Debug middleware to log all requests
 router.use((req, res, next) => {
   console.log(`🛣️ Order Route: ${req.method} ${req.path}`);
@@ -20,14 +28,18 @@ router.use((req, res, next) => {
   next();
 });
 
-// ✅ ALL ROUTES PROPERLY DEFINED
+// ✅ EXISTING ROUTES
 router.post('/', auth, createOrder);
 router.get('/:id', auth, getOrderDetails);
 router.patch('/:id/status', auth, updateOrderStatus);
 router.patch('/:id/confirm', auth, confirmOrder);
-router.patch('/:id/lock', auth, lockOrder);         // ✅ LOCK ROUTE
-router.put('/:id', auth, updateOrderDetails);       // ✅ UPDATE ROUTE
+router.patch('/:id/lock', auth, lockOrder);
+router.put('/:id', auth, updateOrderDetails);
 router.delete('/:id', auth, deleteOrder);
+
+// ✨ NEW ROUTES: Sketch refinement endpoints
+router.post('/refine-sketch', auth, refineSketch);
+router.get('/refine-sketch/status', auth, checkServiceStatus);
 
 // Export router
 module.exports = router;

@@ -1093,11 +1093,13 @@ const OrderDetailsScreen = ({ route, navigation }) => {
 
       {/* Canvas Modal */}
       <Modal visible={isCanvasVisible} animationType="slide">
-        <DrawingCanvas 
-          onSave={handleCanvasSave}
-          onClose={() => setIsCanvasVisible(false)}
-        />
-      </Modal>
+  <DrawingCanvas 
+    onSave={handleCanvasSave}
+    onClose={() => setIsCanvasVisible(false)}
+    garmentType={order?.garmentType || 'clothing'}
+    designNotes={order?.notes || editedNotes || ''}
+  />
+</Modal>
 
       {/* Bottom Spacing */}
       <View style={styles.bottomSpacing} />
