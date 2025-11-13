@@ -7,8 +7,7 @@ import {
   TouchableOpacity, 
   KeyboardAvoidingView, 
   Platform,
-  ScrollView,
-  Modal
+  ScrollView
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -16,9 +15,7 @@ import { AuthContext } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import colors from '../../styles/colors';
-import AdminLoginForm from '../../components/forms/AdminLoginForm';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import colors from '../../styles/colors'; 
 
 const LoginSchema = Yup.object().shape({
   email: Yup.string()
@@ -30,35 +27,24 @@ const LoginSchema = Yup.object().shape({
 });
 
 const LoginScreen = ({ navigation }) => {
-  const { login, isLoading, setUserToken, setUser } = useContext(AuthContext);
-  const [error, setError] = useState(null);
-  const [adminModalVisible, setAdminModalVisible] = useState(false);
-  const [adminError, setAdminError] = useState(null);
+  const { login, isLoading } = useContext(AuthContext);
+  const [error, setError] = useState('');
 
   const handleLogin = async (values) => {
-    setError(null);
-    const result = await login(values.email, values.password);
+    setError('');
     
-    if (!result.success) {
-      if (result.requiresVerification) {
-        navigation.navigate('OtpVerification', { userId: result.userId });
-      } else {
-        setError(result.error);
-      }
-    }
-  };
-
-  const handleAdminLogin = async (result) => {
-    if (result.success) {
-      // Store admin user data and token
-      await AsyncStorage.setItem('userToken', result.token);
-      await AsyncStorage.setItem('user', JSON.stringify(result.user));
+    try {
+      const result = await login(values.email, values.password);
       
-      // Update context
-      setUser(result.user);
-      setUserToken(result.token);
-    } else {
-      setAdminError(result.error);
+      if (!result || !result.success) {
+        if (result && result.requiresVerification) {
+          navigation.navigate('OtpVerification', { userId: result.userId });
+        } else {
+          setError('Wrong email or password');
+        }
+      }
+    } catch (err) {
+      setError('Wrong email or password');
     }
   };
 
@@ -70,16 +56,12 @@ const LoginScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollView}>
         <View style={styles.logoContainer}>
-                <Image
-          source={require('../../assets/newlogo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        {/*  <Text style={styles.title}>Tailoring App</Text>
-          <Text style={styles.subtitle}>Login to your account</Text> */}
+          <Image
+            source={require('../../assets/newlogo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
-        
-        {error && <Text style={styles.errorText}>{error}</Text>}
         
         <Formik
           initialValues={{ email: '', password: '' }}
@@ -88,10 +70,16 @@ const LoginScreen = ({ navigation }) => {
         >
           {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
             <View style={styles.formContainer}>
+              {/* ERROR MESSAGE - SIMPLE */}
+              {error && <Text style={styles.errorText}>{error}</Text>}
+              
               <Input
                 placeholder="Email"
                 value={values.email}
-                onChangeText={handleChange('email')}
+                onChangeText={(text) => {
+                  handleChange('email')(text);
+                  if (error) setError('');
+                }}
                 onBlur={handleBlur('email')}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -102,7 +90,10 @@ const LoginScreen = ({ navigation }) => {
               <Input
                 placeholder="Password"
                 value={values.password}
-                onChangeText={handleChange('password')}
+                onChangeText={(text) => {
+                  handleChange('password')(text);
+                  if (error) setError('');
+                }}
                 onBlur={handleBlur('password')}
                 secureTextEntry
                 error={touched.password && errors.password}
@@ -142,9 +133,6 @@ const LoginScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-        
-        
-      
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -159,10 +147,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20
   },
-  contentContainer: {
-    paddingBottom: 40,
-    flexGrow: 1  // Use flexGrow instead if needed
-  },
   logoContainer: {
     alignItems: 'center',
     marginTop: 20,
@@ -173,19 +157,14 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 75
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.black,
-    marginTop: 10
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.gray,
-    marginTop: 5
-  },
   formContainer: {
     width: '100%'
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 14,
+    marginBottom: 10,
+    textAlign: 'center'
   },
   forgotPasswordContainer: {
     alignItems: 'flex-end',
@@ -194,11 +173,6 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     color: colors.black,
     fontSize: 14
-  },
-  errorText: {
-    color: colors.error,
-    textAlign: 'center',
-    marginBottom: 10
   },
   signupContainer: {
     marginTop: 40,
@@ -231,49 +205,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.white
-  },
-  adminButton: {
-    marginTop: 30,
-    alignSelf: 'center',
-    padding: 10
-  },
-  adminButtonText: {
-    color: colors.gray,
-    fontSize: 14,
-    textDecorationLine: 'underline'
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)'
-  },
-  modalContent: {
-    width: '85%',
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 20,
-    elevation: 5,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.black,
-    textAlign: 'center',
-    marginBottom: 20
-  },
-  closeButton: {
-    marginTop: 20,
-    padding: 10,
-    alignItems: 'center'
-  },
-  closeButtonText: {
-    color: colors.gray,
-    fontSize: 16
   }
 });
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Input from '../ui/Input';
@@ -16,7 +16,7 @@ const LoginSchema = Yup.object().shape({
     .required('Password is required')
 });
 
-const LoginForm = ({ onSubmit, isLoading }) => {
+const LoginForm = ({ onSubmit, isLoading, error }) => {
   return (
     <Formik
       initialValues={{ email: '', password: '' }}
@@ -25,6 +25,8 @@ const LoginForm = ({ onSubmit, isLoading }) => {
     >
       {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
         <View style={styles.formContainer}>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+          
           <Input
             placeholder="Email"
             value={values.email}
@@ -60,6 +62,12 @@ const LoginForm = ({ onSubmit, isLoading }) => {
 const styles = StyleSheet.create({
   formContainer: {
     width: '100%'
+  },
+  errorText: {
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 10,
+    fontSize: 14
   }
 });
 

@@ -1,6 +1,7 @@
-// admin-web/src/components/Login.js - Enhanced with debugging
+// admin-web/src/components/Login.js - Simplified for superadmin only
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -9,27 +10,24 @@ const Login = () => {
   const [error, setError] = useState('');
   
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Login form submitted with:', { email, password: '***' });
     
     setLoading(true);
     setError('');
 
     try {
-      console.log('Attempting login...');
       const result = await login(email, password);
-      console.log('Login result:', result);
       
       if (!result.success) {
-        console.error('Login failed:', result.error);
         setError(result.error);
       } else {
-        console.log('Login successful, should redirect now...');
+        // Login successful, navigate to dashboard
+        navigate('/dashboard');
       }
     } catch (err) {
-      console.error('Login error caught:', err);
       setError(err.message || 'Login failed');
     }
     
@@ -41,10 +39,10 @@ const Login = () => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Admin Panel
+            Superadmin Panel
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to your admin account
+            Sign in to your superadmin account
           </p>
         </div>
         
@@ -60,7 +58,7 @@ const Login = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-              placeholder="admin@tailorsmart.com"
+              placeholder="superadmin@tailorsmart.com"
             />
           </div>
           
@@ -97,16 +95,8 @@ const Login = () => {
         <div className="text-center">
           <div className="text-sm text-gray-600">
             <strong>Demo credentials:</strong><br />
-            Superadmin: superadmin@tailorsmart.com / admin123<br />
-            Admin: admin@tailorsmart.com / admin123
+            superadmin@tailorsmart.com / admin123
           </div>
-        </div>
-
-        {/* Debug info - remove in production */}
-        <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
-          <strong>Debug Info:</strong><br />
-          API URL: {process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}<br />
-          Current URL: {window.location.href}
         </div>
       </div>
     </div>

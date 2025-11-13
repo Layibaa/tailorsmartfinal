@@ -11,38 +11,44 @@ export const AuthProvider = ({ children }) => {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [verificationUserId, setVerificationUserId] = useState(null);
 
-  const loginUser = async (email, password) => {
-    setIsLoading(true);
-    try {
-      const response = await login(email, password);
-      
-      // Check if verification is required
-      if (response.requiresVerification) {
-        setNeedsVerification(true);
-        setVerificationUserId(response.userId);
-        setIsLoading(false);
-        return { success: false, requiresVerification: true, userId: response.userId };
-      }
-      
-      // If login successful, save token and user data
-      setUser(response.user);
-      setUserToken(response.token);
-      
-      await AsyncStorage.setItem('userToken', response.token);
-      await AsyncStorage.setItem('user', JSON.stringify(response.user));
-      
+ const loginUser = async (email, password) => {
+  setIsLoading(true);
+  try {
+    const response = await login(email, password);
+    
+    // Check if verification is required
+    if (response.requiresVerification) {
+      setNeedsVerification(true);
+      setVerificationUserId(response.userId);
       setIsLoading(false);
-      return { success: true };
-    } catch (error) {
-      console.error('Login error in AuthContext:', error);
-      setIsLoading(false);
-      return { 
-        success: false, 
-        error: error.response?.data?.msg || error.message || 'Something went wrong' 
-      };
+      return { success: false, requiresVerification: true, userId: response.userId };
     }
-  };
-
+    
+    // If login successful, save token and user data
+    setUser(response.user);
+    setUserToken(response.token);
+    
+    await AsyncStorage.setItem('userToken', response.token);
+    await AsyncStorage.setItem('user', JSON.stringify(response.user));
+    
+    setIsLoading(false);
+    return { success: true };
+  } catch (error) {
+    console.error('Login error in AuthContext:', error);
+    setIsLoading(false);
+    
+    // Handle error message - check both error.message (from thrown Error) 
+    // and error.response.data.msg (from axios)
+    const errorMessage = error.message || 
+                        error.response?.data?.msg || 
+                        'Something went wrong';
+    
+    return { 
+      success: false, 
+      error: errorMessage
+    };
+  }
+};
   const registerUser = async (userData) => {
     setIsLoading(true);
     try {
