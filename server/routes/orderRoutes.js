@@ -1,4 +1,4 @@
-// server/routes/orderRoutes.js - Price negotiation only
+// server/routes/orderRoutes.js - REMOVED PRICE NEGOTIATION ROUTES
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
@@ -8,27 +8,37 @@ const {
   updateOrderStatus,
   confirmOrder,
   deleteOrder, 
-  getOrderDetails,
-  requestPriceNegotiation,
-  updateOrderPrice
+  getOrderDetails
 } = require('../controllers/orderController');
 
-// Debug middleware
+// Debug middleware - logs all requests
 router.use((req, res, next) => {
-  console.log(`🛣️ Order Route: ${req.method} ${req.path}`);
-  console.log(`📦 Body:`, req.body);
+  console.log('\n🛣️ ================================');
+  console.log('🛣️ ORDER ROUTE HIT');
+  console.log('🛣️ Method:', req.method);
+  console.log('🛣️ Path:', req.path);
+  console.log('🛣️ Full URL:', req.originalUrl);
+  console.log('🛣️ Body:', JSON.stringify(req.body, null, 2));
+  console.log('🛣️ Params:', req.params);
+  console.log('🛣️ ================================\n');
   next();
 });
 
-// Basic order routes
+// Order status and confirmation routes
+router.patch('/:id/status', auth, updateOrderStatus);
+router.patch('/:id/confirm', auth, confirmOrder);
+
+// Basic CRUD routes
 router.post('/', auth, createOrder);
 router.get('/:id', auth, getOrderDetails);
-router.patch('/:id/status', auth, updateOrderStatus);
-router.patch('/:id/confirm', auth, confirmOrder); 
 router.delete('/:id', auth, deleteOrder);
 
-// Price negotiation routes
-router.post('/:id/negotiate-price', auth, requestPriceNegotiation);
-router.patch('/:id/update-price', auth, updateOrderPrice);
+// Log all registered routes
+console.log('✅ Order Routes Registered:');
+console.log('   POST   /orders');
+console.log('   GET    /orders/:id');
+console.log('   PATCH  /orders/:id/status');
+console.log('   PATCH  /orders/:id/confirm');
+console.log('   DELETE /orders/:id');
 
 module.exports = router;

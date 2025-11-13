@@ -1,4 +1,4 @@
-// server/models/Order.js - COMPLETE FIXED VERSION
+// server/models/Order.js - REMOVED PRICE NEGOTIATION
 const mongoose = require('mongoose');
 
 // CREATE EXPLICIT MEASUREMENT SCHEMA
@@ -66,7 +66,7 @@ const MeasurementSchema = new mongoose.Schema({
     min: [40, 'Thigh must be at least 40cm'],
     max: [100, 'Thigh cannot exceed 100cm']
   }
-}, { _id: false }); // _id: false prevents MongoDB from creating _id for subdocument
+}, { _id: false });
 
 // CREATE EXPLICIT DUPATTA SCHEMA
 const DupattaDetailsSchema = new mongoose.Schema({
@@ -88,7 +88,7 @@ const DupattaDetailsSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
-// MAIN ORDER SCHEMA - USE THE EXPLICIT SCHEMAS
+// MAIN ORDER SCHEMA - REMOVED PRICE NEGOTIATION FIELDS
 const OrderSchema = new mongoose.Schema(
   {
     estimatedDeliveryDays: {
@@ -141,13 +141,11 @@ const OrderSchema = new mongoose.Schema(
       required: true
     },
     
-    // ✅ USE EXPLICIT SCHEMA FOR MEASUREMENTS
     measurements: {
       type: MeasurementSchema,
       required: [true, 'Measurements are required']
     },
     
-    // ✅ USE EXPLICIT SCHEMA FOR DUPATTA (optional - only for 3-piece)
     dupattaDetails: {
       type: DupattaDetailsSchema,
       default: null
@@ -170,34 +168,6 @@ const OrderSchema = new mongoose.Schema(
       min: 0,
       default: 0
     },
-    
-    // Price negotiation fields
-    priceNegotiationRequested: {
-      type: Boolean,
-      default: false
-    },
-    priceChangedByTailor: {
-      type: Boolean,
-      default: false
-    },
-    originalPrice: {
-      type: Number,
-      min: 0,
-      default: null
-    },
-    priceHistory: [{
-      price: Number,
-      changedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      },
-      changedAt: {
-        type: Date,
-        default: Date.now
-      },
-      reason: String
-    }],
-    
     notes: {
       type: String,
       maxlength: 500
@@ -241,7 +211,7 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ ENHANCED Pre-save middleware with logging
+// Pre-save middleware
 OrderSchema.pre('save', function(next) {
   console.log('💾 PRE-SAVE HOOK - Order data:', {
     id: this._id,
@@ -268,7 +238,7 @@ OrderSchema.pre('save', function(next) {
   next();
 });
 
-// Existing methods...
+// Method to calculate delivery accuracy
 OrderSchema.methods.getDeliveryAccuracy = function() {
   if (!this.actualCompletionDate || !this.expectedCompletionDate) {
     return null;
@@ -286,39 +256,10 @@ OrderSchema.methods.getDeliveryAccuracy = function() {
   };
 };
 
-OrderSchema.methods.requestPriceNegotiation = function() {
-  this.priceNegotiationRequested = true;
-  return this.save();
-};
-
-OrderSchema.methods.updatePrice = function(newPrice, tailorId) {
-  if (this.priceChangedByTailor) {
-    throw new Error('Price has already been changed once and cannot be modified again');
-  }
-  
-  if (!this.originalPrice) {
-    this.originalPrice = this.price;
-  }
-  
-  this.priceHistory.push({
-    price: this.price,
-    changedBy: tailorId,
-    changedAt: new Date(),
-    reason: 'Price negotiation'
-  });
-  
-  this.price = newPrice;
-  this.priceChangedByTailor = true;
-  this.priceNegotiationRequested = false;
-  
-  return this.save();
-};
-
 // Indexes
 OrderSchema.index({ customer: 1, createdAt: -1 });
 OrderSchema.index({ tailor: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ isLocked: 1 });
-OrderSchema.index({ priceNegotiationRequested: 1 });
 
 module.exports = mongoose.model('Order', OrderSchema);

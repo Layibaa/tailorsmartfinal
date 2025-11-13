@@ -1,4 +1,4 @@
-// tailor-smart-mob-app/src/screens/customer/WriteOrderReviewScreen.js - NEW FILE
+// tailor-smart-mob-app/src/screens/customer/WriteOrderReviewScreen.js - FIXED
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,7 +9,8 @@ import {
   TextInput,
   Image,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,6 +29,7 @@ const WriteOrderReviewScreen = ({ route, navigation }) => {
   const [isEligible, setIsEligible] = useState(false);
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [orderInfo, setOrderInfo] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // ADDED THIS LINE
 
   useEffect(() => {
     checkEligibility();
@@ -131,24 +133,16 @@ const WriteOrderReviewScreen = ({ route, navigation }) => {
       
       console.log('Review submitted successfully:', response);
 
+      // Call the callback first
       if (onReviewSubmitted) {
         onReviewSubmitted();
       }
 
-      Alert.alert(
-        'Success',
-        'Your review has been submitted successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('Navigating back after review submission');
-              navigation.goBack();
-            }
-          }
-        ],
-        { cancelable: false }
-      );
+      // Reset submitting state
+      setIsSubmitting(false);
+
+      // Show success modal
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error submitting review:', error);
       console.error('Error details:', {
@@ -156,6 +150,8 @@ const WriteOrderReviewScreen = ({ route, navigation }) => {
         response: error.response?.data,
         status: error.response?.status
       });
+      
+      setIsSubmitting(false);
       
       let errorMessage = 'Failed to submit review. Please try again.';
       
@@ -172,11 +168,14 @@ const WriteOrderReviewScreen = ({ route, navigation }) => {
       }
       
       Alert.alert('Error', errorMessage);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    navigation.goBack();
+  };
+  
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -323,6 +322,31 @@ const WriteOrderReviewScreen = ({ route, navigation }) => {
           />
         </View>
       </ScrollView>
+
+      {/* Success Modal - ADDED THIS ENTIRE SECTION */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleSuccessModalClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.successIconContainer}>
+              <Feather name="check-circle" size={64} color="#4CAF50" />
+            </View>
+            <Text style={styles.modalTitle}>Review Posted!</Text>
+            <Text style={styles.modalMessage}>
+              Thank you for sharing your experience. Your review has been successfully posted.
+            </Text>
+            <Button
+              title="Done"
+              onPress={handleSuccessModalClose}
+              buttonStyle={styles.modalButton}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -516,6 +540,51 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.5
+  },
+  // SUCCESS MODAL STYLES - ADDED ALL OF THESE
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5
+  },
+  successIconContainer: {
+    marginBottom: 20
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.black,
+    marginBottom: 12,
+    textAlign: 'center'
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: colors.gray,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24
+  },
+  modalButton: {
+    width: '100%',
+    paddingVertical: 14
   }
 });
 

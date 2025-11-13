@@ -437,7 +437,6 @@ export const updateOrderStatus = async (orderId, statusData) => {
     console.log('\n📡 ================================');
     console.log('📡 API: updateOrderStatus called');
     console.log('📡 Order ID:', orderId);
-    console.log('📡 Order ID Type:', typeof orderId);
     console.log('📡 Status Data:', JSON.stringify(statusData, null, 2));
     console.log('📡 ================================\n');
     
@@ -447,15 +446,15 @@ export const updateOrderStatus = async (orderId, statusData) => {
     }
     
     if (!statusData || !statusData.status) {
-      throw new Error('Status data is required');
+      throw new Error('Status data with status field is required');
     }
     
-    // Construct the URL
+    // Construct the URL - MAKE SURE IT MATCHES YOUR ROUTE
     const url = `/orders/${orderId}/status`;
     console.log('📍 Request URL:', url);
     console.log('📦 Request Body:', JSON.stringify(statusData, null, 2));
     
-    // Make the request
+    // Make the PATCH request
     console.log('⏳ Sending PATCH request...');
     const response = await api.patch(url, statusData);
     
@@ -476,11 +475,9 @@ export const updateOrderStatus = async (orderId, statusData) => {
     
     if (error.response) {
       console.error('❌ Response Status:', error.response.status);
-      console.error('❌ Response Headers:', JSON.stringify(error.response.headers, null, 2));
       console.error('❌ Response Data:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
-      console.error('❌ No response received');
-      console.error('❌ Request:', error.request);
+      console.error('❌ No response received from server');
     } else {
       console.error('❌ Error setting up request:', error.message);
     }
@@ -735,38 +732,8 @@ export const markMessageAsRead = async (messageId) => {
     throw error;
   }
 };
-export const requestPriceNegotiation = async (orderId) => {
-  try {
-    console.log('💬 Requesting price negotiation for order:', orderId);
-    const response = await api.post(`/orders/${orderId}/negotiate-price`);
-    console.log('✅ Price negotiation requested successfully');
-    return response.data;
-  } catch (error) {
-    console.error('❌ Request price negotiation error:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-// Tailor updates price (one-time only)
-export const updateOrderPrice = async (orderId, newPrice) => {
-  try {
-    console.log('💰 Updating order price:', { orderId, newPrice });
-    
-    if (!newPrice || newPrice <= 0) {
-      throw new Error('Valid price is required');
-    }
-    
-    const response = await api.patch(`/orders/${orderId}/update-price`, {
-      price: parseFloat(newPrice)
-    });
-    
-    console.log('✅ Price updated successfully');
-    return response.data;
-  } catch (error) {
-    console.error('❌ Update price error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+ 
+ 
 
 // Create review for a completed order
 export const createOrderReview = async (orderId, reviewData) => {

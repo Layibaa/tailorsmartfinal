@@ -1,4 +1,4 @@
-// OrderDetailsScreen.js - FIXED (No View text errors)
+// OrderDetailsScreen.js - WEB COMPATIBLE VERSION
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
@@ -10,7 +10,8 @@ import {
   Modal,
   Image,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -19,9 +20,7 @@ import {
   getCustomerOrderDetails, 
   getTailorOrderDetails,
   updateOrderStatus,
-  confirmOrder,
-  requestPriceNegotiation,
-  updateOrderPrice
+  confirmOrder
 } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { NotificationContext } from '../../context/NotificationContext';
@@ -47,10 +46,10 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPriceModalVisible, setIsPriceModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
-  const [isPriceEditModalVisible, setIsPriceEditModalVisible] = useState(false);
-  const [newPrice, setNewPrice] = useState('');
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState(null);
 
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
@@ -69,8 +68,8 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         response = await getTailorOrderDetails(orderId);
       }
       
+      console.log('📦 Order loaded:', response.order);
       setOrder(response.order);
-      setNewPrice(response.order.price?.toString() || '');
       
       if (actionRequired) {
         if (user.role === 'tailor' && response.order.status === 'pending') {
@@ -85,93 +84,14 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error('❌ Load order error:', error);
-      Alert.alert('Error', 'Failed to load order details');
+      if (Platform.OS === 'web') {
+        alert('Failed to load order details');
+      } else {
+        Alert.alert('Error', 'Failed to load order details');
+      }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleNegotiatePrice = async () => {
-    try {
-      setIsUpdating(true);
-      setIsStatusModalVisible(false);
-      
-      await requestPriceNegotiation(orderId);
-      
-      Alert.alert(
-        'Negotiation Requested',
-        'Your price negotiation request has been sent to the tailor. You\'ll be redirected to chat to discuss the price.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('Chat', {
-                userId: order.tailor._id,
-                name: order.tailor.name,
-                orderId: order._id
-              });
-            }
-          }
-        ]
-      );
-      
-      loadOrderDetails();
-    } catch (error) {
-      console.error('❌ Negotiate price error:', error);
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to request price negotiation');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleUpdatePrice = async () => {
-    const priceValue = parseFloat(newPrice);
-    
-    if (isNaN(priceValue) || priceValue <= 0) {
-      Alert.alert('Invalid Price', 'Please enter a valid price');
-      return;
-    }
-
-    if (priceValue === order.price) {
-      Alert.alert('Same Price', 'Please enter a different price');
-      return;
-    }
-
-    Alert.alert(
-      'Update Price',
-      `Change price from PKR ${order.price} to PKR ${priceValue}?\n\n⚠️ This can only be done once.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Update',
-          onPress: async () => {
-            try {
-              setIsUpdating(true);
-              await updateOrderPrice(orderId, priceValue);
-              
-              Alert.alert(
-                'Price Updated!',
-                'The customer has been notified about the new price.',
-                [{ text: 'OK', onPress: () => {
-                  setIsPriceEditModalVisible(false);
-                  loadOrderDetails();
-                }}]
-              );
-            } catch (error) {
-              console.error('❌ Update price error:', error);
-              
-              if (error.response?.data?.alreadyChanged) {
-                Alert.alert('Cannot Update', 'Price has already been changed and cannot be modified again');
-              } else {
-                Alert.alert('Error', error.response?.data?.msg || 'Failed to update price');
-              }
-            } finally {
-              setIsUpdating(false);
-            }
-          }
-        }
-      ]
-    );
   };
 
   const handleAcceptOrder = async (values) => {
@@ -191,50 +111,83 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         );
       }
       
-      Alert.alert('Success', 'Order accepted. Customer can now review and confirm.');
+      if (Platform.OS === 'web') {
+        alert('Order accepted. Customer can now review and confirm.');
+      } else {
+        Alert.alert('Success', 'Order accepted. Customer can now review and confirm.');
+      }
       setIsPriceModalVisible(false);
       loadOrderDetails();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to accept order');
+      if (Platform.OS === 'web') {
+        alert(error.response?.data?.msg || 'Failed to accept order');
+      } else {
+        Alert.alert('Error', error.response?.data?.msg || 'Failed to accept order');
+      }
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleRejectOrder = async () => {
-    Alert.alert(
-      'Reject Order',
-      'Are you sure you want to reject this order?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsUpdating(true);
-              await updateOrderStatus(orderId, { status: 'rejected' });
-              
-              if (order.customer) {
-                sendOrderNotification(
-                  order.customer._id,
-                  orderId,
-                  'rejected',
-                  'Your order has been rejected by the tailor'
-                );
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to reject this order?')) {
+        try {
+          setIsUpdating(true);
+          await updateOrderStatus(orderId, { status: 'rejected' });
+          
+          if (order.customer) {
+            sendOrderNotification(
+              order.customer._id,
+              orderId,
+              'rejected',
+              'Your order has been rejected by the tailor'
+            );
+          }
+          
+          alert('The order has been rejected.');
+          navigation.goBack();
+        } catch (error) {
+          alert('Failed to reject order');
+        } finally {
+          setIsUpdating(false);
+        }
+      }
+    } else {
+      Alert.alert(
+        'Reject Order',
+        'Are you sure you want to reject this order?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Reject',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setIsUpdating(true);
+                await updateOrderStatus(orderId, { status: 'rejected' });
+                
+                if (order.customer) {
+                  sendOrderNotification(
+                    order.customer._id,
+                    orderId,
+                    'rejected',
+                    'Your order has been rejected by the tailor'
+                  );
+                }
+                
+                Alert.alert('Order Rejected', 'The order has been rejected.');
+                navigation.goBack();
+              } catch (error) {
+                Alert.alert('Error', 'Failed to reject order');
+              } finally {
+                setIsUpdating(false);
               }
-              
-              Alert.alert('Order Rejected', 'The order has been rejected.');
-              navigation.goBack();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to reject order');
-            } finally {
-              setIsUpdating(false);
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleConfirmOrder = async () => {
@@ -251,22 +204,32 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         );
       }
       
-      Alert.alert('Order Confirmed! ✓', 'The tailor will begin production.');
+      if (Platform.OS === 'web') {
+        alert('Order Confirmed! ✓ The tailor will begin production.');
+      } else {
+        Alert.alert('Order Confirmed! ✓', 'The tailor will begin production.');
+      }
       setIsStatusModalVisible(false);
       loadOrderDetails();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.msg || 'Failed to confirm order');
+      if (Platform.OS === 'web') {
+        alert(error.response?.data?.msg || 'Failed to confirm order');
+      } else {
+        Alert.alert('Error', error.response?.data?.msg || 'Failed to confirm order');
+      }
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleUpdateStatus = async (newStatus) => {
-    const confirmMessages = {
-      making: 'Start production on this order?',
-      payment_done: 'Confirm that payment has been received?',
-      completed: 'Mark this order as completed and ready for pickup?'
-    };
+    console.log('🔄 Setting up status update for:', newStatus);
+    setPendingStatusUpdate(newStatus);
+    setIsStatusUpdateModalVisible(true);
+  };
+
+  const confirmStatusUpdate = async () => {
+    if (!pendingStatusUpdate) return;
 
     const successMessages = {
       making: 'Production started!',
@@ -280,54 +243,55 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       completed: 'Your order is completed and ready for pickup!'
     };
 
-    Alert.alert(
-      'Update Status',
-      confirmMessages[newStatus] || `Update status to ${newStatus}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: async () => {
-            try {
-              setIsUpdating(true);
-              
-              console.log('🔄 Updating order status:', { orderId, newStatus });
-              
-              await updateOrderStatus(orderId, { status: newStatus });
-              
-              console.log('✅ Status updated successfully');
-              
-              if (order.customer) {
-                sendOrderNotification(
-                  order.customer._id,
-                  orderId,
-                  newStatus,
-                  notificationMessages[newStatus]
-                );
-              }
-              
-              Alert.alert('Success', successMessages[newStatus], [
-                {
-                  text: 'OK',
-                  onPress: () => loadOrderDetails()
-                }
-              ]);
-              
-            } catch (error) {
-              console.error('❌ Update status error:', error);
-              console.error('Error response:', error.response?.data);
-              
-              Alert.alert(
-                'Error', 
-                error.response?.data?.msg || error.message || 'Failed to update status'
-              );
-            } finally {
-              setIsUpdating(false);
-            }
-          }
-        }
-      ]
-    );
+    try {
+      setIsUpdating(true);
+      
+      console.log('🔄 Updating order status to:', pendingStatusUpdate);
+      
+      const response = await updateOrderStatus(orderId, { 
+        status: pendingStatusUpdate 
+      });
+      
+      console.log('✅ Status updated successfully:', response);
+      
+      if (order.customer) {
+        sendOrderNotification(
+          order.customer._id,
+          orderId,
+          pendingStatusUpdate,
+          notificationMessages[pendingStatusUpdate]
+        );
+      }
+      
+      // Close modal and show success
+      setIsStatusUpdateModalVisible(false);
+      setPendingStatusUpdate(null);
+      
+      // Reload order details
+      await loadOrderDetails();
+      
+      // Show success message
+      if (Platform.OS === 'web') {
+        alert(successMessages[pendingStatusUpdate]);
+      } else {
+        Alert.alert('Success', successMessages[pendingStatusUpdate]);
+      }
+      
+    } catch (error) {
+      console.error('❌ Update status error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      setIsStatusUpdateModalVisible(false);
+      setPendingStatusUpdate(null);
+      
+      if (Platform.OS === 'web') {
+        alert(error.response?.data?.msg || error.message || 'Failed to update status');
+      } else {
+        Alert.alert('Error', error.response?.data?.msg || error.message || 'Failed to update status');
+      }
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const getStatusLabel = (status) => {
@@ -346,56 +310,91 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const renderTailorActionButton = () => {
     if (!order || user.role !== 'tailor') return null;
 
-    console.log('🎯 Current order status:', order.status);
+    console.log('🎯 Rendering action button for status:', order.status);
 
     switch (order.status) {
       case 'pending':
         return (
           <View style={styles.buttonRow}>
-            <Button
-              title="Accept Order"
-              onPress={() => setIsPriceModalVisible(true)}
-              buttonStyle={styles.actionButton}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.acceptButton]}
+              onPress={() => {
+                console.log('Accept Order pressed');
+                setIsPriceModalVisible(true);
+              }}
               disabled={isUpdating}
-            />
-            <Button
-              title="Reject"
-              onPress={handleRejectOrder}
-              danger
-              buttonStyle={styles.actionButton}
+            >
+              {isUpdating ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.actionButtonText}>Accept Order</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.rejectButton]}
+              onPress={() => {
+                console.log('Reject pressed');
+                handleRejectOrder();
+              }}
               disabled={isUpdating}
-            />
+            >
+              <Text style={styles.actionButtonText}>Reject</Text>
+            </TouchableOpacity>
           </View>
         );
 
       case 'confirmed':
         return (
-          <Button
-            title="Start Production"
-            onPress={() => handleUpdateStatus('making')}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              console.log('🚀 Start Production button pressed');
+              handleUpdateStatus('making');
+            }}
             disabled={isUpdating}
-            loading={isUpdating}
-          />
+          >
+            {isUpdating ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Start Production</Text>
+            )}
+          </TouchableOpacity>
         );
 
       case 'making':
         return (
-          <Button
-            title="Mark Payment Done"
-            onPress={() => handleUpdateStatus('payment_done')}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              console.log('💰 Mark Payment Done button pressed');
+              handleUpdateStatus('payment_done');
+            }}
             disabled={isUpdating}
-            loading={isUpdating}
-          />
+          >
+            {isUpdating ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Mark Payment Done</Text>
+            )}
+          </TouchableOpacity>
         );
 
       case 'payment_done':
         return (
-          <Button
-            title="Mark as Completed"
-            onPress={() => handleUpdateStatus('completed')}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              console.log('✔️ Mark as Completed button pressed');
+              handleUpdateStatus('completed');
+            }}
             disabled={isUpdating}
-            loading={isUpdating}
-          />
+          >
+            {isUpdating ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Mark as Completed</Text>
+            )}
+          </TouchableOpacity>
         );
 
       case 'accepted':
@@ -452,25 +451,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* Price Negotiation Banners */}
-      {order.priceNegotiationRequested && !order.priceChangedByTailor && (
-        <View style={styles.negotiationBanner}>
-          <Feather name="message-circle" size={20} color={colors.warning} />
-          <Text style={styles.negotiationText}>
-            Price negotiation in progress. {user.role === 'tailor' ? 'Update the price when ready.' : 'Waiting for tailor response.'}
-          </Text>
-        </View>
-      )}
-
-      {order.priceChangedByTailor && (
-        <View style={styles.priceChangedBanner}>
-          <Feather name="check-circle" size={20} color={colors.success} />
-          <Text style={styles.priceChangedText}>
-            Price updated from PKR {order.originalPrice} to PKR {order.price}
-          </Text>
-        </View>
-      )}
-
       {/* Order Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Information</Text>
@@ -478,14 +458,7 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         {order.price > 0 && (
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Price:</Text>
-            <View style={styles.priceContainer}>
-              <Text style={[styles.infoValue, styles.priceText]}>PKR {order.price}</Text>
-              {order.priceChangedByTailor && order.originalPrice && (
-                <Text style={styles.originalPrice}>
-                  (was PKR {order.originalPrice})
-                </Text>
-              )}
-            </View>
+            <Text style={[styles.infoValue, styles.priceText]}>PKR {order.price}</Text>
           </View>
         )}
         
@@ -503,19 +476,6 @@ const OrderDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.infoLabel}>Kameez Style:</Text>
           <Text style={styles.infoValue}>{order.kameezStyle}</Text>
         </View>
-
-        {user.role === 'tailor' && 
-         order.status === 'accepted' && 
-         order.priceNegotiationRequested && 
-         !order.priceChangedByTailor && (
-          <TouchableOpacity 
-            style={styles.editPriceButton}
-            onPress={() => setIsPriceEditModalVisible(true)}
-          >
-            <Feather name="edit-2" size={16} color={colors.white} />
-            <Text style={styles.editPriceButtonText}>Update Price (One-Time)</Text>
-          </TouchableOpacity>
-        )}
         
         {user.role === 'customer' && order.tailor && (
           <View style={styles.infoRow}>
@@ -644,24 +604,35 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         {renderTailorActionButton()}
         
         {user.role === 'customer' && order.status === 'accepted' && (
-          <Button
-            title="Confirm Order"
-            onPress={() => setIsStatusModalVisible(true)}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              console.log('Confirm Order pressed');
+              setIsStatusModalVisible(true);
+            }}
             disabled={isUpdating}
-          />
+          >
+            {isUpdating ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Confirm Order</Text>
+            )}
+          </TouchableOpacity>
         )}
 
-        <Button
-          title={`Message ${user.role === 'customer' ? 'Tailor' : 'Customer'}`}
+        <TouchableOpacity
+          style={styles.outlineButton}
           onPress={() => navigation.navigate('Chat', {
             userId: user.role === 'customer' ? order.tailor._id : order.customer._id,
             name: user.role === 'customer' ? order.tailor.name : order.customer.name,
             orderId: order._id
           })}
-          outline
-          buttonStyle={{ marginTop: 12 }}
           disabled={isUpdating}
-        />
+        >
+          <Text style={styles.outlineButtonText}>
+            Message {user.role === 'customer' ? 'Tailor' : 'Customer'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Modals */}
@@ -688,19 +659,24 @@ const OrderDetailsScreen = ({ route, navigation }) => {
                     placeholder="e.g., 2500"
                     iconName="dollar-sign"
                   />
-                  <Button 
-                    title="Accept Order" 
+                  <TouchableOpacity 
+                    style={styles.primaryButton}
                     onPress={handleSubmit}
-                    loading={isUpdating}
                     disabled={isUpdating}
-                  />
-                  <Button 
-                    title="Cancel" 
-                    onPress={() => setIsPriceModalVisible(false)} 
-                    outline 
-                    buttonStyle={{ marginTop: 12 }}
+                  >
+                    {isUpdating ? (
+                      <ActivityIndicator color={colors.white} />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Accept Order</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.outlineButton, { marginTop: 12 }]}
+                    onPress={() => setIsPriceModalVisible(false)}
                     disabled={isUpdating}
-                  />
+                  >
+                    <Text style={styles.outlineButtonText}>Cancel</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </Formik>
@@ -714,95 +690,65 @@ const OrderDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.modalTitle}>Confirm Order</Text>
             <Text style={styles.modalPrice}>PKR {order?.price}</Text>
             
-            {order?.priceChangedByTailor && order?.originalPrice && (
-              <View style={styles.priceComparisonContainer}>
-                <Text style={styles.priceComparisonText}>
-                  Original: PKR {order.originalPrice}
-                </Text>
-                <Feather name="arrow-right" size={16} color={colors.gray} />
-                <Text style={styles.priceComparisonText}>
-                  Updated: PKR {order.price}
-                </Text>
-              </View>
-            )}
-
             <Text style={styles.modalDescription}>
-              Review the price and confirm to proceed with the order.
+              By confirming, you accept the price and the tailor will begin production.
             </Text>
 
-            <Button 
-              title="Confirm Order" 
+            <TouchableOpacity 
+              style={styles.primaryButton}
               onPress={handleConfirmOrder}
-              loading={isUpdating}
               disabled={isUpdating}
-            />
+            >
+              {isUpdating ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Confirm Order</Text>
+              )}
+            </TouchableOpacity>
 
-            {!order?.priceChangedByTailor && (
-              <Button 
-                title="Negotiate Price" 
-                onPress={handleNegotiatePrice}
-                outline
-                buttonStyle={{ 
-                  marginTop: 12, 
-                  backgroundColor: colors.warning,
-                  borderColor: colors.warning 
-                }}
-                textStyle={{ color: colors.white }}
-                disabled={isUpdating}
-              />
-            )}
-
-            <Button 
-              title="Cancel" 
-              onPress={() => setIsStatusModalVisible(false)} 
-              outline 
-              buttonStyle={{ marginTop: 12 }}
+            <TouchableOpacity 
+              style={[styles.outlineButton, { marginTop: 12 }]}
+              onPress={() => setIsStatusModalVisible(false)}
               disabled={isUpdating}
-            />
+            >
+              <Text style={styles.outlineButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={isPriceEditModalVisible} transparent animationType="slide">
+      <Modal visible={isStatusUpdateModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Update Price</Text>
-            
-            <View style={styles.priceInfoContainer}>
-              <Text style={styles.priceInfoLabel}>Current Price:</Text>
-              <Text style={styles.priceInfoValue}>PKR {order?.price}</Text>
-            </View>
-
-            <Text style={styles.warningText}>
-              You can only change the price once. Make sure it is correct!
+            <Text style={styles.modalTitle}>Update Order Status</Text>
+            <Text style={styles.modalDescription}>
+              {pendingStatusUpdate === 'making' && 'Start production on this order?'}
+              {pendingStatusUpdate === 'payment_done' && 'Confirm that payment has been received?'}
+              {pendingStatusUpdate === 'completed' && 'Mark this order as completed and ready for pickup?'}
             </Text>
 
-            <Input
-              label="New Price (PKR)"
-              value={newPrice}
-              onChangeText={setNewPrice}
-              keyboardType="numeric"
-              placeholder="Enter new price"
-              iconName="dollar-sign"
-            />
-
-            <Button 
-              title="Update Price" 
-              onPress={handleUpdatePrice}
-              loading={isUpdating}
+            <TouchableOpacity 
+              style={styles.primaryButton}
+              onPress={confirmStatusUpdate}
               disabled={isUpdating}
-            />
+            >
+              {isUpdating ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Confirm</Text>
+              )}
+            </TouchableOpacity>
 
-            <Button 
-              title="Cancel" 
+            <TouchableOpacity 
+              style={[styles.outlineButton, { marginTop: 12 }]}
               onPress={() => {
-                setNewPrice(order?.price?.toString() || '');
-                setIsPriceEditModalVisible(false);
-              }} 
-              outline 
-              buttonStyle={{ marginTop: 12 }}
+                setIsStatusUpdateModalVisible(false);
+                setPendingStatusUpdate(null);
+              }}
               disabled={isUpdating}
-            />
+            >
+              <Text style={styles.outlineButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -867,39 +813,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textTransform: 'capitalize'
   },
-  negotiationBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '20',
-    padding: 12,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 8,
-    gap: 8
-  },
-  negotiationText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.darkGray,
-    lineHeight: 18
-  },
-  priceChangedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.success + '20',
-    padding: 12,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 8,
-    gap: 8
-  },
-  priceChangedText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.success,
-    fontWeight: '500',
-    lineHeight: 18
-  }, 
   section: {
     padding: 16,
     borderBottomWidth: 1,
@@ -926,34 +839,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textTransform: 'capitalize'
   },
-  priceContainer: {
-    alignItems: 'flex-end'
-  },
   priceText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.success
-  },
-  originalPrice: {
-    fontSize: 12,
-    color: colors.gray,
-    textDecorationLine: 'line-through',
-    marginTop: 2
-  },
-  editPriceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.warning,
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
-    gap: 8
-  },
-  editPriceButtonText: {
-    color: colors.white,
-    fontWeight: '600',
-    fontSize: 14
   },
   notesText: {
     fontSize: 14,
@@ -1046,7 +935,52 @@ const styles = StyleSheet.create({
     paddingBottom: 32
   },
   actionButton: {
-    flex: 1
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48
+  },
+  acceptButton: {
+    backgroundColor: colors.primary
+  },
+  rejectButton: {
+    backgroundColor: colors.error
+  },
+  actionButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    marginBottom: 12
+  },
+  primaryButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48
+  },
+  outlineButtonText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600'
   },
   waitingContainer: {
     flexDirection: 'row',
@@ -1112,17 +1046,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 12
   },
-  priceComparisonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 12
-  },
-  priceComparisonText: {
-    fontSize: 12,
-    color: colors.gray
-  },
   modalDescription: {
     fontSize: 14,
     color: colors.darkGray,
@@ -1131,33 +1054,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightGray,
     padding: 12,
     borderRadius: 8,
-    textAlign: 'center'
-  },
-  priceInfoContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.lightGray,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12
-  },
-  priceInfoLabel: {
-    fontSize: 14,
-    color: colors.gray
-  },
-  priceInfoValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.black
-  },
-  warningText: {
-    fontSize: 13,
-    color: colors.warning,
-    backgroundColor: colors.warning + '20',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 16,
     textAlign: 'center'
   },
   imageModalOverlay: {

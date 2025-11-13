@@ -1,4 +1,4 @@
-// server/controllers/orderController.js - COMPLETELY FIXED VERSION 2
+// server/controllers/orderController.js - REMOVED PRICE NEGOTIATION
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Message = require('../models/Message');
@@ -252,7 +252,7 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
-// ✅ SIMPLIFIED & FIXED UPDATE ORDER STATUS
+// UPDATE ORDER STATUS
 const updateOrderStatus = async (req, res) => {
   try {
     console.log('\n🔵 ========================================');
@@ -269,18 +269,17 @@ const updateOrderStatus = async (req, res) => {
     console.log('📦 Order ID:', orderId);
     console.log('📊 Requested Status:', status);
     console.log('💰 Price:', price);
-    console.log('📋 Full Request Body:', JSON.stringify(req.body, null, 2));
 
-    // Validate status
+    // VALIDATION: Check if status is provided
     if (!status) {
-      console.error('❌ Status is missing from request');
+      console.error('❌ Status is missing from request body');
       return res.status(StatusCodes.BAD_REQUEST).json({ 
-        msg: 'Status is required',
+        msg: 'Status is required in request body',
         received: req.body
       });
     }
 
-    // Validate role
+    // VALIDATION: Only tailors can update status
     if (role !== 'tailor') {
       console.error('❌ User is not a tailor. Role:', role);
       return res.status(StatusCodes.UNAUTHORIZED).json({ 
@@ -289,14 +288,13 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    console.log('🔍 Finding order...');
+    console.log('🔍 Finding order in database...');
     
-    // Find order
+    // FIND ORDER
     const order = await Order.findById(orderId).populate('customer tailor');
     
     if (!order) {
       console.error('❌ Order not found in database');
-      console.error('❌ Searched for ID:', orderId);
       return res.status(StatusCodes.NOT_FOUND).json({ 
         msg: 'Order not found',
         orderId: orderId
@@ -304,36 +302,24 @@ const updateOrderStatus = async (req, res) => {
     }
 
     console.log('✅ Order found!');
-    console.log('📦 Order Details:');
-    console.log('   - ID:', order._id.toString());
-    console.log('   - Current Status:', order.status);
-    console.log('   - Customer:', order.customer._id.toString());
-    console.log('   - Tailor:', order.tailor._id.toString());
+    console.log('📋 Current Order Status:', order.status);
 
-    // Verify ownership
+    // VERIFY OWNERSHIP
     const orderTailorId = order.tailor._id.toString();
     const requestUserId = userId.toString();
     
-    console.log('🔐 Checking ownership...');
-    console.log('   - Order Tailor ID:', orderTailorId);
-    console.log('   - Request User ID:', requestUserId);
-    console.log('   - Match:', orderTailorId === requestUserId);
-    
     if (orderTailorId !== requestUserId) {
       console.error('❌ Unauthorized - User is not the order tailor');
+      console.error('   Order Tailor ID:', orderTailorId);
+      console.error('   Request User ID:', requestUserId);
       return res.status(StatusCodes.FORBIDDEN).json({ 
-        msg: 'Not authorized to update this order',
-        orderTailor: orderTailorId,
-        requestUser: requestUserId
+        msg: 'Not authorized to update this order'
       });
     }
 
     console.log('✅ Ownership verified!');
-    console.log('🔄 Transition Check:');
-    console.log('   - Current Status:', order.status);
-    console.log('   - Target Status:', status);
 
-    // Validate transitions
+    // VALIDATE STATUS TRANSITIONS
     const validTransitions = {
       pending: ['accepted', 'rejected'],
       accepted: ['confirmed', 'rejected'],
@@ -342,11 +328,9 @@ const updateOrderStatus = async (req, res) => {
       payment_done: ['completed']
     };
 
-    const allowed = validTransitions[order.status];
+    const allowedStatuses = validTransitions[order.status];
     
-    console.log('   - Allowed Transitions:', allowed);
-    
-    if (!allowed) {
+    if (!allowedStatuses) {
       console.error('❌ No valid transitions from current status');
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: `Order status ${order.status} cannot be changed`,
@@ -354,33 +338,28 @@ const updateOrderStatus = async (req, res) => {
       });
     }
     
-    if (!allowed.includes(status)) {
-      console.error('❌ Invalid transition requested');
+    if (!allowedStatuses.includes(status)) {
+      console.error('❌ Invalid status transition requested');
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: `Cannot change from ${order.status} to ${status}`,
-        allowedStatuses: allowed,
         currentStatus: order.status,
-        requestedStatus: status
+        requestedStatus: status,
+        allowedStatuses: allowedStatuses
       });
     }
 
-    console.log('✅ Transition is valid!');
+    console.log('✅ Status transition is valid!');
+    console.log(`   From: ${order.status} → To: ${status}`);
 
-    // Handle rejection - SPECIAL CASE
+    // HANDLE REJECTION
     if (status === 'rejected') {
-      console.log('\n🚫 ================================');
-      console.log('🚫 PROCESSING REJECTION');
-      console.log('🚫 ================================');
+      console.log('🚫 Processing rejection...');
       
       order.status = 'rejected';
-      
-      console.log('💾 Saving rejected order...');
       await order.save();
-      console.log('✅ Order saved with rejected status');
 
-      // Send rejection notification to customer
+      // Send notification
       try {
-        console.log('📧 Sending rejection notification...');
         await Message.create({
           sender: userId,
           receiver: order.customer._id,
@@ -392,9 +371,7 @@ const updateOrderStatus = async (req, res) => {
         console.error('⚠️ Notification error:', err.message);
       }
 
-      console.log('\n✅ ================================');
-      console.log('✅ REJECTION COMPLETED SUCCESSFULLY');
-      console.log('✅ ================================\n');
+      console.log('✅ Order rejected successfully');
       
       return res.status(StatusCodes.OK).json({ 
         success: true, 
@@ -403,10 +380,10 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Handle acceptance - requires price
+    // HANDLE ACCEPTANCE - Requires price
     let deliveryEstimate = null;
     if (status === 'accepted') {
-      console.log('\n✅ Processing acceptance...');
+      console.log('✅ Processing acceptance...');
       
       if (!price || price <= 0) {
         console.error('❌ Price is missing or invalid for acceptance');
@@ -419,6 +396,7 @@ const updateOrderStatus = async (req, res) => {
       console.log('💰 Setting price:', price);
       order.price = parseFloat(price);
       
+      // Calculate delivery estimate
       try {
         console.log('📅 Calculating delivery estimate...');
         deliveryEstimate = await calculateDeliveryTime(userId, price);
@@ -431,30 +409,30 @@ const updateOrderStatus = async (req, res) => {
       }
     }
 
-    // Update status
+    // UPDATE STATUS
     console.log(`🔄 Updating status from ${order.status} to ${status}`);
     order.status = status;
     
-    // Save
+    // SAVE ORDER
     console.log('💾 Saving order...');
     await order.save();
     console.log('✅ Order saved successfully');
 
-    // Send notifications
-    const messages = {
+    // SEND NOTIFICATIONS
+    const notificationMessages = {
       accepted: `✅ Order accepted at PKR ${order.price}. Please review and confirm.`,
       making: '⚙️ Your order is now in production',
       payment_done: '💰 Payment confirmed. Order will be completed soon.',
       completed: '🎉 Order completed and ready for pickup!'
     };
 
-    if (messages[status]) {
+    if (notificationMessages[status]) {
       try {
-        console.log('📧 Sending notification to customer...');
+        console.log('📨 Sending notification to customer...');
         await Message.create({
           sender: userId,
           receiver: order.customer._id,
-          content: messages[status],
+          content: notificationMessages[status],
           order: order._id
         });
         console.log('✅ Notification sent');
@@ -463,10 +441,9 @@ const updateOrderStatus = async (req, res) => {
       }
     }
 
-    // Delivery message for acceptance
+    // SEND DELIVERY MESSAGE (for acceptance)
     if (status === 'accepted' && deliveryEstimate) {
       try {
-        console.log('📧 Sending delivery estimate message...');
         const deliveryMsg = formatDeliveryMessage(deliveryEstimate, `${order.suitType} suit`);
         await Message.create({
           sender: userId,
@@ -474,7 +451,7 @@ const updateOrderStatus = async (req, res) => {
           content: deliveryMsg,
           order: order._id
         });
-        console.log('✅ Delivery message sent');
+        console.log('✅ Delivery estimate message sent');
       } catch (err) {
         console.error('⚠️ Delivery message error:', err.message);
       }
@@ -485,10 +462,11 @@ const updateOrderStatus = async (req, res) => {
     console.log('✅ New Status:', order.status);
     console.log('✅ ========================================\n');
     
-    res.status(StatusCodes.OK).json({ 
+    // RETURN RESPONSE
+    return res.status(StatusCodes.OK).json({ 
       success: true, 
       order,
-      message: `Order ${status}`,
+      message: `Order status updated to ${status}`,
       deliveryEstimate: deliveryEstimate ? {
         days: deliveryEstimate.estimatedDays,
         date: deliveryEstimate.completionDate,
@@ -499,15 +477,13 @@ const updateOrderStatus = async (req, res) => {
   } catch (error) {
     console.error('\n❌ ========================================');
     console.error('❌ STATUS UPDATE ERROR');
-    console.error('❌ ========================================');
     console.error('❌ Error Message:', error.message);
-    console.error('❌ Error Stack:', error.stack);
+    console.error('❌ Stack Trace:', error.stack);
     console.error('❌ ========================================\n');
     
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Failed to update order status',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message
     });
   }
 };
@@ -592,125 +568,10 @@ const deleteOrder = async (req, res) => {
   }
 };
 
-// REQUEST PRICE NEGOTIATION
-const requestPriceNegotiation = async (req, res) => {
-  try {
-    const { id: orderId } = req.params;
-    const userId = req.user.userId || req.user.id;
-    const { role } = req.user;
-
-    if (role !== 'customer') {
-      return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Only customers can negotiate' });
-    }
-
-    const order = await Order.findOne({ _id: orderId, customer: userId }).populate('customer tailor');
-
-    if (!order) {
-      return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Order not found' });
-    }
-
-    if (order.status !== 'accepted') {
-      return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Only for accepted orders' });
-    }
-
-    if (order.priceNegotiationRequested) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Already requested' });
-    }
-
-    if (order.priceChangedByTailor) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Price already changed' });
-    }
-
-    await order.requestPriceNegotiation();
-
-    await Message.create({
-      sender: userId,
-      receiver: order.tailor._id,
-      content: `💰 Customer wants to negotiate PKR ${order.price}`,
-      order: order._id
-    });
-
-    res.status(StatusCodes.OK).json({ success: true, order });
-  } catch (error) {
-    console.error('❌ Negotiation error:', error.message);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
-      msg: 'Failed to request negotiation',
-      error: error.message 
-    });
-  }
-};
-
-// UPDATE ORDER PRICE
-const updateOrderPrice = async (req, res) => {
-  try {
-    const { id: orderId } = req.params;
-    const { price } = req.body;
-    const userId = req.user.userId || req.user.id;
-    const { role } = req.user;
-
-    if (role !== 'tailor') {
-      return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Only tailors can update price' });
-    }
-
-    if (!price || price <= 0) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Valid price required' });
-    }
-
-    const order = await Order.findOne({ _id: orderId, tailor: userId }).populate('customer tailor');
-
-    if (!order) {
-      return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Order not found' });
-    }
-
-    if (order.status !== 'accepted') {
-      return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Only for accepted orders' });
-    }
-
-    if (order.priceChangedByTailor) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ 
-        msg: 'Price already changed',
-        alreadyChanged: true 
-      });
-    }
-
-    await order.updatePrice(price, userId);
-
-    await Message.create({
-      sender: userId,
-      receiver: order.customer._id,
-      content: `✅ Price updated from PKR ${order.originalPrice} to PKR ${price}`,
-      order: order._id
-    });
-
-    res.status(StatusCodes.OK).json({ 
-      success: true, 
-      order,
-      originalPrice: order.originalPrice,
-      newPrice: price 
-    });
-  } catch (error) {
-    console.error('❌ Price update error:', error.message);
-    
-    if (error.message.includes('already been changed')) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        msg: error.message,
-        alreadyChanged: true
-      });
-    }
-
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
-      msg: 'Failed to update price',
-      error: error.message 
-    });
-  }
-};
-
 module.exports = {
   createOrder,
   getOrderDetails,
   updateOrderStatus,
   confirmOrder,
-  deleteOrder, 
-  requestPriceNegotiation,
-  updateOrderPrice    
+  deleteOrder
 };
