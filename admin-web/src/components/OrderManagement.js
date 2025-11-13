@@ -7,10 +7,6 @@ const OrderManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updating, setUpdating] = useState({});
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
   const [pagination, setPagination] = useState({
     current: 1,
     pages: 1,
@@ -93,24 +89,6 @@ const OrderManagement = () => {
 
   const handlePageChange = (newPage) => {
     setFilters(prev => ({ ...prev, page: newPage }));
-  };
-
-  const viewOrderDetails = async (orderId) => {
-    try {
-      const response = await admin.getOrder(orderId);
-      if (response.data && response.data.success) {
-        setSelectedOrder(response.data.order);
-        setShowModal(true);
-      }
-    } catch (error) {
-      console.error('Error loading order details:', error);
-      alert('Failed to load order details');
-    }
-  };
-
-  const viewImage = (imageUrl, title) => {
-    setSelectedImage({ url: imageUrl, title });
-    setShowImageModal(true);
   };
 
   const getStatusColor = (status) => {
@@ -426,27 +404,18 @@ const OrderManagement = () => {
                     </td>
                     
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => viewOrderDetails(order._id)}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          View
-                        </button>
-                        
-                        <select
-                          value={order.status}
-                          onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                          disabled={updating[order._id]}
-                          className="text-xs border-gray-300 rounded focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                          {getStatusOptions(order.status).map(status => (
-                            <option key={status} value={status}>
-                              {status.replace('_', ' ')}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                        disabled={updating[order._id]}
+                        className="text-xs border-gray-300 rounded focus:border-indigo-500 focus:ring-indigo-500"
+                      >
+                        {getStatusOptions(order.status).map(status => (
+                          <option key={status} value={status}>
+                            {status.replace('_', ' ')}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                   </tr>
                 ))}
@@ -530,155 +499,6 @@ const OrderManagement = () => {
           </div>
         )}
       </div>
-
-      {/* Order Details Modal */}
-      {showModal && selectedOrder && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                Order Details - #{generateOrderNumber(selectedOrder)}
-              </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Order Information</h4>
-                <div className="space-y-2 text-sm">
-                  <div><strong>Status:</strong> 
-                    <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
-                      {selectedOrder.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div><strong>Locked:</strong> {selectedOrder.isLocked ? '🔒 Yes' : '🔓 No'}</div>
-                  <div><strong>Garment:</strong> {selectedOrder.garmentType}</div>
-                  {selectedOrder.kameezStyle && <div><strong>Style:</strong> {selectedOrder.kameezStyle}</div>}
-                  {selectedOrder.shalwarStyle && <div><strong>Style:</strong> {selectedOrder.shalwarStyle}</div>}
-                  <div><strong>Price:</strong> {selectedOrder.price ? `PKR ${selectedOrder.price}` : 'Not set'}</div>
-                  <div><strong>Created:</strong> {formatDate(selectedOrder.createdAt)}</div>
-                  <div><strong>Updated:</strong> {formatDate(selectedOrder.updatedAt)}</div>
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">People</h4>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <strong>Customer:</strong>
-                    <div className="ml-2">
-                      <div>{selectedOrder.customer?.name}</div>
-                      <div className="text-gray-500">{selectedOrder.customer?.email}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Tailor:</strong>
-                    <div className="ml-2">
-                      <div>{selectedOrder.tailor?.name || 'Unassigned'}</div>
-                      <div className="text-gray-500">{selectedOrder.tailor?.email}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Images Section */}
-              {(selectedOrder.referenceImage || selectedOrder.customerSketch) && (
-                <div className="col-span-2">
-                  <h4 className="font-medium text-gray-900 mb-2">Design References</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    {selectedOrder.referenceImage && (
-                      <div>
-                        <p className="text-sm font-medium mb-2">Reference Image</p>
-                        <img 
-                          src={selectedOrder.referenceImage.url} 
-                          alt="Reference" 
-                          className="w-full h-48 object-cover rounded cursor-pointer hover:opacity-80"
-                          onClick={() => viewImage(selectedOrder.referenceImage.url, 'Reference Image')}
-                        />
-                      </div>
-                    )}
-                    {selectedOrder.customerSketch && (
-                      <div>
-                        <p className="text-sm font-medium mb-2">Customer Sketch</p>
-                        <img 
-                          src={selectedOrder.customerSketch.url} 
-                          alt="Sketch" 
-                          className="w-full h-48 object-cover rounded cursor-pointer hover:opacity-80"
-                          onClick={() => viewImage(selectedOrder.customerSketch.url, 'Customer Sketch')}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {selectedOrder.measurements && Object.keys(selectedOrder.measurements).length > 0 && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Measurements</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {Object.entries(selectedOrder.measurements).map(([key, value]) => (
-                      value && (
-                        <div key={key}>
-                          <strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {value}
-                        </div>
-                      )
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {selectedOrder.notes && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Notes</h4>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                    {selectedOrder.notes}
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            <div className="mt-6 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Viewer Modal */}
-      {showImageModal && selectedImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-          <div className="relative max-w-4xl max-h-screen p-4">
-            <button
-              onClick={() => setShowImageModal(false)}
-              className="absolute top-4 right-4 text-white hover:text-gray-300"
-            >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <div className="bg-white rounded-lg p-4">
-              <h3 className="text-lg font-medium mb-4">{selectedImage.title}</h3>
-              <img 
-                src={selectedImage.url} 
-                alt={selectedImage.title}
-                className="max-w-full max-h-[80vh] object-contain mx-auto"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

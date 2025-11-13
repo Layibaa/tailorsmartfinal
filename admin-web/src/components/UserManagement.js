@@ -1,4 +1,4 @@
-// admin-web/src/components/UserManagement.js - Enhanced with proper error handling
+// admin-web/src/components/UserManagement.js - Without View User feature
 import React, { useState, useEffect } from 'react';
 import { admin } from '../services/api';
 
@@ -27,13 +27,10 @@ const UserManagement = () => {
     setError(null);
     
     try {
-      console.log('UserManagement: Loading users with filters:', filters);
       const response = await admin.getUsers(filters);
-      
       if (response.data && response.data.success && response.data.data) {
         setUsers(response.data.data.users || []);
         setPagination(response.data.data.pagination || pagination);
-        console.log('UserManagement: Loaded', response.data.data.users?.length, 'users');
       } else {
         throw new Error('Invalid response format');
       }
@@ -54,26 +51,17 @@ const UserManagement = () => {
     const user = users.find(u => u._id === userId);
     if (!user) return;
 
-    // Confirm action
     const action = newStatus === 'active' ? 'activate' : 'deactivate';
-    if (!window.confirm(`Are you sure you want to ${action} ${user.name}?`)) {
-      return;
-    }
+    if (!window.confirm(`Are you sure you want to ${action} ${user.name}?`)) return;
 
     setUpdating(prev => ({ ...prev, [userId]: true }));
     
     try {
-      console.log('UserManagement: Updating user status:', userId, newStatus);
       await admin.updateUserStatus(userId, newStatus);
-      
-      // Update user in local state
       setUsers(prev => prev.map(user => 
         user._id === userId ? { ...user, status: newStatus } : user
       ));
-      
-      console.log('UserManagement: User status updated successfully');
     } catch (error) {
-      console.error('UserManagement: Error updating user status:', error);
       alert(`Failed to update user status: ${error.message}`);
     } finally {
       setUpdating(prev => ({ ...prev, [userId]: false }));
@@ -84,7 +72,7 @@ const UserManagement = () => {
     setFilters(prev => ({ 
       ...prev, 
       [key]: value,
-      page: 1 // Reset to first page when filters change
+      page: 1
     }));
   };
 
@@ -131,15 +119,12 @@ const UserManagement = () => {
         <p className="text-gray-600">Manage platform users and their access</p>
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
+            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-red-800">Error Loading Users</h3>
               <div className="mt-2 text-sm text-red-700">{error}</div>
@@ -152,9 +137,7 @@ const UserManagement = () => {
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Role
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
             <select
               value={filters.role}
               onChange={(e) => handleFilterChange('role', e.target.value)}
@@ -170,9 +153,7 @@ const UserManagement = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
             <select
               value={filters.status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
@@ -186,9 +167,7 @@ const UserManagement = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Per Page
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Per Page</label>
             <select
               value={filters.limit}
               onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
@@ -202,9 +181,7 @@ const UserManagement = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
             <input
               type="text"
               value={filters.search}
@@ -229,14 +206,12 @@ const UserManagement = () => {
       {/* Summary */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-blue-700">
-              Showing {users.length} of {pagination.total} users
-              {filters.search && ` matching "${filters.search}"`}
-              {filters.role !== 'all' && ` with role "${filters.role}"`}
-              {filters.status !== 'all' && ` with status "${filters.status}"`}
-            </p>
-          </div>
+          <p className="text-sm text-blue-700">
+            Showing {users.length} of {pagination.total} users
+            {filters.search && ` matching "${filters.search}"`}
+            {filters.role !== 'all' && ` with role "${filters.role}"`}
+            {filters.status !== 'all' && ` with status "${filters.status}"`}
+          </p>
           <div className="text-sm text-blue-600">
             Page {pagination.current} of {pagination.pages}
           </div>
@@ -256,33 +231,19 @@ const UserManagement = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              No users match your current filter criteria.
-            </p>
+            <p className="mt-1 text-sm text-gray-500">No users match your current filter criteria.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Verified
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -290,32 +251,21 @@ const UserManagement = () => {
                   <tr key={user._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {user.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {user.email}
-                        </div>
-                        {user.phone && (
-                          <div className="text-xs text-gray-400">
-                            {user.phone}
-                          </div>
-                        )}
+                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                        {user.phone && <div className="text-xs text-gray-400">{user.phone}</div>}
                       </div>
                     </td>
-                    
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
                         {user.role}
                       </span>
                     </td>
-                    
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
                         {user.status}
                       </span>
                     </td>
-
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
                         user.isVerified 
@@ -325,131 +275,34 @@ const UserManagement = () => {
                         {user.isVerified ? '✓ Verified' : '⚠ Unverified'}
                       </span>
                     </td>
-                    
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(user.createdAt)}
                     </td>
-                    
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        {user.role !== 'superadmin' && (
-                          <>
-                            {user.status === 'active' ? (
-                              <button
-                                onClick={() => handleStatusChange(user._id, 'inactive')}
-                                disabled={updating[user._id]}
-                                className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                              >
-                                {updating[user._id] ? 'Updating...' : 'Deactivate'}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleStatusChange(user._id, 'active')}
-                                disabled={updating[user._id]}
-                                className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                              >
-                                {updating[user._id] ? 'Updating...' : 'Activate'}
-                              </button>
-                            )}
-                          </>
-                        )}
-                        
-                        <button 
-                          onClick={() => {
-                            // TODO: Implement user details modal
-                            alert(`View details for ${user.name} - Coming soon!`);
-                          }}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          View
-                        </button>
-                      </div>
+                      {user.role !== 'superadmin' && (
+                        user.status === 'active' ? (
+                          <button
+                            onClick={() => handleStatusChange(user._id, 'inactive')}
+                            disabled={updating[user._id]}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          >
+                            {updating[user._id] ? 'Updating...' : 'Deactivate'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleStatusChange(user._id, 'active')}
+                            disabled={updating[user._id]}
+                            className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                          >
+                            {updating[user._id] ? 'Updating...' : 'Activate'}
+                          </button>
+                        )
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => handlePageChange(Math.max(1, pagination.current - 1))}
-                  disabled={pagination.current <= 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => handlePageChange(Math.min(pagination.pages, pagination.current + 1))}
-                  disabled={pagination.current >= pagination.pages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Showing{' '}
-                    <span className="font-medium">{((pagination.current - 1) * pagination.limit) + 1}</span>
-                    {' '}to{' '}
-                    <span className="font-medium">
-                      {Math.min(pagination.current * pagination.limit, pagination.total)}
-                    </span>
-                    {' '}of{' '}
-                    <span className="font-medium">{pagination.total}</span>
-                    {' '}results
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                    <button
-                      onClick={() => handlePageChange(Math.max(1, pagination.current - 1))}
-                      disabled={pagination.current <= 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Previous</span>
-                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    
-                    {[...Array(Math.min(5, pagination.pages))].map((_, i) => {
-                      const page = i + 1;
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => handlePageChange(page)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            page === pagination.current
-                              ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    
-                    <button
-                      onClick={() => handlePageChange(Math.min(pagination.pages, pagination.current + 1))}
-                      disabled={pagination.current >= pagination.pages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Next</span>
-                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </nav>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
