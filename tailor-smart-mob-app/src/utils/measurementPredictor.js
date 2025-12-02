@@ -7,8 +7,8 @@ class MeasurementPredictor {
     // Sources: Pakistan health surveys and South Asian body measurement studies
     this.pakistaniAverages = {
       male: {
-        height: 169, // cm (average Pakistani male)
-        weight: 65,  // kg
+        height: 169,
+        weight: 65,
         chest: 92,
         waist: 82,
         hip: 95,
@@ -20,8 +20,8 @@ class MeasurementPredictor {
         thigh: 54
       },
       female: {
-        height: 157, // cm (average Pakistani female)
-        weight: 57,  // kg
+        height: 157,
+        weight: 57,
         chest: 88,
         waist: 74,
         hip: 96,
@@ -35,62 +35,44 @@ class MeasurementPredictor {
     };
   }
 
-  /**
-   * Calculate BMI (Body Mass Index)
-   */
   calculateBMI(weight, height) {
     const heightInMeters = height / 100;
     return weight / (heightInMeters * heightInMeters);
   }
 
-  /**
-   * Get body frame category based on height and weight
-   */
   getBodyFrame(gender, height, weight) {
     const bmi = this.calculateBMI(weight, height);
     
-    // BMI categories adjusted for South Asian population
     if (bmi < 18.5) return 'slim';
-    if (bmi < 23) return 'average'; // Lower threshold for South Asians
-    if (bmi < 27.5) return 'heavy'; // Adjusted for South Asian standards
+    if (bmi < 23) return 'average';
+    if (bmi < 27.5) return 'heavy';
     return 'very_heavy';
   }
 
-  /**
-   * Calculate age factor for measurements
-   * Measurements typically increase slightly with age due to lifestyle
-   */
   getAgeFactor(age) {
-    if (age < 25) return 0.97; // Younger adults slightly slimmer
-    if (age < 40) return 1.0;  // Prime adult years
-    if (age < 55) return 1.03; // Slight increase
-    return 1.05; // Older adults
+    if (age < 25) return 0.97;
+    if (age < 40) return 1.0;
+    if (age < 55) return 1.03;
+    return 1.05;
   }
 
-  /**
-   * Main prediction method - returns measurements in centimeters
-   */
   predictMeasurements(customerProfile) {
     try {
       const { age, weight, height, gender } = customerProfile;
       
-      // Validate input
       if (!age || !weight || !height || !gender) {
         console.warn('Missing profile data for prediction');
         return null;
       }
 
-      // Normalize gender input
       const normalizedGender = gender.toLowerCase() === 'male' ? 'male' : 'female';
       const baseStats = this.pakistaniAverages[normalizedGender];
 
-      // Calculate scaling factors
       const heightFactor = height / baseStats.height;
       const weightFactor = weight / baseStats.weight;
       const ageFactor = this.getAgeFactor(age);
       const bodyFrame = this.getBodyFrame(normalizedGender, height, weight);
 
-      // Frame-specific adjustments
       const frameAdjustments = {
         slim: 0.92,
         average: 1.0,
@@ -99,64 +81,53 @@ class MeasurementPredictor {
       };
       const frameMultiplier = frameAdjustments[bodyFrame];
 
-      // Calculate measurements with realistic correlations
       const measurements = {
-        // Upper body measurements
         chest: Math.round(
           baseStats.chest * 
           Math.sqrt(heightFactor * weightFactor) * 
           frameMultiplier * 
           ageFactor
         ),
-        
         waist: Math.round(
           baseStats.waist * 
           weightFactor * 
           frameMultiplier * 
           ageFactor * 
-          1.02 // Waist tends to increase more with weight
+          1.02
         ),
-        
         hip: Math.round(
           baseStats.hip * 
           Math.sqrt(heightFactor * weightFactor) * 
           frameMultiplier * 
           ageFactor
         ),
-        
         shoulder: Math.round(
           baseStats.shoulder * 
           heightFactor * 
-          Math.pow(weightFactor, 0.3) * // Less influenced by weight
+          Math.pow(weightFactor, 0.3) * 
           (normalizedGender === 'male' ? 1.0 : 0.95)
         ),
-        
         sleeveLength: Math.round(
           baseStats.sleeveLength * 
           heightFactor * 
           (normalizedGender === 'male' ? 1.0 : 0.97)
         ),
-        
         neck: Math.round(
           baseStats.neck * 
           Math.pow(weightFactor, 0.6) * 
           frameMultiplier * 
           ageFactor
         ),
-        
-        // Lower body measurements
         inseam: Math.round(
           baseStats.inseam * 
           heightFactor * 
           (normalizedGender === 'male' ? 1.0 : 0.96)
         ),
-        
         outseam: Math.round(
           baseStats.outseam * 
           heightFactor * 
           (normalizedGender === 'male' ? 1.0 : 0.97)
         ),
-        
         thigh: Math.round(
           baseStats.thigh * 
           Math.sqrt(weightFactor * heightFactor) * 
@@ -164,10 +135,9 @@ class MeasurementPredictor {
         )
       };
 
-      // Ensure all measurements are within realistic ranges
       const validatedMeasurements = this.validateMeasurements(measurements, normalizedGender);
 
-      console.log('✅ Measurements predicted:', {
+      console.log('Measurements predicted:', {
         gender: normalizedGender,
         height,
         weight,
@@ -178,14 +148,11 @@ class MeasurementPredictor {
 
       return validatedMeasurements;
     } catch (error) {
-      console.error('❌ Error predicting measurements:', error);
+      console.error('Error predicting measurements:', error);
       return null;
     }
   }
 
-  /**
-   * Validate and constrain measurements to realistic ranges
-   */
   validateMeasurements(measurements, gender) {
     const ranges = {
       male: {
@@ -227,13 +194,9 @@ class MeasurementPredictor {
     return validated;
   }
 
-  /**
-   * Get measurement confidence level
-   */
   getConfidence(customerProfile) {
     const { age, weight, height } = customerProfile;
     
-    // Check if values are within typical Pakistani ranges
     const heightInRange = height >= 145 && height <= 190;
     const weightInRange = weight >= 40 && weight <= 120;
     const ageInRange = age >= 16 && age <= 80;
@@ -246,9 +209,6 @@ class MeasurementPredictor {
     return 'low';
   }
 
-  /**
-   * Get explanation for the predicted measurements
-   */
   getExplanation(customerProfile, bodyFrame) {
     const { age, gender } = customerProfile;
     const genderText = gender.toLowerCase() === 'male' ? 'male' : 'female';
@@ -262,6 +222,5 @@ class MeasurementPredictor {
   }
 }
 
-// Create singleton instance
 export const measurementPredictor = new MeasurementPredictor();
 export default measurementPredictor;

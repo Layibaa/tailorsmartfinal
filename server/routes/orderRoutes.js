@@ -12,15 +12,7 @@ const {
 } = require('../controllers/orderController');
 
 // Debug middleware - logs all requests
-router.use((req, res, next) => {
-  console.log('\n🛣️ ================================');
-  console.log('🛣️ ORDER ROUTE HIT');
-  console.log('🛣️ Method:', req.method);
-  console.log('🛣️ Path:', req.path);
-  console.log('🛣️ Full URL:', req.originalUrl);
-  console.log('🛣️ Body:', JSON.stringify(req.body, null, 2));
-  console.log('🛣️ Params:', req.params);
-  console.log('🛣️ ================================\n');
+router.use((req, res, next) => { 
   next();
 });
 
@@ -34,7 +26,7 @@ router.get('/:id', auth, getOrderDetails);
 router.delete('/:id', auth, deleteOrder);
 
 // Log all registered routes
-console.log('✅ Order Routes Registered:');
+console.log(' Order Routes Registered:');
 console.log('   POST   /orders');
 console.log('   GET    /orders/:id');
 console.log('   PATCH  /orders/:id/status');

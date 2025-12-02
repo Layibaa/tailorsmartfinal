@@ -16,7 +16,7 @@ const processImageUpload = async (imageData, type) => {
   
   try {
     if (!imageData.startsWith('data:image/')) {
-      console.error('❌ Invalid image format:', imageData.substring(0, 50));
+      console.error(' Invalid image format:', imageData.substring(0, 50));
       throw new Error('Invalid image format. Must be base64 encoded image.');
     }
     
@@ -31,7 +31,7 @@ const processImageUpload = async (imageData, type) => {
     
     console.log(`☁️ Uploading ${type} to Cloudinary...`);
     const uploadResult = await uploadImage(imageData, `tailor-orders/${type}`);
-    console.log(`✅ ${type} uploaded successfully:`, uploadResult.publicId);
+    console.log(` ${type} uploaded successfully:`, uploadResult.publicId);
     
     return {
       url: uploadResult.url,
@@ -39,7 +39,7 @@ const processImageUpload = async (imageData, type) => {
       uploadedAt: new Date()
     };
   } catch (error) {
-    console.error(`❌ Error processing ${type} upload:`, error.message);
+    console.error(` Error processing ${type} upload:`, error.message);
     throw error;
   }
 };
@@ -83,7 +83,7 @@ const createOrder = async (req, res) => {
     });
 
     if (!measurements || typeof measurements !== 'object' || Object.keys(measurements).length === 0) {
-      console.error('❌ Invalid or missing measurements:', measurements);
+      console.error(' Invalid or missing measurements:', measurements);
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'Valid measurements object is required',
         received: measurements
@@ -95,7 +95,7 @@ const createOrder = async (req, res) => {
     const missingFields = requiredFields.filter(field => !measurements[field]);
     
     if (missingFields.length > 0) {
-      console.error('❌ Missing measurement fields:', missingFields);
+      console.error(' Missing measurement fields:', missingFields);
       return res.status(StatusCodes.BAD_REQUEST).json({
         msg: `Missing required measurements: ${missingFields.join(', ')}`,
         missingFields
@@ -123,7 +123,7 @@ const createOrder = async (req, res) => {
 
     if (suitType === '3-piece') {
       if (!dupattaDetails || !dupattaDetails.length || !dupattaDetails.width) {
-        console.error('❌ Missing dupatta details for 3-piece suit:', dupattaDetails);
+        console.error(' Missing dupatta details for 3-piece suit:', dupattaDetails);
         return res.status(StatusCodes.BAD_REQUEST).json({
           msg: 'Dupatta length and width are required for 3-piece suit',
           received: dupattaDetails
@@ -145,7 +145,7 @@ const createOrder = async (req, res) => {
         customerSketchData = await processImageUpload(customerSketch, 'sketch');
       }
     } catch (imageError) {
-      console.error('❌ Image processing error:', imageError.message);
+      console.error(' Image processing error:', imageError.message);
       return res.status(StatusCodes.BAD_REQUEST).json({
         msg: imageError.message || 'Failed to process images'
       });
@@ -188,7 +188,7 @@ const createOrder = async (req, res) => {
 
     const order = await Order.create(orderData);
 
-    console.log('✅ Order created successfully:', order._id);
+    console.log(' Order created successfully:', order._id);
 
     const suitDescription = suitType === '3-piece' ? 
       `${suitType} suit (Shalwar, Kameez, Dupatta)` : 
@@ -207,7 +207,7 @@ const createOrder = async (req, res) => {
 
     res.status(StatusCodes.CREATED).json({ success: true, order });
   } catch (error) {
-    console.error('❌ Create order error:', error.message);
+    console.error(' Create order error:', error.message);
     
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Server error while creating order',
@@ -241,10 +241,10 @@ const getOrderDetails = async (req, res) => {
       });
     }
 
-    console.log(`✅ Order found: ${order._id}, status: ${order.status}`);
+    console.log(` Order found: ${order._id}, status: ${order.status}`);
     res.json({ success: true, order });
   } catch (error) {
-    console.error('❌ Get order details error:', error.message);
+    console.error(' Get order details error:', error.message);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Server error while fetching order details',
       error: error.message 
@@ -272,7 +272,7 @@ const updateOrderStatus = async (req, res) => {
 
     // VALIDATION: Check if status is provided
     if (!status) {
-      console.error('❌ Status is missing from request body');
+      console.error(' Status is missing from request body');
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: 'Status is required in request body',
         received: req.body
@@ -281,7 +281,7 @@ const updateOrderStatus = async (req, res) => {
 
     // VALIDATION: Only tailors can update status
     if (role !== 'tailor') {
-      console.error('❌ User is not a tailor. Role:', role);
+      console.error(' User is not a tailor. Role:', role);
       return res.status(StatusCodes.UNAUTHORIZED).json({ 
         msg: 'Only tailors can update order status',
         currentRole: role
@@ -294,14 +294,14 @@ const updateOrderStatus = async (req, res) => {
     const order = await Order.findById(orderId).populate('customer tailor');
     
     if (!order) {
-      console.error('❌ Order not found in database');
+      console.error(' Order not found in database');
       return res.status(StatusCodes.NOT_FOUND).json({ 
         msg: 'Order not found',
         orderId: orderId
       });
     }
 
-    console.log('✅ Order found!');
+    console.log(' Order found!');
     console.log('📋 Current Order Status:', order.status);
 
     // VERIFY OWNERSHIP
@@ -309,7 +309,7 @@ const updateOrderStatus = async (req, res) => {
     const requestUserId = userId.toString();
     
     if (orderTailorId !== requestUserId) {
-      console.error('❌ Unauthorized - User is not the order tailor');
+      console.error(' Unauthorized - User is not the order tailor');
       console.error('   Order Tailor ID:', orderTailorId);
       console.error('   Request User ID:', requestUserId);
       return res.status(StatusCodes.FORBIDDEN).json({ 
@@ -317,7 +317,7 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    console.log('✅ Ownership verified!');
+    console.log(' Ownership verified!');
 
     // VALIDATE STATUS TRANSITIONS
     const validTransitions = {
@@ -331,7 +331,7 @@ const updateOrderStatus = async (req, res) => {
     const allowedStatuses = validTransitions[order.status];
     
     if (!allowedStatuses) {
-      console.error('❌ No valid transitions from current status');
+      console.error(' No valid transitions from current status');
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: `Order status ${order.status} cannot be changed`,
         currentStatus: order.status
@@ -339,7 +339,7 @@ const updateOrderStatus = async (req, res) => {
     }
     
     if (!allowedStatuses.includes(status)) {
-      console.error('❌ Invalid status transition requested');
+      console.error(' Invalid status transition requested');
       return res.status(StatusCodes.BAD_REQUEST).json({ 
         msg: `Cannot change from ${order.status} to ${status}`,
         currentStatus: order.status,
@@ -348,7 +348,7 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    console.log('✅ Status transition is valid!');
+    console.log(' Status transition is valid!');
     console.log(`   From: ${order.status} → To: ${status}`);
 
     // HANDLE REJECTION
@@ -363,15 +363,15 @@ const updateOrderStatus = async (req, res) => {
         await Message.create({
           sender: userId,
           receiver: order.customer._id,
-          content: '❌ Your order request has been rejected by the tailor',
+          content: ' Your order request has been rejected by the tailor',
           order: order._id
         });
-        console.log('✅ Rejection notification sent');
+        console.log(' Rejection notification sent');
       } catch (err) {
         console.error('⚠️ Notification error:', err.message);
       }
 
-      console.log('✅ Order rejected successfully');
+      console.log(' Order rejected successfully');
       
       return res.status(StatusCodes.OK).json({ 
         success: true, 
@@ -383,10 +383,10 @@ const updateOrderStatus = async (req, res) => {
     // HANDLE ACCEPTANCE - Requires price
     let deliveryEstimate = null;
     if (status === 'accepted') {
-      console.log('✅ Processing acceptance...');
+      console.log(' Processing acceptance...');
       
       if (!price || price <= 0) {
-        console.error('❌ Price is missing or invalid for acceptance');
+        console.error(' Price is missing or invalid for acceptance');
         return res.status(StatusCodes.BAD_REQUEST).json({ 
           msg: 'Valid price is required to accept order',
           receivedPrice: price
@@ -403,7 +403,7 @@ const updateOrderStatus = async (req, res) => {
         order.estimatedDeliveryDays = deliveryEstimate.estimatedDays;
         order.expectedCompletionDate = deliveryEstimate.completionDate;
         order.deliveryConfidence = deliveryEstimate.confidence;
-        console.log('✅ Delivery estimate calculated:', deliveryEstimate);
+        console.log(' Delivery estimate calculated:', deliveryEstimate);
       } catch (err) {
         console.error('⚠️ Delivery estimate error:', err.message);
       }
@@ -416,11 +416,11 @@ const updateOrderStatus = async (req, res) => {
     // SAVE ORDER
     console.log('💾 Saving order...');
     await order.save();
-    console.log('✅ Order saved successfully');
+    console.log(' Order saved successfully');
 
     // SEND NOTIFICATIONS
     const notificationMessages = {
-      accepted: `✅ Order accepted at PKR ${order.price}. Please review and confirm.`,
+      accepted: ` Order accepted at PKR ${order.price}. Please review and confirm.`,
       making: '⚙️ Your order is now in production',
       payment_done: '💰 Payment confirmed. Order will be completed soon.',
       completed: '🎉 Order completed and ready for pickup!'
@@ -435,7 +435,7 @@ const updateOrderStatus = async (req, res) => {
           content: notificationMessages[status],
           order: order._id
         });
-        console.log('✅ Notification sent');
+        console.log(' Notification sent');
       } catch (err) {
         console.error('⚠️ Notification error:', err.message);
       }
@@ -451,16 +451,16 @@ const updateOrderStatus = async (req, res) => {
           content: deliveryMsg,
           order: order._id
         });
-        console.log('✅ Delivery estimate message sent');
+        console.log(' Delivery estimate message sent');
       } catch (err) {
         console.error('⚠️ Delivery message error:', err.message);
       }
     }
 
-    console.log('\n✅ ========================================');
-    console.log('✅ STATUS UPDATE COMPLETED SUCCESSFULLY');
-    console.log('✅ New Status:', order.status);
-    console.log('✅ ========================================\n');
+    console.log('\n ========================================');
+    console.log(' STATUS UPDATE COMPLETED SUCCESSFULLY');
+    console.log(' New Status:', order.status);
+    console.log(' ========================================\n');
     
     // RETURN RESPONSE
     return res.status(StatusCodes.OK).json({ 
@@ -475,11 +475,11 @@ const updateOrderStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('\n❌ ========================================');
-    console.error('❌ STATUS UPDATE ERROR');
-    console.error('❌ Error Message:', error.message);
-    console.error('❌ Stack Trace:', error.stack);
-    console.error('❌ ========================================\n');
+    console.error('\n ========================================');
+    console.error(' STATUS UPDATE ERROR');
+    console.error(' Error Message:', error.message);
+    console.error(' Stack Trace:', error.stack);
+    console.error(' ========================================\n');
     
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Failed to update order status',
@@ -521,7 +521,7 @@ const confirmOrder = async (req, res) => {
 
     res.status(StatusCodes.OK).json({ success: true, order });
   } catch (error) {
-    console.error('❌ Confirm error:', error.message);
+    console.error(' Confirm error:', error.message);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Failed to confirm',
       error: error.message 
@@ -560,7 +560,7 @@ const deleteOrder = async (req, res) => {
 
     res.status(StatusCodes.OK).json({ success: true, msg: 'Order deleted' });
   } catch (error) {
-    console.error('❌ Delete error:', error.message);
+    console.error(' Delete error:', error.message);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       msg: 'Failed to delete',
       error: error.message 

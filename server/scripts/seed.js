@@ -21,9 +21,9 @@ const seedData = async () => {
         isVerified: true,
         city: 'Karachi'
       });
-      console.log('✅ Superadmin created:', superAdmin.email);
+      console.log(' Superadmin created:', superAdmin.email);
     } else {
-      console.log('✅ Superadmin already exists');
+      console.log(' Superadmin already exists');
     }
 
     console.log('\n🎉 Seed completed successfully!');
@@ -31,7 +31,7 @@ const seedData = async () => {
     console.log('Superadmin: superadmin@tailorsmart.com / admin123');
 
   } catch (error) {
-    console.error('❌ Seed failed:', error);
+    console.error(' Seed failed:', error);
   } finally {
     await mongoose.disconnect();
     console.log('Disconnected from MongoDB');

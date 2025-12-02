@@ -12,18 +12,13 @@ const {
   deleteReview
 } = require('../controllers/reviewController');
 
-console.log('✅ Review routes loaded - ORDER-BASED REVIEWS');
+console.log(' Review routes loaded - ORDER-BASED REVIEWS');
 
-// ============================================
-// PUBLIC ROUTES (no auth required)
-// ============================================
+
 
 // Get all reviews for a tailor (public)
 router.get('/tailor/:tailorId', getTailorReviews);
 
-// ============================================
-// CUSTOMER ROUTES (auth + customer role required)
-// ============================================
 
 // Create review for a completed order
 router.post('/order/:orderId', auth, requireCustomer, createOrderReview);

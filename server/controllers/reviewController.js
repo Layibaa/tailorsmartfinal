@@ -48,7 +48,7 @@ const createOrderReview = async (req, res) => {
       });
     }
 
-    // ✅ CHECK ORDER EXISTS AND BELONGS TO CUSTOMER
+    //  CHECK ORDER EXISTS AND BELONGS TO CUSTOMER
     const order = await Order.findById(orderId).populate('tailor', 'name');
     if (!order) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -57,7 +57,7 @@ const createOrderReview = async (req, res) => {
       });
     }
 
-    // ✅ CHECK ORDER BELONGS TO THIS CUSTOMER
+    //  CHECK ORDER BELONGS TO THIS CUSTOMER
     if (order.customer.toString() !== userId) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
@@ -65,7 +65,7 @@ const createOrderReview = async (req, res) => {
       });
     }
 
-    // ✅ CHECK ORDER IS COMPLETED
+    //  CHECK ORDER IS COMPLETED
     if (order.status !== 'completed') {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -74,7 +74,7 @@ const createOrderReview = async (req, res) => {
       });
     }
 
-    // ✅ CHECK IF REVIEW ALREADY EXISTS FOR THIS ORDER
+    //  CHECK IF REVIEW ALREADY EXISTS FOR THIS ORDER
     const existingReview = await Review.findOne({ order: orderId });
     if (existingReview) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -83,7 +83,7 @@ const createOrderReview = async (req, res) => {
       });
     }
 
-    // ✅ CREATE REVIEW
+    //  CREATE REVIEW
     const review = await Review.create({
       customer: userId,
       tailor: order.tailor._id,
@@ -93,7 +93,7 @@ const createOrderReview = async (req, res) => {
       images: images || []
     });
 
-    // ✅ UPDATE TAILOR'S AVERAGE RATING
+    //  UPDATE TAILOR'S AVERAGE RATING
     await updateTailorReviewStats(order.tailor._id);
 
     await review.populate([
@@ -102,7 +102,7 @@ const createOrderReview = async (req, res) => {
       { path: 'order', select: 'suitType createdAt' }
     ]);
 
-    console.log('✅ Review created successfully');
+    console.log(' Review created successfully');
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -110,7 +110,7 @@ const createOrderReview = async (req, res) => {
       review
     });
   } catch (error) {
-    console.error('❌ Create order review error:', error);
+    console.error(' Create order review error:', error);
     
     if (error.code === 11000) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -175,7 +175,7 @@ const getTailorReviews = async (req, res) => {
       reviews
     });
   } catch (error) {
-    console.error('❌ Get tailor reviews error:', error);
+    console.error(' Get tailor reviews error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while fetching reviews'
@@ -244,7 +244,7 @@ const checkOrderReviewEligibility = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Check review eligibility error:', error);
+    console.error(' Check review eligibility error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while checking eligibility'
@@ -272,7 +272,7 @@ const getMyReviews = async (req, res) => {
       reviews
     });
   } catch (error) {
-    console.error('❌ Get my reviews error:', error);
+    console.error(' Get my reviews error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while fetching reviews'
@@ -354,7 +354,7 @@ const updateReview = async (req, res) => {
       review
     });
   } catch (error) {
-    console.error('❌ Update review error:', error);
+    console.error(' Update review error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while updating review'
@@ -396,7 +396,7 @@ const deleteReview = async (req, res) => {
       msg: 'Review deleted successfully'
     });
   } catch (error) {
-    console.error('❌ Delete review error:', error);
+    console.error(' Delete review error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       msg: 'Server error while deleting review'
@@ -421,9 +421,9 @@ const updateTailorReviewStats = async (tailorId) => {
       'tailorProfile.reviewCount': totalCount
     });
 
-    console.log('✅ Updated tailor stats:', { tailorId, averageRating, totalCount });
+    console.log(' Updated tailor stats:', { tailorId, averageRating, totalCount });
   } catch (error) {
-    console.error('❌ Update tailor stats error:', error);
+    console.error(' Update tailor stats error:', error);
   }
 };
 

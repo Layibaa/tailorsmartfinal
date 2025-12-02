@@ -115,16 +115,16 @@ const UserSchema = new mongoose.Schema(
       }]
     },
     
-    // ✅ FIXED: Customer Profile - removed address field
+    //  FIXED: Customer Profile - removed address field
     customerProfile: {
       age: Number,
       gender: {
         type: String,
-        enum: ['Male', 'Female', 'Other', 'male', 'female', 'other'] // ✅ Accept both cases
+        enum: ['Male', 'Female', 'Other', 'male', 'female', 'other'] //  Accept both cases
       },
       weight: Number,
       height: Number,
-      // ✅ REMOVED: address field
+      //  REMOVED: address field
       preferredStyles: [String],
       savedMeasurements: {
         chest: Number, 
@@ -160,7 +160,7 @@ UserSchema.pre('save', async function() {
     }
   }
   
-  // ✅ Normalize gender to capitalized format
+  //  Normalize gender to capitalized format
   if (this.customerProfile && this.customerProfile.gender) {
     const gender = this.customerProfile.gender.toLowerCase();
     if (gender === 'male') this.customerProfile.gender = 'Male';

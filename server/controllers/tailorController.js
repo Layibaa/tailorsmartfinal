@@ -20,7 +20,7 @@ const getProfile = async (req, res) => {
   res.status(StatusCodes.OK).json({ success: true, tailor });
 };
 
-// ✅ FIXED: Update tailor profile with correct field names
+//  FIXED: Update tailor profile with correct field names
 const updateProfile = async (req, res) => {
   const { userId } = req.user;
   const { name, email, city, region, shopName, shopLocation, shopAddress, averagePrice } = req.body;
@@ -54,7 +54,7 @@ const updateProfile = async (req, res) => {
     throw new BadRequestError('Shop name is required');
   }
   
-  // ✅ Accept both shopLocation and shopAddress
+  //  Accept both shopLocation and shopAddress
   const location = shopLocation || shopAddress;
   if (!location || location.trim().length === 0) {
     throw new BadRequestError('Shop address is required');
@@ -82,15 +82,15 @@ const updateProfile = async (req, res) => {
     updateData.email = email;
   }
   
-  // ✅ FIXED: Update tailorProfile fields with both location names
+  //  FIXED: Update tailorProfile fields with both location names
   updateData.tailorProfile = {
     shopName: shopName.trim(),
     shopLocation: location.trim(),
-    shopAddress: location.trim(),   // ✅ set both
+    shopAddress: location.trim(),   //  set both
     averagePrice: parseFloat(averagePrice)
   };
   
-  console.log('✅ Updating with data:', updateData);
+  console.log(' Updating with data:', updateData);
   
   const tailor = await User.findByIdAndUpdate(
     userId,
@@ -102,7 +102,7 @@ const updateProfile = async (req, res) => {
     throw new NotFoundError(`No tailor with id ${userId}`);
   }
   
-  console.log('✅ Updated tailor profile:', tailor.tailorProfile);
+  console.log(' Updated tailor profile:', tailor.tailorProfile);
   
   res.status(StatusCodes.OK).json({ 
     success: true, 
@@ -318,7 +318,7 @@ const getAllTailors = async (req, res) => {
   }
 };
 
-// ✅ REMOVED: Duplicate updateProfileOld function
+//  REMOVED: Duplicate updateProfileOld function
 
 module.exports = {
   getProfile,

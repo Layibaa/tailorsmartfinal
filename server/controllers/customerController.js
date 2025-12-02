@@ -136,7 +136,7 @@ const getProfile = async (req, res) => {
       });
     }
 
-    console.log('✅ Customer profile fetched:', {
+    console.log(' Customer profile fetched:', {
       name: customer.name,
       email: customer.email,
       city: customer.city,
@@ -158,13 +158,13 @@ const getProfile = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Update customer profile - removed address, proper handling
+//  FIXED: Update customer profile - removed address, proper handling
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const { 
       name, 
-      email,  // ✅ ADDED: email field
+      email,  //  ADDED: email field
       city, 
       region, 
       age, 
@@ -172,7 +172,7 @@ const updateProfile = async (req, res) => {
       weight, 
       height, 
       preferredStyles 
-      // ✅ REMOVED: address field
+      //  REMOVED: address field
     } = req.body;
 
     console.log('📝 Updating customer profile:', {
@@ -198,7 +198,7 @@ const updateProfile = async (req, res) => {
     
     // Basic fields
     if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email; // ✅ ADDED
+    if (email !== undefined) updateData.email = email; //  ADDED
     if (city !== undefined) {
       updateData.city = city;
       // Clear region if city is not Islamabad
@@ -210,7 +210,7 @@ const updateProfile = async (req, res) => {
       updateData.region = region || null;
     }
 
-    // ✅ FIXED: Customer profile fields - preserve existing data, removed address
+    //  FIXED: Customer profile fields - preserve existing data, removed address
     if (age !== undefined || gender !== undefined || weight !== undefined || 
         height !== undefined || preferredStyles !== undefined) {
       
@@ -235,9 +235,9 @@ const updateProfile = async (req, res) => {
       if (preferredStyles !== undefined) {
         updateData.customerProfile.preferredStyles = preferredStyles;
       }
-      // ✅ REMOVED: address handling
+      //  REMOVED: address handling
 
-      console.log('✅ Customer profile to update:', updateData.customerProfile);
+      console.log(' Customer profile to update:', updateData.customerProfile);
     }
 
     // Perform update
@@ -257,7 +257,7 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    console.log('✅ Customer profile updated successfully:', {
+    console.log(' Customer profile updated successfully:', {
       name: customer.name,
       email: customer.email,
       city: customer.city,
@@ -272,7 +272,7 @@ const updateProfile = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Update profile error:', error);
+    console.error(' Update profile error:', error);
     
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);

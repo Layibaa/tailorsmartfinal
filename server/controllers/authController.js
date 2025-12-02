@@ -118,7 +118,7 @@ const login = async (req, res) => {
   });
 };
 
-// ✅ FIXED: Register function with correct field mapping
+//  FIXED: Register function with correct field mapping
 const register = async (req, res) => {
   try {
     const { 
@@ -137,8 +137,8 @@ const register = async (req, res) => {
       // Tailor profile fields - FIXED names
       shopName,
       shopLocation,
-      shopAddress,      // ✅ accept both
-      averagePrice,     // ✅ FIXED: was missing
+      shopAddress,      //  accept both
+      averagePrice,     //  FIXED: was missing
       experience,
       specialization
     } = req.body;
@@ -190,7 +190,7 @@ const register = async (req, res) => {
       isVerified: false
     };
     
-    // ✅ FIXED: Add role-specific profile data with correct field names
+    //  FIXED: Add role-specific profile data with correct field names
     if (role === 'customer' || !role) {
       if (age || gender || weight || height) {
         userData.customerProfile = {};
@@ -208,10 +208,10 @@ const register = async (req, res) => {
           userData.customerProfile.height = parseFloat(height);
         }
         
-        console.log('✅ Customer profile to save:', userData.customerProfile);
+        console.log(' Customer profile to save:', userData.customerProfile);
       }
     } else if (role === 'tailor') {
-      // ✅ FIXED: Build tailor profile with all fields
+      //  FIXED: Build tailor profile with all fields
       if (shopName || shopLocation || shopAddress || averagePrice || experience || specialization) {
         userData.tailorProfile = {};
         
@@ -219,14 +219,14 @@ const register = async (req, res) => {
           userData.tailorProfile.shopName = shopName;
         }
         
-        // ✅ Handle both shopLocation and shopAddress
+        //  Handle both shopLocation and shopAddress
         const location = shopLocation || shopAddress;
         if (location) {
           userData.tailorProfile.shopLocation = location;
           userData.tailorProfile.shopAddress = location;
         }
         
-        // ✅ FIXED: Save averagePrice
+        //  FIXED: Save averagePrice
         if (averagePrice) {
           userData.tailorProfile.averagePrice = parseFloat(averagePrice);
         }
@@ -239,13 +239,13 @@ const register = async (req, res) => {
           userData.tailorProfile.specialization = specialization;
         }
         
-        console.log('✅ Tailor profile to save:', userData.tailorProfile);
+        console.log(' Tailor profile to save:', userData.tailorProfile);
       }
     }
     
     // Create user
     const user = await User.create(userData);
-    console.log('✅ User created with tailor profile:', user.tailorProfile);
+    console.log(' User created with tailor profile:', user.tailorProfile);
     
     // Send OTP email
     try {
@@ -341,7 +341,7 @@ const verifyOtp = async (req, res) => {
       isVerified: user.isVerified,
       city: user.city,
       region: user.region,
-      tailorProfile: user.tailorProfile,    // ✅ Include full profile
+      tailorProfile: user.tailorProfile,    //  Include full profile
       customerProfile: user.customerProfile
     },
     token: accessToken
@@ -353,7 +353,7 @@ const updateProfile = async (req, res) => {
     const userId = req.user.userId || req.user.id;
     const { 
       name, 
-      email,  // ✅ ADDED: email support
+      email,  //  ADDED: email support
       phone, 
       city,
       region
@@ -375,7 +375,7 @@ const updateProfile = async (req, res) => {
     
     const updateData = {};
     if (name) updateData.name = name;
-    if (email) updateData.email = email; // ✅ ADDED
+    if (email) updateData.email = email; //  ADDED
     if (phone) updateData.phone = phone;
     if (city) {
       updateData.city = city;
@@ -389,7 +389,7 @@ const updateProfile = async (req, res) => {
     
     if (req.user.role === 'customer') {
       const { age, gender, weight, height, preferredStyles } = req.body;
-      // ✅ REMOVED: address field
+      //  REMOVED: address field
       
       if (age !== undefined || gender !== undefined || weight !== undefined || 
           height !== undefined || preferredStyles !== undefined) {
@@ -403,7 +403,7 @@ const updateProfile = async (req, res) => {
         if (gender !== undefined) updateData.customerProfile.gender = gender;
         if (weight !== undefined) updateData.customerProfile.weight = weight;
         if (height !== undefined) updateData.customerProfile.height = height;
-        // ✅ REMOVED: address handling
+        //  REMOVED: address handling
         if (preferredStyles !== undefined) updateData.customerProfile.preferredStyles = preferredStyles;
       }
     }
