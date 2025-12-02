@@ -29,6 +29,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import colors from '../../styles/colors';
 import { measurementLabels } from '../../utils/validation';
+import CollaborativeOrderEditor from '../../components/orders/CollaborativeOrderEditor';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -51,48 +52,52 @@ const OrderDetailsScreen = ({ route, navigation }) => {
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState(null);
 
+const [isEditorVisible, setIsEditorVisible] = useState(false);
+const [localOrder, setLocalOrder] = useState(null);
+
   const { user } = useContext(AuthContext);
   const { sendOrderNotification } = useContext(NotificationContext);
 
-  useEffect(() => {
-    loadOrderDetails();
-  }, [orderId]);
+ useEffect(() => {
+  loadOrderDetails();
+}, [orderId]);
 
-  const loadOrderDetails = async () => {
-    try {
-      setIsLoading(true);
-      let response;
-      if (user.role === 'customer') {
-        response = await getCustomerOrderDetails(orderId);
-      } else {
-        response = await getTailorOrderDetails(orderId);
-      }
-      
-      console.log('📦 Order loaded:', response.order);
-      setOrder(response.order);
-      
-      if (actionRequired) {
-        if (user.role === 'tailor' && response.order.status === 'pending') {
-          if (action === 'reject') {
-            handleRejectOrder();
-          } else {
-            setIsPriceModalVisible(true);
-          }
-        } else if (user.role === 'customer' && response.order.status === 'accepted') {
-          setIsStatusModalVisible(true);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Load order error:', error);
-      if (Platform.OS === 'web') {
-        alert('Failed to load order details');
-      } else {
-        Alert.alert('Error', 'Failed to load order details');
-      }
-    } finally {
-      setIsLoading(false);
+const loadOrderDetails = async () => {
+  try {
+    setIsLoading(true);
+    let response;
+    if (user.role === 'customer') {
+      response = await getCustomerOrderDetails(orderId);
+    } else {
+      response = await getTailorOrderDetails(orderId);
     }
-  };
+    
+    console.log('📦 Order loaded:', response.order);
+    setOrder(response.order);
+    setLocalOrder(response.order); // ADD THIS LINE
+    
+    if (actionRequired) {
+      if (user.role === 'tailor' && response.order.status === 'pending') {
+        if (action === 'reject') {
+          handleRejectOrder();
+        } else {
+          setIsPriceModalVisible(true);
+        }
+      } else if (user.role === 'customer' && response.order.status === 'accepted') {
+        setIsStatusModalVisible(true);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Load order error:', error);
+    if (Platform.OS === 'web') {
+      alert('Failed to load order details');
+    } else {
+      Alert.alert('Error', 'Failed to load order details');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleAcceptOrder = async (values) => {
     try {
@@ -227,6 +232,30 @@ const OrderDetailsScreen = ({ route, navigation }) => {
     setPendingStatusUpdate(newStatus);
     setIsStatusUpdateModalVisible(true);
   };
+
+const handleSaveChanges = (editedOrder) => {
+  console.log('💾 Saving changes:', editedOrder);
+  setLocalOrder(editedOrder);
+  setOrder(editedOrder);
+};
+
+const handleRequestChanges = (editedOrder, note) => {
+  console.log('📤 Requesting changes:', note);
+  setLocalOrder(editedOrder);
+  setOrder(editedOrder);
+};
+
+const handleApproveChanges = (editedOrder) => {
+  console.log('✅ Approving changes');
+  setLocalOrder(editedOrder);
+  setOrder(editedOrder);
+};
+
+const handleLockOrder = (editedOrder) => {
+  console.log('🔒 Locking order');
+  setLocalOrder(editedOrder);
+  setOrder(editedOrder);
+};
 
   const confirmStatusUpdate = async () => {
     if (!pendingStatusUpdate) return;
@@ -603,36 +632,49 @@ const OrderDetailsScreen = ({ route, navigation }) => {
       <View style={styles.actionsSection}>
         {renderTailorActionButton()}
         
-        {user.role === 'customer' && order.status === 'accepted' && (
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => {
-              console.log('Confirm Order pressed');
-              setIsStatusModalVisible(true);
-            }}
-            disabled={isUpdating}
-          >
-            {isUpdating ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Confirm Order</Text>
-            )}
-          </TouchableOpacity>
-        )}
+ {user.role === 'customer' && order.status === 'accepted' && (
+    <TouchableOpacity
+      style={styles.primaryButton}
+      onPress={() => {
+        console.log('Confirm Order pressed');
+        setIsStatusModalVisible(true);
+      }}
+      disabled={isUpdating}
+    >
+      {isUpdating ? (
+        <ActivityIndicator color={colors.white} />
+      ) : (
+        <Text style={styles.primaryButtonText}>Confirm Order</Text>
+      )}
+    </TouchableOpacity>
+  )}
 
-        <TouchableOpacity
-          style={styles.outlineButton}
-          onPress={() => navigation.navigate('Chat', {
-            userId: user.role === 'customer' ? order.tailor._id : order.customer._id,
-            name: user.role === 'customer' ? order.tailor.name : order.customer.name,
-            orderId: order._id
-          })}
-          disabled={isUpdating}
-        >
-          <Text style={styles.outlineButtonText}>
-            Message {user.role === 'customer' ? 'Tailor' : 'Customer'}
-          </Text>
-        </TouchableOpacity>
+  <TouchableOpacity
+    style={styles.outlineButton}
+    onPress={() => navigation.navigate('Chat', {
+      userId: user.role === 'customer' ? order.tailor._id : order.customer._id,
+      name: user.role === 'customer' ? order.tailor.name : order.customer.name,
+      orderId: order._id
+    })}
+    disabled={isUpdating}
+  >
+    <Text style={styles.outlineButtonText}>
+      Message {user.role === 'customer' ? 'Tailor' : 'Customer'}
+    </Text>
+  </TouchableOpacity>
+
+  {/* ✅ ADD EDIT BUTTON HERE */}
+  {!order.isLocked && ['confirmed', 'making'].includes(order.status) && (
+    <TouchableOpacity
+      style={styles.editButton}
+      onPress={() => setIsEditorVisible(true)}
+      disabled={isUpdating}
+    >
+      <Feather name="edit-3" size={18} color={colors.primary} />
+      <Text style={styles.editButtonText}>Edit Order</Text>
+    </TouchableOpacity>
+  )}
+
       </View>
 
       {/* Modals */}
@@ -774,10 +816,52 @@ const OrderDetailsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      <View style={styles.bottomSpacing} />
+<Modal visible={isImageModalVisible} transparent animationType="fade">
+  <View style={styles.imageModalOverlay}>
+    <TouchableOpacity 
+      style={styles.imageModalClose}
+      onPress={() => setIsImageModalVisible(false)}
+    >
+      <Feather name="x" size={32} color={colors.white} />
+    </TouchableOpacity>
+    {selectedImage && (
+      <>
+        <Text style={styles.imageModalTitle}>{selectedImage.title}</Text>
+        <Image 
+          source={{ uri: selectedImage.url }}
+          style={styles.imageModalContent}
+          resizeMode="contain"
+        />
+      </>
+    )}
+  </View>
+</Modal>
+
+{/* ✅ ADD COLLABORATIVE EDITOR MODAL HERE */}
+<Modal
+  visible={isEditorVisible}
+  animationType="slide"
+  onRequestClose={() => setIsEditorVisible(false)}
+>
+  <View style={{ flex: 1, paddingTop: 40 }}>
+    <CollaborativeOrderEditor
+      order={localOrder || order}
+      userRole={user.role}
+      onSaveChanges={handleSaveChanges}
+      onRequestChanges={handleRequestChanges}
+      onApproveChanges={handleApproveChanges}
+      onLockOrder={handleLockOrder}
+      onClose={() => setIsEditorVisible(false)}
+    />
+  </View>
+</Modal>
+ 
+
+            <View style={styles.bottomSpacing} />
     </ScrollView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1095,7 +1179,26 @@ const styles = StyleSheet.create({
     color: colors.black,
     marginTop: 16,
     marginBottom: 24
-  }
+  },
+// ✅ ADD THESE TWO STYLES HERE
+editButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  backgroundColor: colors.white,
+  borderWidth: 2,
+  borderColor: colors.primary,
+  paddingVertical: 14,
+  borderRadius: 8,
+  minHeight: 48
+},
+editButtonText: {
+  color: colors.primary,
+  fontSize: 16,
+  fontWeight: '600'
+}
+  
 });
 
 export default OrderDetailsScreen;
