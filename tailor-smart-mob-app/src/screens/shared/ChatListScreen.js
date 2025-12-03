@@ -11,6 +11,10 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { getAllConversations, getUnreadAdminMessagesCount } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
+
+import { NotificationContext } from '../../context/NotificationContext';
+import NotificationPanel from '../../components/notifications/NotificationPanel';
+
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import colors from '../../styles/colors';
 
@@ -20,6 +24,9 @@ const ChatListScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const { user } = useContext(AuthContext);
+
+const { notifications, markNotificationAsRead, getUnreadNotificationCount } = useContext(NotificationContext);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const loadConversations = async () => {
     try {
@@ -57,6 +64,26 @@ const ChatListScreen = ({ navigation }) => {
 
   const handleAdminMessagesPress = () => {
     navigation.navigate('AdminMessages');
+  };
+
+  const handleNotificationPress = (notification) => {
+    // Mark as read
+    markNotificationAsRead(notification.id);
+    
+    // Close panel
+    setShowNotifications(false);
+    
+    // Navigate based on notification type
+    if (notification.data?.screen === 'Chat' && notification.data?.senderId) {
+      navigation.navigate('Chat', {
+        userId: notification.data.senderId,
+        name: 'Chat'
+      });
+    } else if (notification.data?.screen === 'OrderDetails' && notification.data?.orderId) {
+      navigation.navigate('OrderDetails', {
+        orderId: notification.data.orderId
+      });
+    }
   };
 
   if (isLoading) {
@@ -106,7 +133,23 @@ const ChatListScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
       />
-
+{/* Notification Bell Button */}
+      <TouchableOpacity
+        style={styles.notificationButton}
+        onPress={() => setShowNotifications(true)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.notificationButtonContent}>
+          <Feather name="bell" size={24} color={colors.white} />
+          {getUnreadNotificationCount() > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {getUnreadNotificationCount()}
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
       {/* Admin Messages Button - Fixed Position */}
       <TouchableOpacity
         style={styles.adminMessageButton}
@@ -131,6 +174,14 @@ const ChatListScreen = ({ navigation }) => {
       >
         <Feather name="refresh-cw" size={24} color={colors.white} />
       </TouchableOpacity>
+
+      {/* Notification Panel */}
+      <NotificationPanel
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notifications}
+        onNotificationPress={handleNotificationPress}
+      />
     </View>
   );
 };
@@ -199,6 +250,48 @@ const styles = StyleSheet.create({
     fontWeight: 'bold'
   },
   
+// Notification Bell Button - Blue
+  notificationButton: {
+    position: 'absolute',
+    bottom: 140,
+    right: 20,
+    backgroundColor: '#3b82f6',
+    borderRadius: 50,
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8
+  },
+  notificationButtonContent: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    backgroundColor: '#ef4444',
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: colors.white
+  },
+  notificationBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: 'bold'
+  },
+
   // Admin Messages Button - Purple with Shield Icon
   adminMessageButton: {
     position: 'absolute',

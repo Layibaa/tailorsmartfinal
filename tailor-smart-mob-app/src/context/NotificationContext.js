@@ -21,10 +21,10 @@ export const NotificationProvider = ({ children }) => {
   const [expoPushToken, setExpoPushToken] = useState('');
   const [notification, setNotification] = useState(false);
   const [socket, setSocket] = useState(null);
-  const [unreadMessages, setUnreadMessages] = useState(0);
+const [unreadMessages, setUnreadMessages] = useState(0);
   const [orderUpdates, setOrderUpdates] = useState([]);
   const [messageListeners, setMessageListeners] = useState([]);
-  
+  const [notifications, setNotifications] = useState([]);
   const { user, userToken } = useContext(AuthContext);
 
   // Initialize socket.io connection
@@ -44,12 +44,40 @@ export const NotificationProvider = ({ children }) => {
       newSocket.emit('join', user.id);
       console.log(`Joined room: ${user.id}`);
       
-      // Listen for new messages
+  // Listen for new messages
       newSocket.on('new-message', (data) => {
         console.log('Received new message via socket:', data);
         
         // Increase unread count
         setUnreadMessages((prev) => prev + 1);
+        
+        // Add to notifications
+        // Listen for order updates
+      newSocket.on('order-update', (data) => {
+        // Add to order updates
+        setOrderUpdates((prev) => [data, ...prev]);
+        
+        // Add to notifications
+        const newNotification = {
+          id: Date.now().toString(),
+          type: 'order',
+          title: 'Order Update',
+          body: data.message,
+          timestamp: new Date().toISOString(),
+          read: false,
+          data: { screen: 'OrderDetails', orderId: data.orderId }
+        };
+        setNotifications(prev => [newNotification, ...prev]);
+        
+        // Show notification
+        schedulePushNotification({
+          title: 'Order Update',
+          body: data.message,
+          data: { screen: 'OrderDetails', orderId: data.orderId }
+        });
+      });
+
+        setNotifications(prev => [newNotification, ...prev]);
         
         // Notify all registered listeners
         messageListeners.forEach(listener => listener(data));
@@ -59,19 +87,6 @@ export const NotificationProvider = ({ children }) => {
           title: 'New Message',
           body: data.content,
           data: { screen: 'Chat', senderId: data.senderId }
-        });
-      });
-      
-      // Listen for order updates
-      newSocket.on('order-update', (data) => {
-        // Add to order updates
-        setOrderUpdates((prev) => [data, ...prev]);
-        
-        // Show notification
-        schedulePushNotification({
-          title: 'Order Update',
-          body: data.message,
-          data: { screen: 'OrderDetails', orderId: data.orderId }
         });
       });
 
@@ -164,7 +179,24 @@ const sendMessage = (receiverId, content) => {
       });
     }
   };
+// Mark notification as read
+  const markNotificationAsRead = (notificationId) => {
+    setNotifications(prev =>
+      prev.map(notif =>
+        notif.id === notificationId ? { ...notif, read: true } : notif
+      )
+    );
+  };
 
+  // Clear all notifications
+  const clearAllNotifications = () => {
+    setNotifications([]);
+  };
+
+  // Get unread notification count
+  const getUnreadNotificationCount = () => {
+    return notifications.filter(n => !n.read).length;
+  };
   return (
     <NotificationContext.Provider
       value={{
@@ -172,12 +204,16 @@ const sendMessage = (receiverId, content) => {
         notification,
         unreadMessages,
         orderUpdates,
+        notifications,
         sendMessage,
         sendOrderNotification,
         clearMessageNotifications,
         clearOrderNotification,
         addMessageListener,
-        removeMessageListener
+        removeMessageListener,
+        markNotificationAsRead,
+        clearAllNotifications,
+        getUnreadNotificationCount
       }}
     >
       {children}
