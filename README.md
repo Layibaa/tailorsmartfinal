@@ -4,4 +4,6 @@ TailorSmart is a cross-platform mobile application that connects customers with 
 
 License
 This project is licensed under the MIT License - see the LICENSE file for details
-[Uploading tailor smart video.pdf…]()
+
+
+[tailor smart video.pdf](https://github.com/user-attachments/files/24164487/tailor.smart.video.pdf)
